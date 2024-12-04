@@ -1,0 +1,9 @@
+[Unit]
+Description=Consent OAuth service
+
+[Service]
+ExecStart=/usr/local/bin/consent
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
