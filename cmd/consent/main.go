@@ -6,16 +6,19 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+
+	"git.sr.ht/~jakintosh/consent/internal/database"
+	"git.sr.ht/~jakintosh/consent/internal/routing"
 )
 
 func main() {
+	dbPath := readEnvVar("DB_PATH")
 	port := fmt.Sprintf(":%s", readEnvVar("PORT"))
-	http.HandleFunc("/", getRoot)
-	log.Fatal(http.ListenAndServe(port, nil))
-}
 
-func getRoot(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
+	database.Init(dbPath)
+	r := routing.BuildRouter()
+
+	log.Fatal(http.ListenAndServe(port, r))
 }
 
 func readEnvVar(name string) string {

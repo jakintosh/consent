@@ -10,6 +10,7 @@ if [ $IS_RUNNING -eq 0 ]; then
 fi
 
 sudo mkdir -p /etc/$NAME
+sudo mkdir -p /var/lib/$NAME  # for database
 
 sudo cp    $DEPLOY_DIR/usr/local/bin/$NAME  /usr/local/bin/
 sudo cp -r $DEPLOY_DIR/etc/systemd/system/. /etc/systemd/system/
