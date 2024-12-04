@@ -1,10 +1,13 @@
 NAME=${1:?"Service name required."} || exit 1
 DEPLOY_DIR=${2:?"Deployment directory required."} || exit 1
 
-# check if was running for later, stop service
+# check if was running
 sudo systemctl is-active --quiet $NAME
 IS_RUNNING=$?
-sudo systemctl stop $NAME
+
+if [ $IS_RUNNING -eq 0 ]; then
+  sudo systemctl stop $NAME
+fi
 
 sudo mkdir -p /etc/$NAME
 
