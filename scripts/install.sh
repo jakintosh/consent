@@ -1,3 +1,4 @@
+#!/usr/bin/bash
 NAME=${1:?"Service name required."} || exit 1
 DEPLOY_DIR=${2:?"Deployment directory required."} || exit 1
 

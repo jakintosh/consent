@@ -1,21 +1,25 @@
-package routing
+package api
 
 import (
 	"log"
 	"net/http"
 )
 
-func api_login(w http.ResponseWriter, r *http.Request) {
+func logErr(r *http.Request, msg string) {
+	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
+}
+
+func Login(w http.ResponseWriter, r *http.Request) {
 	log.Printf("login: %s %s\n", r.Method, r.RequestURI)
 	w.WriteHeader(http.StatusOK)
 }
 
-func api_logout(w http.ResponseWriter, r *http.Request) {
+func Logout(w http.ResponseWriter, r *http.Request) {
 	log.Printf("logout: %s %s\n", r.Method, r.RequestURI)
 	w.WriteHeader(http.StatusOK)
 }
 
-func api_refresh(w http.ResponseWriter, r *http.Request) {
+func Refresh(w http.ResponseWriter, r *http.Request) {
 	log.Printf("refresh: %s %s\n", r.Method, r.RequestURI)
 	w.WriteHeader(http.StatusOK)
 }
