@@ -5,13 +5,13 @@ import (
 	"net/http"
 )
 
-func logErr(r *http.Request, msg string) {
-	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
+func jsonErr(w http.ResponseWriter, r *http.Request) {
+	apiErr(r, "bad json")
+	w.WriteHeader(http.StatusBadRequest)
 }
 
-func Login(w http.ResponseWriter, r *http.Request) {
-	log.Printf("login: %s %s\n", r.Method, r.RequestURI)
-	w.WriteHeader(http.StatusOK)
+func apiErr(r *http.Request, msg string) {
+	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
 }
 
 func Logout(w http.ResponseWriter, r *http.Request) {

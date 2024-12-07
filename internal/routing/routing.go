@@ -8,10 +8,10 @@ import (
 func BuildRouter() *mux.Router {
 	r := mux.NewRouter()
 
+	// rout for api
 	s := r.PathPrefix("/api/").
 		Methods("POST").
 		Subrouter()
-
 	s.HandleFunc("/login", api.Login)
 	s.HandleFunc("/logout", api.Logout)
 	s.HandleFunc("/refresh", api.Refresh)

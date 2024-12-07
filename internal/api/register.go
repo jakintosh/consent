@@ -9,32 +9,31 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type RegisterRequest struct {
+type RegistrationRequest struct {
 	Handle   string `json:"username"`
 	Password string `json:"password"`
 }
 
 func Register(w http.ResponseWriter, r *http.Request) {
 
-	var req RegisterRequest
+	var req RegistrationRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		logErr(r, "bad json")
-		log.Printf("%s %s: bad json\n", r.Method, r.RequestURI)
+		jsonErr(w, r)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashPass, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logErr(r, "failed to hash password")
+		apiErr(r, "failed to hash password")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	err = database.InsertAccount(req.Handle, hashed)
+	err = database.InsertAccount(req.Handle, hashPass)
 	if err != nil {
-		logErr(r, "failed to insert user")
+		apiErr(r, "failed to insert user")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
