@@ -1,9 +1,16 @@
 package api
 
 import (
+	"crypto/ecdsa"
 	"log"
 	"net/http"
 )
+
+var signingKey *ecdsa.PrivateKey
+
+func Init(privateKey *ecdsa.PrivateKey) {
+	signingKey = privateKey
+}
 
 func jsonErr(w http.ResponseWriter, r *http.Request) {
 	apiErr(r, "bad json")

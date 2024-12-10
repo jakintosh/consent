@@ -20,20 +20,19 @@ func Init(dbPath string) {
 	_, err = db.Exec(`
 		PRAGMA foreign_keys = ON;
 		CREATE TABLE IF NOT EXISTS identity (
-			id INTEGER PRIMARY KEY,
-			handle TEXT UNIQUE,
-			password BLOB
+			id          INTEGER PRIMARY KEY,
+			handle      TEXT UNIQUE,
+			password    BLOB
 		);
 		CREATE TABLE IF NOT EXISTS refresh (
-			id INTEGER PRIMARY KEY,
-			owner INTEGER,
-			jwt TEXT,
-			expiration INTEGER,
-			FOREIGN_KEY (identity.id)
-				REFERENCES identity (id),
+			id          INTEGER PRIMARY KEY,
+			owner       INTEGER,
+			jwt         TEXT,
+			expiration  INTEGER,
+			FOREIGN KEY (owner) REFERENCES identity (id)
 		);
 	`)
 	if err != nil {
-		log.Fatalf("failed to init database schema\n")
+		log.Fatalf("failed to init database schema: %v\n", err)
 	}
 }

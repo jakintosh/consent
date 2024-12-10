@@ -1,8 +1,9 @@
 package api
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -25,15 +26,32 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !checkPassword(req.Handle, req.Password) {
-		apiErr(r, "password check failed")
+	err = authenticate(w, req.Handle, req.Password)
+	if err != nil {
+		apiErr(r, "failed to authenticate")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// refTk, accTk, err := generateTokens(req.Handle)
-
+	log.Printf("Login successful for %s", req.Handle)
 	w.WriteHeader(http.StatusOK)
+}
+
+func authenticate(w http.ResponseWriter, handle string, secret string) error {
+
+	if !checkPassword(handle, secret) {
+		return fmt.Errorf("password check failed")
+	}
+
+	refTk, accTk, err := generateTokens(handle)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Refresh Token: %s\n", refTk)
+	log.Printf("Access Token: %s\n", accTk)
+
+	return nil
 }
 
 func checkPassword(handle string, secret string) bool {
@@ -72,8 +90,7 @@ func genToken(handle string, issueTime time.Time, lifetime time.Duration) (strin
 		"exp": expiration,
 	}
 
-	key := &ecdsa.PrivateKey{}
 	return jwt.
 		NewWithClaims(jwt.SigningMethodES256, claims).
-		SignedString(key)
+		SignedString(signingKey)
 }
