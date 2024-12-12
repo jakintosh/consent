@@ -1,9 +1,7 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -17,72 +15,67 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type LoginResponse struct {
+	RefreshToken string `json:"refreshToken"`
+	AccessToken  string `json:"accessToken"`
+}
+
 func Login(w http.ResponseWriter, r *http.Request) {
 
 	var req LoginRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		jsonErr(w, r)
+	if ok := decodeRequest(&req, w, r); !ok {
 		return
 	}
 
-	err = authenticate(w, req.Handle, req.Password)
+	response, err := authenticate(req.Handle, req.Password)
 	if err != nil {
-		apiErr(r, "failed to authenticate")
+		logApiErr(r, fmt.Sprintf("'%s' failed to authenticate: %v", req.Handle, err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Login successful for %s", req.Handle)
-	w.WriteHeader(http.StatusOK)
+	returnJson(response, w)
 }
 
-func authenticate(w http.ResponseWriter, handle string, secret string) error {
+func authenticate(handle string, secret string) (*LoginResponse, error) {
 
-	if !checkPassword(handle, secret) {
-		return fmt.Errorf("password check failed")
-	}
-
-	refTk, accTk, err := generateTokens(handle)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Refresh Token: %s\n", refTk)
-	log.Printf("Access Token: %s\n", accTk)
-
-	return nil
-}
-
-func checkPassword(handle string, secret string) bool {
 	hash, err := database.GetSecret(handle)
 	if err != nil {
-		// TODO: log couldn't fetch secret
-		return false
+		return nil, fmt.Errorf("failed to retrieve secret: %v", err)
 	}
 
 	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
 	if err != nil {
-		// TODO: comparison failed
-		return false
+		return nil, fmt.Errorf("password does not match")
 	}
 
-	return true
+	refTk, accTk, err := generateTokens(handle)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &LoginResponse{
+		RefreshToken: refTk,
+		AccessToken:  accTk,
+	}
+
+	return response, nil
 }
 
 func generateTokens(handle string) (refresh string, access string, err error) {
 
 	now := time.Now()
-	if refresh, err = genToken(handle, now, time.Minute*30); err != nil {
+	if refresh, err = generateToken(handle, now, time.Minute*30); err != nil {
 		return
 	}
-	if access, err = genToken(handle, now, time.Hour*24); err != nil {
+	if access, err = generateToken(handle, now, time.Hour*24); err != nil {
 		return
 	}
 	return
 }
 
-func genToken(handle string, issueTime time.Time, lifetime time.Duration) (string, error) {
+func generateToken(handle string, issueTime time.Time, lifetime time.Duration) (string, error) {
+
 	expiration := issueTime.Add(lifetime).Unix()
 	claims := jwt.MapClaims{
 		"iss": "auth.studiopollinator.com",

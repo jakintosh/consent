@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -17,23 +16,20 @@ type RegistrationRequest struct {
 func Register(w http.ResponseWriter, r *http.Request) {
 
 	var req RegistrationRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		jsonErr(w, r)
-		w.WriteHeader(http.StatusBadRequest)
+	if ok := decodeRequest(&req, w, r); !ok {
 		return
 	}
 
 	hashPass, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		apiErr(r, "failed to hash password")
+		logApiErr(r, "failed to hash password")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	err = database.InsertAccount(req.Handle, hashPass)
 	if err != nil {
-		apiErr(r, "failed to insert user")
+		logApiErr(r, "failed to insert user")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
