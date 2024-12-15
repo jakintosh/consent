@@ -35,13 +35,3 @@ func returnJson(data any, w http.ResponseWriter) {
 func logApiErr(r *http.Request, msg string) {
 	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
 }
-
-func Logout(w http.ResponseWriter, r *http.Request) {
-	log.Printf("logout: %s %s\n", r.Method, r.RequestURI)
-	w.WriteHeader(http.StatusOK)
-}
-
-func Refresh(w http.ResponseWriter, r *http.Request) {
-	log.Printf("refresh: %s %s\n", r.Method, r.RequestURI)
-	w.WriteHeader(http.StatusOK)
-}

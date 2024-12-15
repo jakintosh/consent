@@ -49,41 +49,68 @@ func authenticate(handle string, secret string) (*LoginResponse, error) {
 		return nil, fmt.Errorf("password does not match")
 	}
 
-	refTk, accTk, err := generateTokens(handle)
+	issueTime := time.Now()
+
+	refresh := generateToken(handle, issueTime, time.Minute*30)
+	refreshStr, err := refresh.toString()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode refresh token: %v", err)
+	}
+
+	access := generateToken(handle, issueTime, time.Hour*24)
+	accessStr, err := access.toString()
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode access token: %v", err)
+	}
+
+	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert refresh token: %v", err)
 	}
 
 	response := &LoginResponse{
-		RefreshToken: refTk,
-		AccessToken:  accTk,
+		RefreshToken: refreshStr,
+		AccessToken:  accessStr,
 	}
-
 	return response, nil
 }
 
-func generateTokens(handle string) (refresh string, access string, err error) {
+func generateTokens(handle string) (*Token, *Token) {
 
 	now := time.Now()
-	if refresh, err = generateToken(handle, now, time.Minute*30); err != nil {
-		return
-	}
-	if access, err = generateToken(handle, now, time.Hour*24); err != nil {
-		return
-	}
-	return
+	refresh := generateToken(handle, now, time.Minute*30)
+	access := generateToken(handle, now, time.Hour*24)
+	return refresh, access
 }
 
-func generateToken(handle string, issueTime time.Time, lifetime time.Duration) (string, error) {
+type Token struct {
+	expiration int64
+	issuer     string
+	subject    string
+	claims     map[string]string
+}
 
-	expiration := issueTime.Add(lifetime).Unix()
+func (t Token) toString() (string, error) {
 	claims := jwt.MapClaims{
-		"iss": "auth.studiopollinator.com",
-		"sub": handle,
-		"exp": expiration,
+		"iss": t.issuer,
+		"sub": t.subject,
+		"exp": t.expiration,
 	}
-
 	return jwt.
 		NewWithClaims(jwt.SigningMethodES256, claims).
 		SignedString(signingKey)
+}
+
+func generateToken(
+	handle string,
+	issueTime time.Time,
+	lifetime time.Duration,
+) *Token {
+
+	return &Token{
+		expiration: issueTime.Add(lifetime).Unix(),
+		issuer:     "auth.studiopollinator.com",
+		subject:    handle,
+		claims:     make(map[string]string),
+	}
 }
