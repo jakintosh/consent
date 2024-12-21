@@ -29,7 +29,7 @@ func InsertRefresh(handle string, jwt string, expiration int64) error {
 		handle,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't insert into identity: %v", err)
+		return fmt.Errorf("couldn't insert into refresh: %v", err)
 	}
 	return nil
 }
@@ -63,7 +63,7 @@ func DeleteRefresh(jwt string) (bool, error) {
 		jwt,
 	)
 	if err != nil {
-		return false, fmt.Errorf("couldn't delete from identity: %v", err)
+		return false, fmt.Errorf("couldn't delete from refresh: %v", err)
 	}
 
 	deleted := !resultsEmpty(result)

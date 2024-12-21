@@ -27,67 +27,70 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := authenticate(req.Handle, req.Password)
+	err := authenticate(req.Handle, req.Password)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("'%s' failed to authenticate: %v", req.Handle, err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	returnJson(response, w)
-}
-
-func authenticate(handle string, secret string) (*LoginResponse, error) {
-
-	hash, err := database.GetSecret(handle)
+	refreshStr, accessStr, err := issueTokens(req.Handle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve secret: %v", err)
-	}
-
-	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
-	if err != nil {
-		return nil, fmt.Errorf("password does not match")
-	}
-
-	issueTime := time.Now()
-
-	refresh := generateToken(handle, issueTime, time.Minute*30)
-	refreshStr, err := refresh.toString()
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode refresh token: %v", err)
-	}
-
-	access := generateToken(handle, issueTime, time.Hour*24)
-	accessStr, err := access.toString()
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode access token: %v", err)
-	}
-
-	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert refresh token: %v", err)
+		logApiErr(r, fmt.Sprintf("failed to issue tokens: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	response := &LoginResponse{
 		RefreshToken: refreshStr,
 		AccessToken:  accessStr,
 	}
-	return response, nil
+
+	returnJson(response, w)
 }
 
-func generateTokens(handle string) (*Token, *Token) {
+func authenticate(handle string, secret string) error {
 
-	now := time.Now()
-	refresh := generateToken(handle, now, time.Minute*30)
-	access := generateToken(handle, now, time.Hour*24)
-	return refresh, access
+	hash, err := database.GetSecret(handle)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve secret: %v", err)
+	}
+
+	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
+	if err != nil {
+		return fmt.Errorf("password does not match")
+	}
+
+	return nil
+}
+
+func issueTokens(handle string) (string, string, error) {
+	issueTime := time.Now()
+
+	refresh := generateToken(handle, issueTime, time.Minute*30)
+	refreshStr, err := refresh.toString()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode refresh token: %v", err)
+	}
+
+	access := generateToken(handle, issueTime, time.Hour*24)
+	accessStr, err := access.toString()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to encode access token: %v", err)
+	}
+
+	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to insert refresh token: %v", err)
+	}
+
+	return refreshStr, accessStr, nil
 }
 
 type Token struct {
 	expiration int64
 	issuer     string
 	subject    string
-	claims     map[string]string
 }
 
 func (t Token) toString() (string, error) {
@@ -111,6 +114,5 @@ func generateToken(
 		expiration: issueTime.Add(lifetime).Unix(),
 		issuer:     "auth.studiopollinator.com",
 		subject:    handle,
-		claims:     make(map[string]string),
 	}
 }

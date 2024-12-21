@@ -2,12 +2,12 @@ package main
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
@@ -15,15 +15,16 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/routing"
 )
 
-var privateKey ecdsa.PrivateKey
-
 func main() {
 	dbPath := readEnvVar("DB_PATH")
 	port := fmt.Sprintf(":%s", readEnvVar("PORT"))
 
-	signingKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	// load credentials
+	credsDir := readEnvVar("CREDENTIALS_DIRECTORY")
+	signingKeyBytes := loadCredential("signing_key", credsDir)
+	signingKey, err := x509.ParseECPrivateKey(signingKeyBytes)
 	if err != nil {
-		log.Fatalf("couldn't generate required ECDSA private key")
+		log.Fatalf("failed to parse ecdsa signing key from signing_key: %v\n", err)
 	}
 
 	database.Init(dbPath)
@@ -49,4 +50,27 @@ func readEnvInt(name string) int {
 		log.Fatalf("required env var '%s' could not be parsed as integer (\"%v\")\n", name, v)
 	}
 	return i
+}
+
+func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
+	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
+	if err != nil {
+		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from PEM block\n")
+	}
+
+	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatalf("decodePublicKey: failed to cast parsed key as *ecdsa.PublicKey")
+	}
+
+	return ecdsaKey
+}
+
+func loadCredential(name string, credsDir string) []byte {
+	credPath := filepath.Join(credsDir, name)
+	cred, err := os.ReadFile(credPath)
+	if err != nil {
+		log.Fatalf("failed to load required credential '%s': %v\n", name, err)
+	}
+	return cred
 }
