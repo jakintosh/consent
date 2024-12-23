@@ -2,13 +2,17 @@ package routing
 
 import (
 	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/app"
 	"github.com/gorilla/mux"
 )
 
 func BuildRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	// rout for api
+	// ui routes
+	r.HandleFunc("/login", app.Login)
+
+	// router for api
 	s := r.PathPrefix("/api/").
 		Methods("POST").
 		Subrouter()

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/ecdsa"
 	"crypto/x509"
 	"fmt"
 	"log"
@@ -11,27 +10,34 @@ import (
 	"strconv"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/routing"
 )
 
 func main() {
 	dbPath := readEnvVar("DB_PATH")
+	templatePath := readEnvVar("TEMPLATE_PATH")
 	port := fmt.Sprintf(":%s", readEnvVar("PORT"))
 
 	// load credentials
 	credsDir := readEnvVar("CREDENTIALS_DIRECTORY")
-	signingKeyBytes := loadCredential("signing_key", credsDir)
-	signingKey, err := x509.ParseECPrivateKey(signingKeyBytes)
+	signingKeyRaw := loadCredential("signing_key", credsDir)
+	signingKey, err := x509.ParseECPrivateKey(signingKeyRaw)
 	if err != nil {
 		log.Fatalf("failed to parse ecdsa signing key from signing_key: %v\n", err)
 	}
 
 	database.Init(dbPath)
 	api.Init(signingKey)
+	app.Init(templatePath)
+
 	r := routing.BuildRouter()
 
-	log.Fatal(http.ListenAndServe(port, r))
+	err = http.ListenAndServe(port, r)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func readEnvVar(name string) string {
@@ -52,19 +58,19 @@ func readEnvInt(name string) int {
 	return i
 }
 
-func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
-	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
-	if err != nil {
-		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from PEM block\n")
-	}
+// func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
+// 	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
+// 	if err != nil {
+// 		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from PEM block\n")
+// 	}
 
-	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatalf("decodePublicKey: failed to cast parsed key as *ecdsa.PublicKey")
-	}
+// 	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
+// 	if !ok {
+// 		log.Fatalf("decodePublicKey: failed to cast parsed key as *ecdsa.PublicKey")
+// 	}
 
-	return ecdsaKey
-}
+// 	return ecdsaKey
+// }
 
 func loadCredential(name string, credsDir string) []byte {
 	credPath := filepath.Join(credsDir, name)
