@@ -1,8 +1,55 @@
+{{ define "style" }}
+		/* general form styling */
+		form.auth { max-width: 360px; margin: 2em auto; }
+		form.auth > * { display: block; display: flex; margin: 0.5em 0; }
+		form.auth > *:first-child { margin-block-start: 0; }
+		form.auth > *:last-child { margin-block-end: 0; }
+
+		/* form element styling */
+		form.auth h2 { color: #80f; }
+		form.auth input,
+		form.auth button { flex: 1; border: none; background-color: #0000; }
+		form.auth button { padding-block: 0.75em; font-weight: bold; color: white; background-color: #80f; }
+		form.auth > fieldset > legend { color: #80f; background-color: white;}
+
+		/* general focus */
+		form.auth input:focus,
+		form.auth button:focus { outline: none; background-color: #0000; }
+
+		/* button focus  */
+		form.auth button:hover { cursor: pointer; }
+		form.auth .focus:has(> button:focus),
+		form.auth .focus:has(> button:hover) { background-color: #80fb; }
+
+		/* input focus */
+		form.auth .focus:has(> input:focus) { color: #80f; background-color: #80f1; }
+
+		form.auth .border { border: 1pt solid #80f; }
+		form.auth .submit { margin-block: 1.5em; }
+
+		.mono { font-family: monospace; }
+{{ end }}
 {{ define "content" }}
-	<form>
-		<input type="text" name="username" placeholder="Username" required />
-		<input type="text" name="password" placeholder="Password" required />
-		<button type="submit">Log In</button>
+	<form class="auth" method="POST" action="/api/login">
+		<h2>Log In</h2>
+		<div>
+			<p>
+				Use your Pollinator ID to log in to <span class="mono">{{.Audience}}</span>.
+			</p>
+		</div>
+		<fieldset class="border focus">
+			<legend>Handle</legend>
+			<input type="text" name="handle" required />
+		</fieldset>
+		<fieldset class="border focus">
+			<legend>Secret</legend>
+		<input type="password" name="secret" required />
+		</fieldset>
+		<div class="border focus submit">
+			<input type="text" name="audience" value="{{.Audience}}" hidden required />
+			<input type="text" name="redirect_url" value="{{.Redirect}}" hidden required />
+			<button type="submit">Authenticate</button>
+		</div>
 	</form>
 {{ end }}
-{{- template "base.html" -}}
+{{- template "base.html" . -}}

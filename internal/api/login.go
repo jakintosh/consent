@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/database"
@@ -11,8 +12,10 @@ import (
 )
 
 type LoginRequest struct {
-	Handle   string `json:"username"`
-	Password string `json:"password"`
+	Handle   string `json:"handle"`
+	Secret   string `json:"secret"`
+	Audience string `json:"audience"`
+	Redirect string `json:"redirect_url"`
 }
 
 type LoginResponse struct {
@@ -20,33 +23,67 @@ type LoginResponse struct {
 	AccessToken  string `json:"accessToken"`
 }
 
-func Login(w http.ResponseWriter, r *http.Request) {
+func LoginForm(w http.ResponseWriter, r *http.Request) {
+	req := LoginRequest{
+		Handle:   r.FormValue("handle"),
+		Secret:   r.FormValue("secret"),
+		Audience: r.FormValue("audience"),
+		Redirect: r.FormValue("redirect_url"),
+	}
+	if req.Handle == "" ||
+		req.Secret == "" ||
+		req.Audience == "" ||
+		req.Redirect == "" {
+		logApiErr(r, "bad form request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	login(req, w, r)
+}
 
+func LoginJson(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if ok := decodeRequest(&req, w, r); !ok {
 		return
 	}
+	login(req, w, r)
+}
 
-	err := authenticate(req.Handle, req.Password)
+func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
+	err := authenticate(req.Handle, req.Secret)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("'%s' failed to authenticate: %v", req.Handle, err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	refreshStr, accessStr, err := issueTokens(req.Handle)
+	redirectUrl, err := url.Parse(req.Redirect)
 	if err != nil {
-		logApiErr(r, fmt.Sprintf("failed to issue tokens: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
+		logApiErr(r, "invalid redirectUrl")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	response := &LoginResponse{
-		RefreshToken: refreshStr,
-		AccessToken:  accessStr,
-	}
+	// rebuild the query
+	q := redirectUrl.Query()
+	q.Set("auth_code", "abc123")
+	redirectUrl.RawQuery = q.Encode()
 
-	returnJson(response, w)
+	http.Redirect(w, r, redirectUrl.String(), http.StatusSeeOther)
+
+	// refreshStr, accessStr, err := issueTokens(req.Handle)
+	// if err != nil {
+	// 	logApiErr(r, fmt.Sprintf("failed to issue tokens: %v", err))
+	// 	w.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// response := &LoginResponse{
+	// 	RefreshToken: refreshStr,
+	// 	AccessToken:  accessStr,
+	// }
+
+	// returnJson(response, w)
 }
 
 func authenticate(handle string, secret string) error {
@@ -58,7 +95,7 @@ func authenticate(handle string, secret string) error {
 
 	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
 	if err != nil {
-		return fmt.Errorf("password does not match")
+		return fmt.Errorf("secret does not match")
 	}
 
 	return nil
