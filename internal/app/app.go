@@ -1,9 +1,9 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 )
 
 func Init(tmplDir string) {
@@ -16,37 +16,46 @@ func Init(tmplDir string) {
 	}
 }
 
-type LoginPageModel struct {
-	Audience string
-	Redirect string
+func validateModel(r *http.Request, fields []string) (map[string]string, error) {
+	query := r.URL.Query()
+	model := make(map[string]string)
+	for _, field := range fields {
+		if _, ok := query[field]; !ok {
+			return nil, fmt.Errorf("model missing field '%s'", field)
+		}
+		value := query.Get(field)
+		if value == "" {
+			return nil, fmt.Errorf("model has empty field '%s'", field)
+		}
+		model[field] = value
+	}
+	return model, nil
 }
 
-func Login(w http.ResponseWriter, r *http.Request) {
-	if templates == nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Printf("app.Login(): templates are invalid\n")
-		return
-	}
-
-	params, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil {
-		log.Printf("app.Login(): parse query failure: %v\n", err)
-	}
-
-	model := LoginPageModel{
-		Audience: params.Get("audience"),
-		Redirect: params.Get("redirect_url"),
-	}
-
-	if model.Audience == "" || model.Redirect == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	err = templates.ExecuteTemplate(w, "login.html", model)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		log.Printf("app.Login(): template rendering issue: %v\n", err)
-		return
-	}
+func logAppErr(r *http.Request, msg string) {
+	log.Printf("%s %s: %s\n", r.Method, r.URL.String(), msg)
 }
+
+var badRequestHTML = `<!DOCTYPE html>
+<html>
+<head><style>:root{text-align:center;font-family:sans-serif;}</style></head>
+<body>
+<h1>Bad Request</h1>
+<hr />
+<p>You're using this page wrong.</p>
+</body>
+</html>
+`
+
+var serverErrorHTML = `<!DOCTYPE html>
+<html>
+<head>
+<style>:root{text-align:center;font-family:sans-serif;}</style>
+</head>
+<body>
+<h1>Server Error</h1>
+<hr />
+<p>The server ran into an issue; try again later.</p>
+</body>
+</html>
+`

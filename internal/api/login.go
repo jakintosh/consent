@@ -64,9 +64,16 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refreshToken, err := issueRefreshToken(req.Handle, time.Now())
+	if err != nil {
+		logApiErr(r, "failed to issue refresh token")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	// rebuild the query
 	q := redirectUrl.Query()
-	q.Set("auth_code", "abc123")
+	q.Set("auth_code", refreshToken)
 	redirectUrl.RawQuery = q.Encode()
 
 	http.Redirect(w, r, redirectUrl.String(), http.StatusSeeOther)
@@ -104,24 +111,33 @@ func authenticate(handle string, secret string) error {
 func issueTokens(handle string) (string, string, error) {
 	issueTime := time.Now()
 
-	refresh := generateToken(handle, issueTime, time.Minute*30)
-	refreshStr, err := refresh.toString()
-	if err != nil {
-		return "", "", fmt.Errorf("failed to encode refresh token: %v", err)
-	}
-
 	access := generateToken(handle, issueTime, time.Hour*24)
 	accessStr, err := access.toString()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to encode access token: %v", err)
 	}
 
-	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
+	refreshStr, err := issueRefreshToken(handle, issueTime)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to insert refresh token: %v", err)
+		return "", "", fmt.Errorf("failed to issue refresh token: %v", err)
 	}
 
 	return refreshStr, accessStr, nil
+}
+
+func issueRefreshToken(handle string, issueTime time.Time) (string, error) {
+	refresh := generateToken(handle, issueTime, time.Minute*30)
+	refreshStr, err := refresh.toString()
+	if err != nil {
+		return "", fmt.Errorf("failed to encode refresh token: %v", err)
+	}
+
+	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
+	if err != nil {
+		return "", fmt.Errorf("failed to insert refresh token: %v", err)
+	}
+
+	return refreshStr, nil
 }
 
 type Token struct {
