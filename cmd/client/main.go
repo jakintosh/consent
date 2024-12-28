@@ -20,7 +20,7 @@ var verificationKey *ecdsa.PublicKey
 
 func main() {
 
-	verificationKeyBytes := loadCredential("verification_key.der", "./secrets/")
+	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
 	verificationKey = decodePublicKey(verificationKeyBytes)
 
 	http.HandleFunc("/", home)

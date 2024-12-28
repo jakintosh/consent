@@ -41,7 +41,7 @@ func watchTemplates(directory string) error {
 	return nil
 }
 
-func handleWatcher(watcher *fsnotify.Watcher, reloadC chan<- struct{}) {
+func handleWatcher(watcher *fsnotify.Watcher, reload chan<- struct{}) {
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -49,7 +49,7 @@ func handleWatcher(watcher *fsnotify.Watcher, reloadC chan<- struct{}) {
 				return
 			}
 			if event.Has(fsnotify.Write | fsnotify.Remove | fsnotify.Create) {
-				reloadC <- struct{}{}
+				reload <- struct{}{}
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {

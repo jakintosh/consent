@@ -6,11 +6,11 @@ mkdir -p $DEPLOY_DIR/usr/local/share/$NAME
 mkdir -p $DEPLOY_DIR/etc/systemd/system
 mkdir -p $DEPLOY_DIR/etc/$NAME
 
-cp    ./scripts/install.sh $DEPLOY_DIR/
-cp    ./bin/$NAME          $DEPLOY_DIR/usr/local/bin/
-cp -r ./init/.             $DEPLOY_DIR/etc/systemd/system/
-cp -r ./templates          $DEPLOY_DIR/usr/local/share/$NAME/
+rsync -a ./scripts/install.sh $DEPLOY_DIR/
+rsync -a ./bin/$NAME          $DEPLOY_DIR/usr/local/bin/
+rsync -a ./init/.             $DEPLOY_DIR/etc/systemd/system/
+rsync -a ./resources/.        $DEPLOY_DIR/usr/local/share/$NAME/
 
-if [ -d ./secrets ]; then
-  cp -r ./secrets/.        $DEPLOY_DIR/etc/$NAME/
+if [ -d ./etc ]; then
+  rsync -a ./etc/.            $DEPLOY_DIR/etc/$NAME/
 fi

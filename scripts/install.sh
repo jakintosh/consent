@@ -14,10 +14,10 @@ sudo mkdir -p /etc/$NAME
 sudo mkdir -p /var/lib/$NAME          # for variable data
 sudo mkdir -p /usr/local/share/$NAME  # for static data
 
-sudo cp    $DEPLOY_DIR/usr/local/bin/$NAME     /usr/local/bin/
-sudo cp -r $DEPLOY_DIR/usr/local/share/$NAME/. /usr/local/share/$NAME/
-sudo cp -r $DEPLOY_DIR/etc/systemd/system/.    /etc/systemd/system/
-sudo cp -r $DEPLOY_DIR/etc/$NAME/.             /etc/$NAME/
+sudo rsync -a --del --chown=root:root $DEPLOY_DIR/usr/local/bin/$NAME     /usr/local/bin/
+sudo rsync -a --del --chown=root:root $DEPLOY_DIR/usr/local/share/$NAME/. /usr/local/share/$NAME/
+sudo rsync -a --del --chown=root:root $DEPLOY_DIR/etc/systemd/system/.    /etc/systemd/system/
+sudo rsync -a --del --chown=root:root $DEPLOY_DIR/etc/$NAME/.             /etc/$NAME/
 
 sudo systemctl daemon-reload
 

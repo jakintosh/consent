@@ -1,7 +1,7 @@
 package api
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 
 	"git.sr.ht/~jakintosh/consent/internal/database"
@@ -22,18 +22,17 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	hashPass, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logApiErr(r, "failed to hash password")
+		logApiErr(r, fmt.Sprintf("failed to hash password: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	err = database.InsertAccount(req.Handle, hashPass)
 	if err != nil {
-		logApiErr(r, "failed to insert user")
+		logApiErr(r, fmt.Sprintf("failed to insert user: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("%s %s: %v\n", r.Method, r.RequestURI, req)
 	w.WriteHeader(http.StatusOK)
 }

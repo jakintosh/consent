@@ -1,10 +1,5 @@
 package database
 
-import (
-	"fmt"
-	"log"
-)
-
 func initIdentity() error {
 	return initTable(
 		"identity",
@@ -24,11 +19,7 @@ func InsertAccount(handle string, secret []byte) error {
 		handle,
 		secret,
 	)
-	if err != nil {
-		return fmt.Errorf("couldn't insert into identity: %v", err)
-	}
-	log.Printf("insert into identity: %s", handle)
-	return nil
+	return err
 }
 
 func GetSecret(handle string) ([]byte, error) {
@@ -42,8 +33,5 @@ func GetSecret(handle string) ([]byte, error) {
 
 	var secret []byte
 	err := row.Scan(&secret)
-	if err != nil {
-		return nil, err
-	}
-	return secret, nil
+	return secret, err
 }

@@ -23,4 +23,4 @@ $dpl_src/install.sh $name $dpl_src     || exit 1
 
 # clean up deployment files
 echo "Cleaning Up"
-rm -r $dpl_src
+sudo rm -r $dpl_src

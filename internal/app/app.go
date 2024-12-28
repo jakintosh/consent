@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,7 +17,19 @@ func Init(tmplDir string) {
 	}
 }
 
-func validateModel(r *http.Request, fields []string) (map[string]string, error) {
+func returnTemplate(name string, data any, w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	err := templates.ExecuteTemplate(&buf, name, data)
+	if err != nil {
+		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(serverErrorHTML))
+		return
+	}
+	w.Write(buf.Bytes())
+}
+
+func validateQuery(r *http.Request, fields []string) (map[string]string, error) {
 	query := r.URL.Query()
 	model := make(map[string]string)
 	for _, field := range fields {

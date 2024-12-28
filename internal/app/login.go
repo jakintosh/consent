@@ -3,12 +3,9 @@ package app
 import (
 	"fmt"
 	"net/http"
-)
 
-var loginPageSchema = []string{
-	"audience",
-	"redirect_url",
-}
+	"git.sr.ht/~jakintosh/consent/internal/resources"
+)
 
 func Login(w http.ResponseWriter, r *http.Request) {
 	if templates == nil {
@@ -18,19 +15,21 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	model, err := validateModel(r, loginPageSchema)
-	if err != nil {
-		logAppErr(r, fmt.Sprintf("couldn't build page model: %v", err))
+	serviceName := r.URL.Query().Get("service")
+	if serviceName == "" {
+		logAppErr(r, fmt.Sprintf("missing required query param 'service'"))
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(badRequestHTML))
 		return
 	}
 
-	err = templates.ExecuteTemplate(w, "login.html", model)
-	if err != nil {
-		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(serverErrorHTML))
+	service := resources.GetService(serviceName)
+	if service == nil {
+		logAppErr(r, fmt.Sprintf("requested service '%s' not registered", serviceName))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(badRequestHTML))
 		return
 	}
+
+	returnTemplate("login.html", service, w, r)
 }

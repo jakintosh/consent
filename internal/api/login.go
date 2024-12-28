@@ -59,14 +59,14 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 
 	redirectUrl, err := url.Parse(req.Redirect)
 	if err != nil {
-		logApiErr(r, "invalid redirectUrl")
+		logApiErr(r, fmt.Sprintf("invalid redirectUrl: %v", err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	refreshToken, err := issueRefreshToken(req.Handle, time.Now())
 	if err != nil {
-		logApiErr(r, "failed to issue refresh token")
+		logApiErr(r, fmt.Sprintf("failed to issue refresh token: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
