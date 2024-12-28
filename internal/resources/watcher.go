@@ -1,29 +1,13 @@
-package app
+package resources
 
 import (
-	"html/template"
 	"log"
-	"path/filepath"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 )
 
-var templateDir string
-var templates *template.Template
-
-func loadTemplates(directory string) {
-	var err error
-	templates, err = template.ParseGlob(filepath.Join(templateDir, "*"))
-	if err != nil {
-		templates = nil
-		log.Printf("Failed to parse templates from '%s': %v", directory, err)
-	}
-
-	log.Printf("Loaded templates from %v\n", directory)
-}
-
-func watchTemplates(directory string) error {
+func watchDir(directory string, callback func()) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -35,9 +19,8 @@ func watchTemplates(directory string) error {
 	}
 
 	reload := make(chan struct{})
-	go scheduleTemplateReload(reload)
+	go scheduleReload(reload, callback)
 	go handleWatcher(watcher, reload)
-
 	return nil
 }
 
@@ -55,13 +38,12 @@ func handleWatcher(watcher *fsnotify.Watcher, reload chan<- struct{}) {
 			if !ok {
 				return
 			}
-			log.Printf("template watcher error: %v\n", err)
+			log.Printf("resource watcher error: %v\n", err)
 		}
 	}
-
 }
 
-func scheduleTemplateReload(reload <-chan struct{}) {
+func scheduleReload(reload <-chan struct{}, callback func()) {
 	var timer *time.Timer = nil
 	var c <-chan time.Time = nil
 	duration := time.Millisecond * 500
@@ -78,7 +60,7 @@ func scheduleTemplateReload(reload <-chan struct{}) {
 		case <-c:
 			c = nil
 			timer = nil
-			loadTemplates(templateDir)
+			callback()
 		}
 	}
 }

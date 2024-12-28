@@ -67,7 +67,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 		html = `<!DOCTYPE html>
 <html>
 <body>
-<a href="http://localhost:9001/login?audience=http://localhost:10000&redirect_url=http://localhost:10000/api/authorize">Log In with Pollinator</a>
+<a href="http://localhost:9001/login?service=example@localhost">Log In with Pollinator</a>
 </body>
 </html>`
 	}

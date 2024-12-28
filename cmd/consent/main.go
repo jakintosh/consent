@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/resources"
 	"git.sr.ht/~jakintosh/consent/internal/routing"
@@ -18,7 +17,7 @@ import (
 
 func main() {
 	dbPath := readEnvVar("DB_PATH")
-	templatePath := readEnvVar("TEMPLATE_PATH")
+	templatesPath := readEnvVar("TEMPLATES_PATH")
 	servicesPath := readEnvVar("SERVICES_PATH")
 	port := fmt.Sprintf(":%s", readEnvVar("PORT"))
 
@@ -31,9 +30,8 @@ func main() {
 	}
 
 	database.Init(dbPath)
-	resources.Init(servicesPath)
+	resources.Init(templatesPath, servicesPath)
 	api.Init(signingKey)
-	app.Init(templatePath)
 
 	r := routing.BuildRouter()
 

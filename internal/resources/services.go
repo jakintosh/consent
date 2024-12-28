@@ -6,9 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"time"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 type ServiceDefinition struct {
@@ -32,7 +29,9 @@ func initServices(servicesDirPath string) {
 	servicesDir = servicesDirPath
 	loadServices(servicesDir)
 
-	err := watchServices(servicesDir)
+	err := watchDir(servicesDir, func() {
+		loadServices(servicesDir)
+	})
 	if err != nil {
 		log.Fatalf("Failed to start service watcher: %v", err)
 	}
@@ -62,7 +61,7 @@ func loadServices(servicesDirPath string) {
 		services[name] = service
 	}
 
-	log.Printf("Loaded services from %s: %v\n", servicesDirPath, services)
+	log.Printf("Loaded services from %s\n", servicesDirPath)
 }
 
 func loadService(serviceDefPath string) (*ServiceDefinition, error) {
@@ -77,64 +76,4 @@ func loadService(serviceDefPath string) (*ServiceDefinition, error) {
 		return nil, fmt.Errorf("failed to parse json of '%s': %v", serviceDefPath, err)
 	}
 	return service, nil
-}
-
-func watchServices(directory string) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-
-	err = watcher.Add(directory)
-	if err != nil {
-		return err
-	}
-
-	reload := make(chan struct{})
-	go scheduleServicesReload(reload)
-	go handleWatcher(watcher, reload)
-
-	return nil
-}
-
-func handleWatcher(watcher *fsnotify.Watcher, reload chan<- struct{}) {
-	for {
-		select {
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-			if event.Has(fsnotify.Write | fsnotify.Remove | fsnotify.Create) {
-				reload <- struct{}{}
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			log.Printf("service watcher error: %v\n", err)
-		}
-	}
-
-}
-
-func scheduleServicesReload(reload <-chan struct{}) {
-	var timer *time.Timer = nil
-	var c <-chan time.Time = nil
-	duration := time.Millisecond * 500
-	for {
-		select {
-		case <-reload:
-			if timer != nil {
-				timer.Reset(duration)
-			} else {
-				timer = time.NewTimer(duration)
-				c = timer.C
-			}
-
-		case <-c:
-			c = nil
-			timer = nil
-			loadServices(servicesDir)
-		}
-	}
 }

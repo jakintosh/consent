@@ -1,32 +1,22 @@
 package app
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net/http"
+
+	"git.sr.ht/~jakintosh/consent/internal/resources"
 )
 
-func Init(tmplDir string) {
-	templateDir = tmplDir
-	loadTemplates(templateDir)
-
-	err := watchTemplates(tmplDir)
-	if err != nil {
-		log.Fatalf("Failed to start template watcher: %v", err)
-	}
-}
-
 func returnTemplate(name string, data any, w http.ResponseWriter, r *http.Request) {
-	var buf bytes.Buffer
-	err := templates.ExecuteTemplate(&buf, name, data)
+	bytes, err := resources.RenderTemplate(name, data)
 	if err != nil {
 		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(serverErrorHTML))
+		w.Write(serverErrorHTML)
 		return
 	}
-	w.Write(buf.Bytes())
+	w.Write(bytes)
 }
 
 func validateQuery(r *http.Request, fields []string) (map[string]string, error) {
@@ -49,26 +39,12 @@ func logAppErr(r *http.Request, msg string) {
 	log.Printf("%s %s: %s\n", r.Method, r.URL.String(), msg)
 }
 
-var badRequestHTML = `<!DOCTYPE html>
-<html>
+var badRequestHTML = []byte(`<!DOCTYPE html><html>
 <head><style>:root{text-align:center;font-family:sans-serif;}</style></head>
-<body>
-<h1>Bad Request</h1>
-<hr />
-<p>You're using this page wrong.</p>
-</body>
-</html>
-`
+<body><h1>Bad Request</h1><hr /><p>You're using this page wrong.</p></body>
+</html>`)
 
-var serverErrorHTML = `<!DOCTYPE html>
-<html>
-<head>
-<style>:root{text-align:center;font-family:sans-serif;}</style>
-</head>
-<body>
-<h1>Server Error</h1>
-<hr />
-<p>The server ran into an issue; try again later.</p>
-</body>
-</html>
-`
+var serverErrorHTML = []byte(`<!DOCTYPE html><html>
+<head><style>:root{text-align:center;font-family:sans-serif;}</style></head>
+<body><h1>Server Error</h1><hr /><p>The server ran into an issue; try again later.</p></body>
+</html>`)

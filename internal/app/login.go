@@ -8,18 +8,11 @@ import (
 )
 
 func Login(w http.ResponseWriter, r *http.Request) {
-	if templates == nil {
-		logAppErr(r, "templates are invalid")
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(serverErrorHTML))
-		return
-	}
-
 	serviceName := r.URL.Query().Get("service")
 	if serviceName == "" {
 		logAppErr(r, fmt.Sprintf("missing required query param 'service'"))
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(badRequestHTML))
+		w.Write(badRequestHTML)
 		return
 	}
 
@@ -27,7 +20,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	if service == nil {
 		logAppErr(r, fmt.Sprintf("requested service '%s' not registered", serviceName))
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(badRequestHTML))
+		w.Write(badRequestHTML)
 		return
 	}
 

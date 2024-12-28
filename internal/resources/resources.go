@@ -1,6 +1,7 @@
 package resources
 
-func Init(servicesPath string) {
+func Init(templatesPath string, servicesPath string) {
 
+	initTemplates(templatesPath)
 	initServices(servicesPath)
 }
