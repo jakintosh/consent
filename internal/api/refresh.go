@@ -49,7 +49,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	accessToken, err := tokens.IssueAccessToken(
 		token.Subject(),
 		token.Audience(),
-		time.Minute*30,
+		time.Second*10,
 	)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("couldn't issue access token: %v", err))

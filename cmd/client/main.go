@@ -1,32 +1,27 @@
 package main
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/tokens"
+	"git.sr.ht/~jakintosh/consent/pkg/client"
 )
 
-var verificationKey *ecdsa.PublicKey
-
 func main() {
-
 	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
-	verificationKey = decodePublicKey(verificationKeyBytes)
-	tokens.InitPublic(verificationKey, "auth.studiopollinator.com")
+	verificationKey := decodePublicKey(verificationKeyBytes)
+
+	client.Init("http://localhost:9001", "auth.studiopollinator.com", verificationKey)
 
 	http.HandleFunc("/", home)
-	http.HandleFunc("/api/authorize", authorize)
 	http.HandleFunc("/api/example", example)
+
+	http.HandleFunc("/api/authorize", client.HandleAuthorizationCode)
 
 	err := http.ListenAndServe(":10000", nil)
 	if err != nil {
@@ -34,149 +29,36 @@ func main() {
 	}
 }
 
-func authenticate(accessTokenCookie *http.Cookie, err error) *tokens.AccessToken {
-	if err != nil {
-		return nil
-	}
-
-	tokenStr := accessTokenCookie.Value
-	if tokenStr == "" {
-		return nil
-	}
-
-	token := new(tokens.AccessToken)
-	if err := token.Decode(tokenStr); err != nil {
-		return nil
-	}
-
-	return token
-}
-
 func home(w http.ResponseWriter, r *http.Request) {
-	var html string
-	if token := authenticate(r.Cookie("accessToken")); token != nil {
-		html = fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<body>
-<a href="http://localhost:10000/api/example">Example API Call</a>
-</body>
-</html>`)
-	} else {
-		html = `<!DOCTYPE html>
-<html>
-<body>
-<a href="http://localhost:9001/login?service=example@localhost">Log In with Pollinator</a>
-</body>
-</html>`
+	token, err := client.VerifyAuthorization(r)
+	if err != nil {
+		client.RefreshAuthorization(w, r)
 	}
-	w.Write([]byte(html))
-}
-func authorize(w http.ResponseWriter, r *http.Request) {
-	queries := r.URL.Query()
-	code := queries.Get("auth_code")
-	if code == "" {
-		log.Printf("error: called %s without 'auth_code' query param", r.RequestURI)
+
+	if token != nil {
+		w.Write([]byte(homeAuth))
 	} else {
-		accessTokenCookie, refreshTokenCookie, err := refreshTokenCookies(code)
-		if err != nil {
-			log.Printf("error: failed to refresh token cookies: %v", err)
-		} else {
-			http.SetCookie(w, accessTokenCookie)
-			http.SetCookie(w, refreshTokenCookie)
-		}
+		w.Write([]byte(homeUnauth))
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
+
 func example(w http.ResponseWriter, r *http.Request) {
-	var html string
-	if token := authenticate(r.Cookie("accessToken")); token != nil {
-		html = fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<body>
-<p>Secret logged in page for %s!</p>
-<form>
-	<input hidden value="%s"/>
-</form>
-</body>
-</html>`, token.Subject(), token.Secret())
+	token, err := client.VerifyAuthorization(r)
+	if err != nil {
+		client.RefreshAuthorization(w, r)
+	}
+
+	if token != nil {
+		w.Write([]byte(fmt.Sprintf(exampleAuth, token.Subject(), token.Secret())))
 	} else {
-		html = `<!DOCTYPE html>
-<html>
-<body>
-<p>You are not logged in.</p>
-</body>
-</html>`
+		w.Write([]byte(exampleUnauth))
 	}
-	w.Write([]byte(html))
-}
-
-func postRefresh(baseURL string, token string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/api/refresh", baseURL)
-	json := fmt.Sprintf(`{ "refreshToken" : "%s" }`, token)
-	body := bytes.NewBuffer([]byte(json))
-	return http.Post(url, "application/json", body)
-}
-
-func refreshTokenCookies(code string) (*http.Cookie, *http.Cookie, error) {
-
-	response, err := postRefresh("http://localhost:9001", code)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to post refresh: %v", err)
-	}
-
-	var res api.RefreshResponse
-	if ok := decodeResponse(&res, response); !ok {
-		return nil, nil, fmt.Errorf("failed to decode refresh response: %v", err)
-	}
-
-	accessToken := new(tokens.AccessToken)
-	if err := accessToken.Decode(res.AccessToken); err != nil {
-		return nil, nil, fmt.Errorf("failed to decode access token: %v", err)
-	}
-
-	refreshToken := new(tokens.RefreshToken)
-	if err := refreshToken.Decode(res.RefreshToken); err != nil {
-		return nil, nil, fmt.Errorf("failed to decode refresh token: %v", err)
-	}
-
-	now := time.Now()
-	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
-	refreshMaxAge := refreshToken.Expiration().Sub(now).Seconds()
-
-	accessTokenCookie := &http.Cookie{
-		Name:     "accessToken",
-		Path:     "/",
-		Value:    res.AccessToken,
-		MaxAge:   int(accessMaxAge),
-		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
-		HttpOnly: true,
-	}
-	refreshTokenCookie := &http.Cookie{
-		Name:     "refreshToken",
-		Path:     "/",
-		Value:    res.RefreshToken,
-		MaxAge:   int(refreshMaxAge),
-		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
-		HttpOnly: true,
-	}
-
-	return accessTokenCookie, refreshTokenCookie, nil
-}
-
-func decodeResponse[T any](res *T, r *http.Response) bool {
-	err := json.NewDecoder(r.Body).Decode(&res)
-	if err != nil {
-		return false
-	}
-	return true
 }
 
 func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
 	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
 	if err != nil {
-		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from PEM block\n")
+		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from DER")
 	}
 
 	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
@@ -191,7 +73,38 @@ func loadCredential(name string, credsDir string) []byte {
 	credPath := filepath.Join(credsDir, name)
 	cred, err := os.ReadFile(credPath)
 	if err != nil {
-		log.Fatalf("failed to load required credential '%s': %v\n", name, err)
+		log.Fatalf("failed to load required credential '%s': %v", name, err)
 	}
 	return cred
 }
+
+const homeAuth string = `<!DOCTYPE html>
+<html>
+<body>
+<a href="http://localhost:10000/api/example">Example API Call</a>
+</body>
+</html>`
+
+const homeUnauth string = `<!DOCTYPE html>
+<html>
+<body>
+<a href="http://localhost:9001/login?service=example@localhost">Log In with Pollinator</a>
+</body>
+</html>`
+
+const exampleAuth string = `<!DOCTYPE html>
+<html>
+<body>
+<p>Secret logged in page for %s!</p>
+<form>
+	<input hidden value="%s"/>
+</form>
+</body>
+</html>`
+
+const exampleUnauth string = `<!DOCTYPE html>
+<html>
+<body>
+<p>You are not logged in.</p>
+</body>
+</html>`
