@@ -17,6 +17,10 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	service := resources.GetService(serviceName)
+	data := map[string]string{
+		"Display": service.Display,
+		"Name":    serviceName,
+	}
 	if service == nil {
 		logAppErr(r, fmt.Sprintf("requested service '%s' not registered", serviceName))
 		w.WriteHeader(http.StatusBadRequest)
@@ -24,5 +28,5 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	returnTemplate("login.html", service, w, r)
+	returnTemplate("login.html", data, w, r)
 }

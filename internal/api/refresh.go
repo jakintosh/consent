@@ -1,12 +1,12 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/database"
-	"github.com/golang-jwt/jwt/v5"
+	"git.sr.ht/~jakintosh/consent/internal/tokens"
 )
 
 type RefreshRequest struct {
@@ -19,76 +19,59 @@ type RefreshResponse struct {
 }
 
 func Refresh(w http.ResponseWriter, r *http.Request) {
-
 	var req RefreshRequest
 	if ok := decodeRequest(&req, w, r); !ok {
 		return
 	}
 
+	// read the token in the request
+	token := tokens.RefreshToken{}
+	if err := token.Decode(req.RefreshToken); err != nil {
+		logApiErr(r, fmt.Sprintf("couldn't decode refresh token: %v", err))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// consume the token from the db
 	ok, err := database.DeleteRefresh(req.RefreshToken)
 	if !ok {
-		logApiErr(r, "refresh token not found")
+		logApiErr(r, "refresh token couldn't be deleted: not found")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if err != nil {
-		logApiErr(r, fmt.Sprintf("refresh couldn't be deleted: %v", err))
+		logApiErr(r, fmt.Sprintf("refresh token couldn't be deleted: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	token, err := parseToken(req.RefreshToken)
+	// issue new access token
+	accessToken, err := tokens.IssueAccessToken(
+		token.Subject(),
+		token.Audience(),
+		time.Minute*30,
+	)
 	if err != nil {
-		logApiErr(r, fmt.Sprintf("token parse error: %v\n", err))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	subject, err := token.Claims.GetSubject()
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("couldn't parse subject claim: %v", err))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	refresh, access, err := issueTokens(subject)
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("couldn't issue tokens: %v", err))
+		logApiErr(r, fmt.Sprintf("couldn't issue access token: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	response := &RefreshResponse{
-		RefreshToken: refresh,
-		AccessToken:  access,
-	}
-
-	returnJson(response, w)
-}
-
-func parseToken(tokenStr string) (*jwt.Token, error) {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-		return &signingKey.PublicKey, nil
-	})
-
+	// issue new refresh token
+	refreshToken, err := tokens.IssueRefreshToken(
+		token.Subject(),
+		token.Audience(),
+		time.Hour*24,
+	)
 	if err != nil {
-		switch {
-		case errors.Is(err, jwt.ErrTokenMalformed):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenSignatureInvalid):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenExpired):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenNotValidYet):
-			return nil, err
-		default:
-			return nil, err
-		}
+		logApiErr(r, fmt.Sprintf("couldn't issue refresh token: %v", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	if !token.Valid {
-		return nil, fmt.Errorf("Token is not valid")
+	response := RefreshResponse{
+		RefreshToken: refreshToken.Encoded(),
+		AccessToken:  accessToken.Encoded(),
 	}
-
-	return token, nil
+	returnJson(&response, w)
 }

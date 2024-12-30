@@ -46,8 +46,7 @@
 		<input type="password" name="secret" required />
 		</fieldset>
 		<div class="border focus submit">
-			<input type="text" name="audience" value="{{.Audience}}" hidden required />
-			<input type="text" name="redirect_url" value="{{.Redirect}}" hidden required />
+			<input type="text" name="service" value="{{.Name}}" hidden required />
 			<button type="submit">Authenticate</button>
 		</div>
 	</form>

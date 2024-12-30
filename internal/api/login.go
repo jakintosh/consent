@@ -7,15 +7,15 @@ import (
 	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/database"
-	"github.com/golang-jwt/jwt/v5"
+	"git.sr.ht/~jakintosh/consent/internal/resources"
+	"git.sr.ht/~jakintosh/consent/internal/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type LoginRequest struct {
-	Handle   string `json:"handle"`
-	Secret   string `json:"secret"`
-	Audience string `json:"audience"`
-	Redirect string `json:"redirect_url"`
+	Handle  string `json:"handle"`
+	Secret  string `json:"secret"`
+	Service string `json:"service"`
 }
 
 type LoginResponse struct {
@@ -25,15 +25,13 @@ type LoginResponse struct {
 
 func LoginForm(w http.ResponseWriter, r *http.Request) {
 	req := LoginRequest{
-		Handle:   r.FormValue("handle"),
-		Secret:   r.FormValue("secret"),
-		Audience: r.FormValue("audience"),
-		Redirect: r.FormValue("redirect_url"),
+		Handle:  r.FormValue("handle"),
+		Secret:  r.FormValue("secret"),
+		Service: r.FormValue("service"),
 	}
 	if req.Handle == "" ||
 		req.Secret == "" ||
-		req.Audience == "" ||
-		req.Redirect == "" {
+		req.Service == "" {
 		logApiErr(r, "bad form request")
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -57,44 +55,30 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectUrl, err := url.Parse(req.Redirect)
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("invalid redirectUrl: %v", err))
+	service := resources.GetService(req.Service)
+	if service == nil {
+		logApiErr(r, fmt.Sprintf("invalid service: %s", req.Service))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	refreshToken, err := issueRefreshToken(req.Handle, time.Now())
+	refreshToken, err := tokens.IssueRefreshToken(
+		req.Handle,
+		[]string{service.Audience},
+		time.Second*10,
+	)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("failed to issue refresh token: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// rebuild the query
-	q := redirectUrl.Query()
-	q.Set("auth_code", refreshToken)
-	redirectUrl.RawQuery = q.Encode()
+	redirectUrl := buildRedirectUrlString(service.Redirect, refreshToken.Encoded())
 
-	http.Redirect(w, r, redirectUrl.String(), http.StatusSeeOther)
-
-	// refreshStr, accessStr, err := issueTokens(req.Handle)
-	// if err != nil {
-	// 	logApiErr(r, fmt.Sprintf("failed to issue tokens: %v", err))
-	// 	w.WriteHeader(http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// response := &LoginResponse{
-	// 	RefreshToken: refreshStr,
-	// 	AccessToken:  accessStr,
-	// }
-
-	// returnJson(response, w)
+	http.Redirect(w, r, redirectUrl, http.StatusSeeOther)
 }
 
 func authenticate(handle string, secret string) error {
-
 	hash, err := database.GetSecret(handle)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve secret: %v", err)
@@ -108,64 +92,10 @@ func authenticate(handle string, secret string) error {
 	return nil
 }
 
-func issueTokens(handle string) (string, string, error) {
-	issueTime := time.Now()
-
-	access := generateToken(handle, issueTime, time.Hour*24)
-	accessStr, err := access.toString()
-	if err != nil {
-		return "", "", fmt.Errorf("failed to encode access token: %v", err)
-	}
-
-	refreshStr, err := issueRefreshToken(handle, issueTime)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to issue refresh token: %v", err)
-	}
-
-	return refreshStr, accessStr, nil
-}
-
-func issueRefreshToken(handle string, issueTime time.Time) (string, error) {
-	refresh := generateToken(handle, issueTime, time.Minute*30)
-	refreshStr, err := refresh.toString()
-	if err != nil {
-		return "", fmt.Errorf("failed to encode refresh token: %v", err)
-	}
-
-	err = database.InsertRefresh(handle, refreshStr, refresh.expiration)
-	if err != nil {
-		return "", fmt.Errorf("failed to insert refresh token: %v", err)
-	}
-
-	return refreshStr, nil
-}
-
-type Token struct {
-	expiration int64
-	issuer     string
-	subject    string
-}
-
-func (t Token) toString() (string, error) {
-	claims := jwt.MapClaims{
-		"iss": t.issuer,
-		"sub": t.subject,
-		"exp": t.expiration,
-	}
-	return jwt.
-		NewWithClaims(jwt.SigningMethodES256, claims).
-		SignedString(signingKey)
-}
-
-func generateToken(
-	handle string,
-	issueTime time.Time,
-	lifetime time.Duration,
-) *Token {
-
-	return &Token{
-		expiration: issueTime.Add(lifetime).Unix(),
-		issuer:     "auth.studiopollinator.com",
-		subject:    handle,
-	}
+func buildRedirectUrlString(redirect *url.URL, refreshToken string) string {
+	redirectUrl := *redirect // 'clone' the url by dereferencing the ptr
+	q := redirectUrl.Query()
+	q.Set("auth_code", refreshToken)
+	redirectUrl.RawQuery = q.Encode()
+	return redirectUrl.String()
 }

@@ -4,14 +4,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 )
 
 type ServiceDefinition struct {
-	Display  string `json:"display"`
-	Audience string `json:"audience"`
-	Redirect string `json:"redirect"`
+	Display  string   `json:"display"`
+	Audience string   `json:"audience"`
+	Redirect *url.URL `json:"redirect"`
+}
+
+func (s *ServiceDefinition) UnmarshalJSON(data []byte) error {
+	type Alias ServiceDefinition
+	tmp := &struct {
+		Redirect string `json:"redirect"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	redirect, err := url.Parse(tmp.Redirect)
+	if err != nil {
+		return err
+	}
+	s.Redirect = redirect
+	return nil
 }
 
 var servicesDir string = ""

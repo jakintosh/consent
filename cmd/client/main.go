@@ -5,15 +5,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"github.com/golang-jwt/jwt/v5"
+	"git.sr.ht/~jakintosh/consent/internal/tokens"
 )
 
 var verificationKey *ecdsa.PublicKey
@@ -22,6 +22,7 @@ func main() {
 
 	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
 	verificationKey = decodePublicKey(verificationKeyBytes)
+	tokens.InitPublic(verificationKey, "auth.studiopollinator.com")
 
 	http.HandleFunc("/", home)
 	http.HandleFunc("/api/authorize", authorize)
@@ -33,36 +34,33 @@ func main() {
 	}
 }
 
-func authenticate(accessTokenCookie *http.Cookie, err error) (string, bool) {
+func authenticate(accessTokenCookie *http.Cookie, err error) *tokens.AccessToken {
 	if err != nil {
-		return "", false
+		return nil
 	}
-	var tokenStr = accessTokenCookie.Value
+
+	tokenStr := accessTokenCookie.Value
 	if tokenStr == "" {
-		return "", false
-	}
-	token, err := parseToken(tokenStr)
-	if err != nil {
-		return "", false
+		return nil
 	}
 
-	sub, err := token.Claims.GetSubject()
-	if err != nil {
-		return "", false
+	token := new(tokens.AccessToken)
+	if err := token.Decode(tokenStr); err != nil {
+		return nil
 	}
 
-	return sub, true
+	return token
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
 	var html string
-	if _, ok := authenticate(r.Cookie("accessToken")); ok {
-		html = `<!DOCTYPE html>
+	if token := authenticate(r.Cookie("accessToken")); token != nil {
+		html = fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <body>
 <a href="http://localhost:10000/api/example">Example API Call</a>
 </body>
-</html>`
+</html>`)
 	} else {
 		html = `<!DOCTYPE html>
 <html>
@@ -91,13 +89,16 @@ func authorize(w http.ResponseWriter, r *http.Request) {
 }
 func example(w http.ResponseWriter, r *http.Request) {
 	var html string
-	if sub, ok := authenticate(r.Cookie("accessToken")); ok {
+	if token := authenticate(r.Cookie("accessToken")); token != nil {
 		html = fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <body>
 <p>Secret logged in page for %s!</p>
+<form>
+	<input hidden value="%s"/>
+</form>
 </body>
-</html>`, sub)
+</html>`, token.Subject(), token.Secret())
 	} else {
 		html = `<!DOCTYPE html>
 <html>
@@ -128,31 +129,26 @@ func refreshTokenCookies(code string) (*http.Cookie, *http.Cookie, error) {
 		return nil, nil, fmt.Errorf("failed to decode refresh response: %v", err)
 	}
 
-	accessToken, err := parseToken(res.AccessToken)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse access token: %v", err)
+	accessToken := new(tokens.AccessToken)
+	if err := accessToken.Decode(res.AccessToken); err != nil {
+		return nil, nil, fmt.Errorf("failed to decode access token: %v", err)
 	}
 
-	accessExp, err := accessToken.Claims.GetExpirationTime()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read access exp: %v", err)
+	refreshToken := new(tokens.RefreshToken)
+	if err := refreshToken.Decode(res.RefreshToken); err != nil {
+		return nil, nil, fmt.Errorf("failed to decode refresh token: %v", err)
 	}
 
-	refreshToken, err := parseToken(res.RefreshToken)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse refresh token: %v", err)
-	}
-
-	refreshExp, err := refreshToken.Claims.GetExpirationTime()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read refresh exp: %v", err)
-	}
+	now := time.Now()
+	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
+	refreshMaxAge := refreshToken.Expiration().Sub(now).Seconds()
 
 	accessTokenCookie := &http.Cookie{
 		Name:     "accessToken",
 		Path:     "/",
 		Value:    res.AccessToken,
-		Expires:  accessExp.Time,
+		MaxAge:   int(accessMaxAge),
+		SameSite: http.SameSiteStrictMode,
 		Secure:   true,
 		HttpOnly: true,
 	}
@@ -160,7 +156,8 @@ func refreshTokenCookies(code string) (*http.Cookie, *http.Cookie, error) {
 		Name:     "refreshToken",
 		Path:     "/",
 		Value:    res.RefreshToken,
-		Expires:  refreshExp.Time,
+		MaxAge:   int(refreshMaxAge),
+		SameSite: http.SameSiteStrictMode,
 		Secure:   true,
 		HttpOnly: true,
 	}
@@ -190,32 +187,6 @@ func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
 	return ecdsaKey
 }
 
-func parseToken(tokenStr string) (*jwt.Token, error) {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-		return verificationKey, nil
-	})
-
-	if err != nil {
-		switch {
-		case errors.Is(err, jwt.ErrTokenMalformed):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenSignatureInvalid):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenExpired):
-			return nil, err
-		case errors.Is(err, jwt.ErrTokenNotValidYet):
-			return nil, err
-		default:
-			return nil, err
-		}
-	}
-
-	if !token.Valid {
-		return nil, fmt.Errorf("Token is not valid")
-	}
-
-	return token, nil
-}
 func loadCredential(name string, credsDir string) []byte {
 	credPath := filepath.Join(credsDir, name)
 	cred, err := os.ReadFile(credPath)
