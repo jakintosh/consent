@@ -32,7 +32,7 @@ func main() {
 
 	database.Init(dbPath)
 	resources.Init(templatesPath, servicesPath)
-	tokens.Init(signingKey, issuerDomain)
+	tokens.InitServer(signingKey, issuerDomain)
 
 	r := routing.BuildRouter()
 

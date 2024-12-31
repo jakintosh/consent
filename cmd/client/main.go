@@ -13,16 +13,22 @@ import (
 )
 
 func main() {
+	// read "env vars"
+	authUrl := "http://localhost:9001"
+	issuerDomain := "auth.studiopollinator.com"
+	audience := "localhost:10000"
+
+	// load credentials
 	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
 	verificationKey := decodePublicKey(verificationKeyBytes)
 
-	client.Init("http://localhost:9001", "auth.studiopollinator.com", verificationKey)
+	// init consent.client
+	client.Init(verificationKey, issuerDomain, audience, authUrl)
 
+	// config router
 	http.HandleFunc("/", home)
 	http.HandleFunc("/api/example", example)
-
 	http.HandleFunc("/api/authorize", client.HandleAuthorizationCode)
-
 	err := http.ListenAndServe(":10000", nil)
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -30,12 +36,12 @@ func main() {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	token, err := client.VerifyAuthorization(r)
+	accessToken, err := client.VerifyAuthorization(w, r)
 	if err != nil {
-		client.RefreshAuthorization(w, r)
+		log.Printf("failed to verify authorization: %v", err)
 	}
 
-	if token != nil {
+	if accessToken != nil {
 		w.Write([]byte(homeAuth))
 	} else {
 		w.Write([]byte(homeUnauth))
@@ -43,13 +49,13 @@ func home(w http.ResponseWriter, r *http.Request) {
 }
 
 func example(w http.ResponseWriter, r *http.Request) {
-	token, err := client.VerifyAuthorization(r)
+	accessToken, err := client.VerifyAuthorization(w, r)
 	if err != nil {
-		client.RefreshAuthorization(w, r)
+		log.Printf("failed to verify authorization: %v", err)
 	}
 
-	if token != nil {
-		w.Write([]byte(fmt.Sprintf(exampleAuth, token.Subject(), token.Secret())))
+	if accessToken != nil {
+		w.Write([]byte(fmt.Sprintf(exampleAuth, accessToken.Subject(), accessToken.Secret())))
 	} else {
 		w.Write([]byte(exampleUnauth))
 	}

@@ -6,29 +6,59 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 )
 
-var issuerDomain string
-var signingKey *ecdsa.PrivateKey
-var verificationKey *ecdsa.PublicKey
-
-func Init(privateKey *ecdsa.PrivateKey, issuer string) {
-	issuerDomain = issuer
-	signingKey = privateKey
-	verificationKey = &privateKey.PublicKey
+type ctxError struct {
+	context string
+	err     error
 }
 
-func InitPublic(publicKey *ecdsa.PublicKey, issuer string) {
-	issuerDomain = issuer
-	verificationKey = publicKey
+func (t *ctxError) Push(ctx string) { t.context = fmt.Sprintf("%s: %s", ctx, t.context) }
+func (t *ctxError) Set(err error)   { t.err = err }
+func (t *ctxError) Error() string   { return fmt.Sprintf("%v", t.err) }
+func (t *ctxError) Context() string { return t.context }
+
+var (
+	errTokenInvalid   = errors.New("token invalid")
+	errTokenIllegal   = errors.New("token illegal")
+	errTokenMalformed = errors.New("token malformed")
+)
+
+func ErrTokenInvalid() error   { return errTokenInvalid }
+func ErrTokenIllegal() error   { return errTokenIllegal }
+func ErrTokenMalformed() error { return errTokenMalformed }
+
+var _issuerDomain string
+var _signingKey *ecdsa.PrivateKey
+var _verificationKey *ecdsa.PublicKey
+var _validAudience *string = nil
+
+func InitServer(signingKey *ecdsa.PrivateKey, issuerDomain string) {
+	_signingKey = signingKey
+	_verificationKey = &signingKey.PublicKey
+	_issuerDomain = issuerDomain
+}
+
+func InitClient(verificationKey *ecdsa.PublicKey, issuerDomain string, validAudience string) {
+	_verificationKey = verificationKey
+	_issuerDomain = issuerDomain
+
+	_validAudience = new(string)
+	*_validAudience = validAudience
 }
 
 type JWTHeader struct {
 	Algorithm string `json:"alg"`
 	Type      string `json:"typ"`
+}
+
+type claims interface {
+	validate() error
+	comparable
 }
 
 func newES256JWTHeader() JWTHeader {
@@ -42,30 +72,33 @@ func generateCSRFCode() (string, error) {
 	randomBytes := make([]byte, 32)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
-		return "", fmt.Errorf("Failed to generate random CSRF bytes: %v", err)
+		return "", fmt.Errorf("failed to generate random CSRF bytes: %v", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
-func buildMessageHash(encHeader string, encClaims string) (string, []byte) {
-	message := fmt.Sprintf("%s.%s", encHeader, encClaims)
-	hash := sha256.Sum256([]byte(message))
-	return message, hash[:]
+func buildMessage(encHeader string, encClaims string) string {
+	return fmt.Sprintf("%s.%s", encHeader, encClaims)
 }
 
-func encodeSignature(r *big.Int, s *big.Int) ([]byte, error) {
+func hashMessage(message string) []byte {
+	hash := sha256.Sum256([]byte(message))
+	return hash[:]
+}
+
+func encodeSignature(r *big.Int, s *big.Int) (string, error) {
 	signature := append(r.Bytes(), s.Bytes()...)
 	if len(signature) != 64 {
-		return nil, fmt.Errorf("invalid signature length")
+		return "", fmt.Errorf("invalid signature length")
 	}
-	return signature, nil
+	encSignature := base64.RawURLEncoding.EncodeToString(signature)
+	return encSignature, nil
 }
 
 func decodeSignature(signature []byte) (*big.Int, *big.Int, error) {
 	if len(signature) != 64 {
-		return nil, nil, fmt.Errorf("")
+		return nil, nil, fmt.Errorf("invalid signature length")
 	}
-
 	r := new(big.Int).SetBytes(signature[00:32])
 	s := new(big.Int).SetBytes(signature[32:64])
 	return r, s, nil
@@ -80,7 +113,7 @@ func encodeJWTSection[T comparable](section T) (string, error) {
 	return encodedSection, nil
 }
 
-func encodeToken[Claims comparable](claims Claims) (string, error) {
+func encodeMessage[T comparable](claims T) (string, error) {
 	encHeader, err := encodeJWTSection(newES256JWTHeader())
 	if err != nil {
 		return "", fmt.Errorf("failed to encode header: %v", err)
@@ -89,23 +122,31 @@ func encodeToken[Claims comparable](claims Claims) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to encode claims: %v", err)
 	}
-	message, hash := buildMessageHash(encHeader, encClaims)
+	return buildMessage(encHeader, encClaims), nil
+}
 
-	// sign message
-	r, s, err := ecdsa.Sign(rand.Reader, signingKey, hash[:])
+func signHash(hash []byte) (string, error) {
+	r, s, err := ecdsa.Sign(rand.Reader, _signingKey, hash[:])
 	if err != nil {
 		return "", fmt.Errorf("failed to sign message: %v", err)
 	}
-
-	signature, err := encodeSignature(r, s)
+	encSignature, err := encodeSignature(r, s)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode signature: %v", err)
 	}
+	return encSignature, nil
+}
 
-	// build final token
-	encSignature := base64.RawURLEncoding.EncodeToString(signature)
-	token := fmt.Sprintf("%s.%s", message, encSignature)
-	return token, nil
+func encodeToken[T comparable](claims T) (string, error) {
+	message, err := encodeMessage(claims)
+	if err != nil {
+		return "", err
+	}
+	encSignature, err := signHash(hashMessage(message))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", message, encSignature), nil
 }
 
 func decodeJWTSection[T comparable](str string, value *T) error {
@@ -120,15 +161,24 @@ func decodeJWTSection[T comparable](str string, value *T) error {
 	return nil
 }
 
-func validateParts(tokenStr string) (string, string, string, error) {
+func validateStructure(tokenStr string) (
+	header string,
+	claims string,
+	signature string,
+	err error,
+) {
 	parts := strings.Split(tokenStr, ".")
 	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("JWT expected three parts, found %d", len(parts))
+		err = fmt.Errorf("JWT expected three parts, found %d", len(parts))
+		return
 	}
-	return parts[0], parts[1], parts[2], nil
+	header = parts[0]
+	claims = parts[1]
+	signature = parts[2]
+	return
 }
 
-func validateHeader(header *JWTHeader) error {
+func verifyHeader(header *JWTHeader) error {
 	switch header.Type {
 	case "JWT":
 		break
@@ -147,7 +197,7 @@ func validateHeader(header *JWTHeader) error {
 	return nil
 }
 
-func validateSignature(encHeader string, encClaims string, encSignature string) error {
+func verifySignature(encHeader string, encClaims string, encSignature string) error {
 	signature, err := base64.RawURLEncoding.DecodeString(encSignature)
 	if err != nil {
 		return fmt.Errorf("invalid base64 encoding: %v", err)
@@ -158,39 +208,58 @@ func validateSignature(encHeader string, encClaims string, encSignature string) 
 		return fmt.Errorf("failed to decode signature: %v", err)
 	}
 
-	_, hash := buildMessageHash(encHeader, encClaims)
-	if valid := ecdsa.Verify(verificationKey, hash[:], r, s); !valid {
+	hash := hashMessage(buildMessage(encHeader, encClaims))
+
+	if valid := ecdsa.Verify(_verificationKey, hash, r, s); !valid {
 		return fmt.Errorf("verification failed")
 	}
 
 	return nil
 }
 
-func validateToken[Claims comparable](tokenStr string, claims *Claims) error {
-	encHeader, encClaims, encSignature, err := validateParts(tokenStr)
+func validateToken[Claims claims](tokenStr string, claims Claims) *ctxError {
+	encHeader, encClaims, encSignature, err := validateStructure(tokenStr)
 	if err != nil {
-		return fmt.Errorf("token malformed: %v", err)
+		return &ctxError{
+			context: fmt.Sprintf("token malformed: %v", err),
+			err:     errTokenMalformed,
+		}
 	}
 
 	header := JWTHeader{}
-	err = decodeJWTSection(encHeader, &header)
-	if err != nil {
-		return fmt.Errorf("token header malformed: %v", err)
+	if err := decodeJWTSection(encHeader, &header); err != nil {
+		return &ctxError{
+			context: fmt.Sprintf("token header malformed: %v", err),
+			err:     errTokenMalformed,
+		}
 	}
 
-	err = validateHeader(&header)
-	if err != nil {
-		return fmt.Errorf("token header invalid: %v", err)
+	if err := verifyHeader(&header); err != nil {
+		return &ctxError{
+			context: fmt.Sprintf("token header illegal: %v", err),
+			err:     errTokenIllegal,
+		}
 	}
 
-	err = validateSignature(encHeader, encClaims, encSignature)
-	if err != nil {
-		return fmt.Errorf("token signature invalid: %v", err)
+	if err := verifySignature(encHeader, encClaims, encSignature); err != nil {
+		return &ctxError{
+			context: fmt.Sprintf("token signature illegal: %v", err),
+			err:     errTokenIllegal,
+		}
 	}
 
-	err = decodeJWTSection(encClaims, claims)
-	if err != nil {
-		return fmt.Errorf("token claims malformed: %v", err)
+	if err := decodeJWTSection(encClaims, &claims); err != nil {
+		return &ctxError{
+			context: fmt.Sprintf("token claims malformed: %v", err),
+			err:     errTokenMalformed,
+		}
+	}
+
+	if err = claims.validate(); err != nil {
+		return &ctxError{
+			context: fmt.Sprintf("token claims invalid: %v", err),
+			err:     errTokenInvalid,
+		}
 	}
 
 	return nil

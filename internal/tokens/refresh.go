@@ -3,11 +3,14 @@ package tokens
 import (
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
+	db "git.sr.ht/~jakintosh/consent/internal/database"
 )
+
+// ==============================================
 
 type RefreshTokenClaims struct {
 	Expiration int64  `json:"exp"`
@@ -16,6 +19,43 @@ type RefreshTokenClaims struct {
 	Audience   string `json:"aud"`
 	Subject    string `json:"sub"`
 }
+
+func (claims *RefreshTokenClaims) validate() error {
+	now := time.Now()
+
+	if claims.Issuer != _issuerDomain {
+		return fmt.Errorf("invalid issuer")
+	}
+
+	if time.Unix(claims.IssuedAt, 0).After(now) {
+		return fmt.Errorf("not valid yet")
+	}
+
+	if time.Unix(claims.Expiration, 0).Before(now) {
+		return fmt.Errorf("expired")
+	}
+
+	if _validAudience != nil {
+		audiences := strings.Split(claims.Audience, " ")
+		if !slices.Contains(audiences, *_validAudience) {
+			return fmt.Errorf("no valid audience")
+		}
+	}
+
+	return nil
+}
+
+func (claims *RefreshTokenClaims) fromToken(token *RefreshToken) *RefreshTokenClaims {
+	claims.Issuer = token.issuer
+	claims.IssuedAt = token.issuedAt.Unix()
+	claims.Expiration = token.expiration.Unix()
+	claims.Audience = strings.Join(token.audience, " ")
+	claims.Subject = token.subject
+
+	return claims
+}
+
+// ==============================================
 
 type RefreshToken struct {
 	issuer     string
@@ -26,29 +66,35 @@ type RefreshToken struct {
 	encoded    string
 }
 
-func (t *RefreshToken) Issuer() string {
-	return t.issuer
+func (t *RefreshToken) Issuer() string        { return t.issuer }
+func (t *RefreshToken) IssuedAt() time.Time   { return t.issuedAt }
+func (t *RefreshToken) Expiration() time.Time { return t.expiration }
+func (t *RefreshToken) Audience() []string    { return t.audience }
+func (t *RefreshToken) Subject() string       { return t.subject }
+func (t *RefreshToken) Encoded() string       { return t.encoded }
+
+func (token *RefreshToken) Decode(encToken string) error {
+	claims := RefreshTokenClaims{}
+	if err := validateToken(encToken, &claims); err != nil {
+		if true {
+			log.Println(err.Context())
+		}
+		return err
+	}
+	token.fromClaims(&claims, encToken)
+	return nil
 }
 
-func (t *RefreshToken) IssuedAt() time.Time {
-	return t.issuedAt
+func (token *RefreshToken) fromClaims(claims *RefreshTokenClaims, encToken string) {
+	token.issuer = claims.Issuer
+	token.issuedAt = time.Unix(claims.IssuedAt, 0)
+	token.expiration = time.Unix(claims.Expiration, 0)
+	token.audience = strings.Split(claims.Audience, " ")
+	token.subject = claims.Subject
+	token.encoded = encToken
 }
 
-func (t *RefreshToken) Expiration() time.Time {
-	return t.expiration
-}
-
-func (t *RefreshToken) Audience() []string {
-	return t.audience
-}
-
-func (t *RefreshToken) Subject() string {
-	return t.subject
-}
-
-func (t *RefreshToken) Encoded() string {
-	return t.encoded
-}
+// ==============================================
 
 func IssueRefreshToken(
 	subject string,
@@ -56,77 +102,27 @@ func IssueRefreshToken(
 	lifetime time.Duration,
 ) (*RefreshToken, error) {
 	now := time.Now()
+	exp := now.Add(lifetime)
 	token := &RefreshToken{
-		issuer:     issuerDomain,
+		issuer:     _issuerDomain,
 		issuedAt:   now,
-		expiration: now.Add(lifetime),
+		expiration: exp,
 		audience:   audience,
 		subject:    subject,
 	}
 
 	// encode
-	claims := new(RefreshTokenClaims).FromRefreshToken(token)
-	encodedToken, err := encodeToken(claims)
+	claims := new(RefreshTokenClaims).fromToken(token)
+	encToken, err := encodeToken(claims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode refresh token: %v", err)
 	}
-	token.encoded = encodedToken
+	token.encoded = encToken
 
 	// store
-	err = database.InsertRefresh(subject, encodedToken, token.expiration.Unix())
-	if err != nil {
+	if err = db.InsertRefresh(subject, encToken, exp.Unix()); err != nil {
 		return nil, fmt.Errorf("failed to insert refresh token: %v", err)
 	}
 
-	log.Printf("issuing refresh token:\n%s\n", encodedToken)
-
 	return token, nil
-}
-
-func (token *RefreshToken) Decode(tokenStr string) error {
-	claims := new(RefreshTokenClaims)
-
-	if err := validateToken(tokenStr, claims); err != nil {
-		return fmt.Errorf("validation failure: %v", err)
-	}
-
-	if err := token.FromClaims(claims); err != nil {
-		return fmt.Errorf("failed to validate refresh token claims: %v", err)
-	}
-
-	return nil
-}
-
-func (token *RefreshToken) FromClaims(claims *RefreshTokenClaims) error {
-	now := time.Now()
-
-	token.issuer = claims.Issuer
-	if token.issuer != issuerDomain {
-		return fmt.Errorf("invalid issuer")
-	}
-
-	token.issuedAt = time.Unix(claims.IssuedAt, 0)
-	if token.issuedAt.After(now) {
-		return fmt.Errorf("not valid yet")
-	}
-
-	token.expiration = time.Unix(claims.Expiration, 0)
-	if token.expiration.Before(now) {
-		return fmt.Errorf("expired")
-	}
-
-	token.audience = strings.Split(claims.Audience, " ")
-	token.subject = claims.Subject
-
-	return nil
-}
-
-func (claims *RefreshTokenClaims) FromRefreshToken(token *RefreshToken) *RefreshTokenClaims {
-	claims.Issuer = token.issuer
-	claims.IssuedAt = token.issuedAt.Unix()
-	claims.Expiration = token.expiration.Unix()
-	claims.Audience = strings.Join(token.audience, " ")
-	claims.Subject = token.subject
-
-	return claims
 }

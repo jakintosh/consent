@@ -49,7 +49,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	accessToken, err := tokens.IssueAccessToken(
 		token.Subject(),
 		token.Audience(),
-		time.Second*10,
+		time.Minute*30,
 	)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("couldn't issue access token: %v", err))
@@ -61,7 +61,7 @@ func Refresh(w http.ResponseWriter, r *http.Request) {
 	refreshToken, err := tokens.IssueRefreshToken(
 		token.Subject(),
 		token.Audience(),
-		time.Hour*24,
+		time.Hour*72,
 	)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("couldn't issue refresh token: %v", err))
