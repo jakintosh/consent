@@ -220,6 +220,7 @@ func refreshAuthorization(w http.ResponseWriter, r *http.Request) (*AccessToken,
 	accessToken, refreshToken, err := RefreshTokens(token.Encoded())
 	if err != nil {
 		_log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		ClearTokenCookies(w)
 		return nil, err
 	}
 
