@@ -17,10 +17,12 @@ type ctxError struct {
 	err     error
 }
 
-func (t *ctxError) Push(ctx string) { t.context = fmt.Sprintf("%s: %s", ctx, t.context) }
-func (t *ctxError) Set(err error)   { t.err = err }
-func (t *ctxError) Error() string   { return fmt.Sprintf("%v", t.err) }
-func (t *ctxError) Context() string { return t.context }
+func (t *ctxError) Context() string {
+	return t.context
+}
+func (t *ctxError) Error() string {
+	return fmt.Sprintf("%v", t.err)
+}
 
 var (
 	errTokenInvalid   = errors.New("token invalid")
@@ -32,23 +34,23 @@ func ErrTokenInvalid() error   { return errTokenInvalid }
 func ErrTokenIllegal() error   { return errTokenIllegal }
 func ErrTokenMalformed() error { return errTokenMalformed }
 
-var _issuerDomain string
 var _signingKey *ecdsa.PrivateKey
 var _verificationKey *ecdsa.PublicKey
-var _validAudience *string = nil
+var _issuerDomain string
+var _validAudience *string
 
 func InitServer(signingKey *ecdsa.PrivateKey, issuerDomain string) {
 	_signingKey = signingKey
 	_verificationKey = &signingKey.PublicKey
 	_issuerDomain = issuerDomain
+	_validAudience = nil
 }
 
 func InitClient(verificationKey *ecdsa.PublicKey, issuerDomain string, validAudience string) {
+	_signingKey = nil
 	_verificationKey = verificationKey
 	_issuerDomain = issuerDomain
-
-	_validAudience = new(string)
-	*_validAudience = validAudience
+	_validAudience = &validAudience
 }
 
 type JWTHeader struct {
@@ -184,7 +186,6 @@ func verifyHeader(header *JWTHeader) error {
 		break
 	default:
 		return fmt.Errorf("illegal type: %s", header.Type)
-
 	}
 
 	switch header.Algorithm {
