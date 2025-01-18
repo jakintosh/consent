@@ -49,13 +49,13 @@ func home(w http.ResponseWriter, r *http.Request) {
 }
 
 func example(w http.ResponseWriter, r *http.Request) {
-	accessToken, err := client.VerifyAuthorization(w, r)
+	accessToken, csrf, err := client.VerifyAuthorizationGetCSRF(w, r)
 	if err != nil {
 		log.Printf("failed to verify authorization: %v", err)
 	}
 
 	if accessToken != nil {
-		w.Write([]byte(fmt.Sprintf(exampleAuth, accessToken.Subject(), accessToken.Secret())))
+		w.Write([]byte(fmt.Sprintf(exampleAuth, accessToken.Subject(), csrf)))
 	} else {
 		w.Write([]byte(exampleUnauth))
 	}

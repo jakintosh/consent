@@ -18,6 +18,7 @@ type RefreshTokenClaims struct {
 	Issuer     string `json:"iss"`
 	Audience   string `json:"aud"`
 	Subject    string `json:"sub"`
+	Secret     string `json:"secret"`
 }
 
 func (claims *RefreshTokenClaims) validate() error {
@@ -51,6 +52,7 @@ func (claims *RefreshTokenClaims) fromToken(token *RefreshToken) *RefreshTokenCl
 	claims.Expiration = token.expiration.Unix()
 	claims.Audience = strings.Join(token.audience, " ")
 	claims.Subject = token.subject
+	claims.Secret = token.secret
 
 	return claims
 }
@@ -63,6 +65,7 @@ type RefreshToken struct {
 	expiration time.Time
 	audience   []string
 	subject    string
+	secret     string
 	encoded    string
 }
 
@@ -71,12 +74,14 @@ func (t *RefreshToken) IssuedAt() time.Time   { return t.issuedAt }
 func (t *RefreshToken) Expiration() time.Time { return t.expiration }
 func (t *RefreshToken) Audience() []string    { return t.audience }
 func (t *RefreshToken) Subject() string       { return t.subject }
+func (t *RefreshToken) Secret() string        { return t.secret }
 func (t *RefreshToken) Encoded() string       { return t.encoded }
 
 func (token *RefreshToken) Decode(encToken string) error {
 	claims := RefreshTokenClaims{}
 	if err := validateToken(encToken, &claims); err != nil {
 		if true {
+			// TODO: make this actually check log level
 			log.Println(err.Context())
 		}
 		return err
@@ -91,6 +96,7 @@ func (token *RefreshToken) fromClaims(claims *RefreshTokenClaims, encToken strin
 	token.expiration = time.Unix(claims.Expiration, 0)
 	token.audience = strings.Split(claims.Audience, " ")
 	token.subject = claims.Subject
+	token.secret = claims.Secret
 	token.encoded = encToken
 }
 
@@ -103,12 +109,17 @@ func IssueRefreshToken(
 ) (*RefreshToken, error) {
 	now := time.Now()
 	exp := now.Add(lifetime)
+	secret, err := generateCSRFCode()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate csrf secret: %v", err)
+	}
 	token := &RefreshToken{
 		issuer:     _issuerDomain,
 		issuedAt:   now,
 		expiration: exp,
 		audience:   audience,
 		subject:    subject,
+		secret:     secret,
 	}
 
 	// encode

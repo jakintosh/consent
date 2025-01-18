@@ -25,6 +25,7 @@ const (
 const LogLevelDefault = LogLevelError
 
 var (
+	ErrNoToken       = errors.New("no token")
 	ErrTokenRequest  = errors.New("failed to fetch token")
 	ErrTokenResponse = errors.New("invalid token response")
 )
@@ -86,26 +87,94 @@ refresh the tokens.
 A nil token means no authorization, and an error will be [ErrTokenIllegal],
 [ErrTokenRequest], or [ErrTokenResponse]
 */
-func VerifyAuthorization(w http.ResponseWriter, r *http.Request) (*AccessToken, error) {
-	cookie := getCookie(r, "accessToken")
-	if cookie == nil {
-		_log(LogLevelDebug, "no access token; attempt to refresh auth\n")
-		return refreshAuthorization(w, r)
+func VerifyAuthorization(
+	w http.ResponseWriter,
+	r *http.Request,
+) (*AccessToken, error) {
+	// validate access token in the request
+	accessToken, err := validateAccessToken(r)
+	if accessToken != nil {
+		return accessToken, nil
+	} else if !errorIsRefreshable(err) {
+		return nil, err
 	}
 
-	token := new(AccessToken)
-	err := token.Decode(cookie.Value)
-	if err == nil {
-		_log(LogLevelDebug, "access token OK\n")
-		return token, nil
-	} else if errors.Is(err, ErrTokenInvalid) {
-		_log(LogLevelDebug, "access token invalid; attempt to refresh auth\n")
-		return refreshAuthorization(w, r)
-	} else {
-		_log(LogLevelDebug, "access token illegal; deleting\n")
-		ClearTokenCookies(w)
-		return nil, ErrTokenIllegal
+	// if in refreshable state, validate refresh token
+	refreshToken, err := validateRefreshToken(r)
+	if err != nil {
+		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		return nil, err
 	}
+
+	// refresh the tokens
+	accessToken, refreshToken, err = RefreshTokens(refreshToken.Encoded())
+	if err != nil {
+		_log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		return nil, err
+	}
+
+	SetTokenCookies(w, accessToken, refreshToken)
+	return accessToken, err
+}
+
+func VerifyAuthorizationGetCSRF(
+	w http.ResponseWriter,
+	r *http.Request,
+) (*AccessToken, string, error) {
+
+	accessToken, err := VerifyAuthorization(w, r)
+	if err != nil {
+		return accessToken, "", err
+	}
+
+	// validate refresh token from request
+	refreshToken, err := validateRefreshToken(r)
+	if err != nil {
+		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		return nil, "", err
+	}
+
+	return accessToken, refreshToken.Secret(), nil
+}
+
+/*
+In this flow, we decode the RefreshToken first to see if the CSRF code matches.
+*/
+func VerifyAuthorizationCheckCSRF(
+	w http.ResponseWriter,
+	r *http.Request,
+	csrf string,
+) (*AccessToken, string, error) {
+	// validate refresh token from request
+	refreshToken, err := validateRefreshToken(r)
+	if err != nil {
+		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		return nil, "", err
+	}
+
+	// verify csrf token
+	if refreshToken.Secret() != csrf {
+		// csrf token verification failed
+		return nil, "", nil
+	}
+
+	// validate access token in the request
+	accessToken, err := validateAccessToken(r)
+	if accessToken != nil {
+		return accessToken, refreshToken.Secret(), nil
+	} else if !errorIsRefreshable(err) {
+		return nil, "", err
+	}
+
+	// refresh the tokens
+	accessToken, refreshToken, err = RefreshTokens(refreshToken.Encoded())
+	if err != nil {
+		_log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		return nil, "", err
+	}
+
+	SetTokenCookies(w, accessToken, refreshToken)
+	return accessToken, refreshToken.Secret(), err
 }
 
 /*
@@ -204,26 +273,44 @@ func getCookie(r *http.Request, cookieName string) *http.Cookie {
 	return nil
 }
 
-func refreshAuthorization(w http.ResponseWriter, r *http.Request) (*AccessToken, error) {
+func validateAccessToken(r *http.Request) (*AccessToken, error) {
+	// get access token cookie
+	cookie := getCookie(r, "accessToken")
+	if cookie == nil {
+		return nil, ErrNoToken
+	}
+
+	// decode + validate access token
+	token := new(AccessToken)
+	err := token.Decode(cookie.Value)
+	if err == nil {
+		return token, nil
+	} else {
+		return nil, err
+	}
+}
+
+func validateRefreshToken(r *http.Request) (*RefreshToken, error) {
 	cookie := getCookie(r, "refreshToken")
 	if cookie == nil {
-		_log(LogLevelDebug, "no refresh token\n")
-		return nil, nil
+		return nil, ErrNoToken
 	}
 
 	token := new(RefreshToken)
-	if err := token.Decode(cookie.Value); err != nil {
-		ClearTokenCookies(w)
-		return nil, nil
-	}
-
-	accessToken, refreshToken, err := RefreshTokens(token.Encoded())
-	if err != nil {
-		_log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
-		ClearTokenCookies(w)
+	err := token.Decode(cookie.Value)
+	if err == nil {
+		return token, nil
+	} else {
 		return nil, err
 	}
+}
 
-	SetTokenCookies(w, accessToken, refreshToken)
-	return accessToken, nil
+func errorIsRefreshable(err error) bool {
+	if errors.Is(err, ErrNoToken) {
+		return true
+	} else if errors.Is(err, ErrTokenInvalid) {
+		return true
+	} else {
+		return false
+	}
 }

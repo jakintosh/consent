@@ -16,7 +16,6 @@ type AccessTokenClaims struct {
 	Issuer     string `json:"iss"`
 	Audience   string `json:"aud"`
 	Subject    string `json:"sub"`
-	Secret     string `json:"secret"`
 }
 
 func (claims *AccessTokenClaims) validate() error {
@@ -50,7 +49,6 @@ func (claims *AccessTokenClaims) fromToken(token *AccessToken) *AccessTokenClaim
 	claims.Expiration = token.expiration.Unix()
 	claims.Audience = strings.Join(token.audience, " ")
 	claims.Subject = token.subject
-	claims.Secret = token.secret
 
 	return claims
 }
@@ -63,7 +61,6 @@ type AccessToken struct {
 	expiration time.Time
 	audience   []string
 	subject    string
-	secret     string
 	encoded    string
 }
 
@@ -72,13 +69,13 @@ func (t *AccessToken) IssuedAt() time.Time   { return t.issuedAt }
 func (t *AccessToken) Expiration() time.Time { return t.expiration }
 func (t *AccessToken) Audience() []string    { return t.audience }
 func (t *AccessToken) Subject() string       { return t.subject }
-func (t *AccessToken) Secret() string        { return t.secret }
 func (t *AccessToken) Encoded() string       { return t.encoded }
 
 func (token *AccessToken) Decode(encToken string) error {
 	claims := AccessTokenClaims{}
 	if err := validateToken(encToken, &claims); err != nil {
 		if true {
+			// TODO: make this actually check log level
 			log.Println(err.Context())
 		}
 		return err
@@ -93,7 +90,6 @@ func (token *AccessToken) fromClaims(claims *AccessTokenClaims, encToken string)
 	token.expiration = time.Unix(claims.Expiration, 0)
 	token.audience = strings.Split(claims.Audience, " ")
 	token.subject = claims.Subject
-	token.secret = claims.Secret
 	token.encoded = encToken
 }
 
@@ -105,17 +101,13 @@ func IssueAccessToken(
 	lifetime time.Duration,
 ) (*AccessToken, error) {
 	now := time.Now()
-	secret, err := generateCSRFCode()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate csrf secret: %v", err)
-	}
+	exp := now.Add(lifetime)
 	token := &AccessToken{
 		issuer:     _issuerDomain,
 		issuedAt:   now,
-		expiration: now.Add(lifetime),
+		expiration: exp,
 		audience:   audience,
 		subject:    subject,
-		secret:     secret,
 	}
 
 	// encode
