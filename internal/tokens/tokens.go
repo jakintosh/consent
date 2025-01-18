@@ -25,14 +25,20 @@ func (t *ctxError) Error() string {
 }
 
 var (
-	errTokenInvalid   = errors.New("token invalid")
-	errTokenIllegal   = errors.New("token illegal")
-	errTokenMalformed = errors.New("token malformed")
+	errTokenMalformed       = errors.New("token malformed")
+	errTokenBadSignature    = errors.New("token bad signature")
+	errTokenInvalidAudience = errors.New("token invalid audience")
+	errTokenInvalidIssuer   = errors.New("token invalid issuer")
+	errTokenExpired         = errors.New("token expired")
+	errTokenNotIssued       = errors.New("token not issued yet")
 )
 
-func ErrTokenInvalid() error   { return errTokenInvalid }
-func ErrTokenIllegal() error   { return errTokenIllegal }
-func ErrTokenMalformed() error { return errTokenMalformed }
+func ErrTokenMalformed() error       { return errTokenMalformed }
+func ErrTokenBadSignature() error    { return errTokenBadSignature }
+func ErrTokenInvalidAudience() error { return errTokenInvalidAudience }
+func ErrTokenInvalidIssuer() error   { return errTokenInvalidIssuer }
+func ErrTokenExpired() error         { return errTokenExpired }
+func ErrTokenNotIssued() error       { return errTokenNotIssued }
 
 var _signingKey *ecdsa.PrivateKey
 var _verificationKey *ecdsa.PublicKey
@@ -238,14 +244,14 @@ func validateToken[Claims claims](tokenStr string, claims Claims) *ctxError {
 	if err := verifyHeader(&header); err != nil {
 		return &ctxError{
 			context: fmt.Sprintf("token header illegal: %v", err),
-			err:     errTokenIllegal,
+			err:     errTokenBadSignature,
 		}
 	}
 
 	if err := verifySignature(encHeader, encClaims, encSignature); err != nil {
 		return &ctxError{
 			context: fmt.Sprintf("token signature illegal: %v", err),
-			err:     errTokenIllegal,
+			err:     errTokenBadSignature,
 		}
 	}
 
@@ -259,7 +265,7 @@ func validateToken[Claims claims](tokenStr string, claims Claims) *ctxError {
 	if err = claims.validate(); err != nil {
 		return &ctxError{
 			context: fmt.Sprintf("token claims invalid: %v", err),
-			err:     errTokenInvalid,
+			err:     err,
 		}
 	}
 

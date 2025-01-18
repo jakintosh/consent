@@ -19,7 +19,7 @@ type RefreshResponse struct {
 }
 
 func Refresh(w http.ResponseWriter, r *http.Request) {
-	var req RefreshRequest
+	req := RefreshRequest{}
 	if ok := decodeRequest(&req, w, r); !ok {
 		return
 	}

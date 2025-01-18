@@ -6,12 +6,6 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/tokens"
 )
 
-var (
-	ErrTokenInvalid   = tokens.ErrTokenInvalid()
-	ErrTokenIllegal   = tokens.ErrTokenIllegal()
-	ErrTokenMalformed = tokens.ErrTokenMalformed()
-)
-
 type AccessToken tokens.AccessToken
 
 func (t *AccessToken) Decode(str string) error { return (*tokens.AccessToken)(t).Decode(str) }

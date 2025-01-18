@@ -36,20 +36,21 @@ func main() {
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
-	accessToken, err := client.VerifyAuthorization(w, r)
+	accessToken, csrf, err := client.VerifyAuthorizationGetCSRF(w, r)
 	if err != nil {
 		log.Printf("failed to verify authorization: %v", err)
 	}
 
 	if accessToken != nil {
-		w.Write([]byte(homeAuth))
+		w.Write([]byte(fmt.Sprintf(homeAuth, csrf)))
 	} else {
 		w.Write([]byte(homeUnauth))
 	}
 }
 
 func example(w http.ResponseWriter, r *http.Request) {
-	accessToken, csrf, err := client.VerifyAuthorizationGetCSRF(w, r)
+	csrf := r.URL.Query().Get("csrf")
+	accessToken, csrf, err := client.VerifyAuthorizationCheckCSRF(w, r, csrf)
 	if err != nil {
 		log.Printf("failed to verify authorization: %v", err)
 	}
@@ -87,7 +88,7 @@ func loadCredential(name string, credsDir string) []byte {
 const homeAuth string = `<!DOCTYPE html>
 <html>
 <body>
-<a href="http://localhost:10000/api/example">Example API Call</a>
+<a href="http://localhost:10000/api/example?csrf=%s">Example API Call</a>
 </body>
 </html>`
 

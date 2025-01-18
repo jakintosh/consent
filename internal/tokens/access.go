@@ -21,22 +21,22 @@ type AccessTokenClaims struct {
 func (claims *AccessTokenClaims) validate() error {
 	now := time.Now()
 
-	if claims.Issuer != _issuerDomain {
-		return fmt.Errorf("invalid issuer")
-	}
-
 	if time.Unix(claims.IssuedAt, 0).After(now) {
-		return fmt.Errorf("not valid yet")
+		return ErrTokenNotIssued()
 	}
 
 	if time.Unix(claims.Expiration, 0).Before(now) {
-		return fmt.Errorf("expired")
+		return ErrTokenExpired()
+	}
+
+	if claims.Issuer != _issuerDomain {
+		return ErrTokenInvalidIssuer()
 	}
 
 	if _validAudience != nil {
 		audiences := strings.Split(claims.Audience, " ")
 		if !slices.Contains(audiences, *_validAudience) {
-			return fmt.Errorf("no valid audience")
+			return ErrTokenInvalidAudience()
 		}
 	}
 
