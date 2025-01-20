@@ -12,15 +12,15 @@ import (
 	"strings"
 )
 
-type ctxError struct {
+type validateError struct {
 	context string
 	err     error
 }
 
-func (t *ctxError) Context() string {
+func (t *validateError) Context() string {
 	return t.context
 }
-func (t *ctxError) Error() string {
+func (t *validateError) Error() string {
 	return fmt.Sprintf("%v", t.err)
 }
 
@@ -224,10 +224,10 @@ func verifySignature(encHeader string, encClaims string, encSignature string) er
 	return nil
 }
 
-func validateToken[Claims claims](tokenStr string, claims Claims) *ctxError {
+func decodeToken[T claims](tokenStr string) (*T, *validateError) {
 	encHeader, encClaims, encSignature, err := validateStructure(tokenStr)
 	if err != nil {
-		return &ctxError{
+		return nil, &validateError{
 			context: fmt.Sprintf("token malformed: %v", err),
 			err:     errTokenMalformed,
 		}
@@ -235,39 +235,39 @@ func validateToken[Claims claims](tokenStr string, claims Claims) *ctxError {
 
 	header := JWTHeader{}
 	if err := decodeJWTSection(encHeader, &header); err != nil {
-		return &ctxError{
+		return nil, &validateError{
 			context: fmt.Sprintf("token header malformed: %v", err),
 			err:     errTokenMalformed,
 		}
 	}
 
 	if err := verifyHeader(&header); err != nil {
-		return &ctxError{
+		return nil, &validateError{
 			context: fmt.Sprintf("token header illegal: %v", err),
 			err:     errTokenBadSignature,
 		}
 	}
 
 	if err := verifySignature(encHeader, encClaims, encSignature); err != nil {
-		return &ctxError{
+		return nil, &validateError{
 			context: fmt.Sprintf("token signature illegal: %v", err),
 			err:     errTokenBadSignature,
 		}
 	}
 
+	claims := new(T)
 	if err := decodeJWTSection(encClaims, &claims); err != nil {
-		return &ctxError{
+		return nil, &validateError{
 			context: fmt.Sprintf("token claims malformed: %v", err),
 			err:     errTokenMalformed,
 		}
 	}
-
-	if err = claims.validate(); err != nil {
-		return &ctxError{
+	if err = (*claims).validate(); err != nil {
+		return nil, &validateError{
 			context: fmt.Sprintf("token claims invalid: %v", err),
 			err:     err,
 		}
 	}
 
-	return nil
+	return claims, nil
 }

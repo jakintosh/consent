@@ -43,16 +43,6 @@ func (claims *AccessTokenClaims) validate() error {
 	return nil
 }
 
-func (claims *AccessTokenClaims) fromToken(token *AccessToken) *AccessTokenClaims {
-	claims.Issuer = token.issuer
-	claims.IssuedAt = token.issuedAt.Unix()
-	claims.Expiration = token.expiration.Unix()
-	claims.Audience = strings.Join(token.audience, " ")
-	claims.Subject = token.subject
-
-	return claims
-}
-
 // ==============================================
 
 type AccessToken struct {
@@ -72,16 +62,26 @@ func (t *AccessToken) Subject() string       { return t.subject }
 func (t *AccessToken) Encoded() string       { return t.encoded }
 
 func (token *AccessToken) Decode(encToken string) error {
-	claims := AccessTokenClaims{}
-	if err := validateToken(encToken, &claims); err != nil {
+	claims, err := decodeToken[*AccessTokenClaims](encToken)
+	if err != nil {
 		if true {
 			// TODO: make this actually check log level
 			log.Println(err.Context())
 		}
 		return err
 	}
-	token.fromClaims(&claims, encToken)
+	token.fromClaims(*claims, encToken)
 	return nil
+}
+
+func (token *AccessToken) intoClaims() *AccessTokenClaims {
+	claims := &AccessTokenClaims{}
+	claims.Issuer = token.issuer
+	claims.IssuedAt = token.issuedAt.Unix()
+	claims.Expiration = token.expiration.Unix()
+	claims.Audience = strings.Join(token.audience, " ")
+	claims.Subject = token.subject
+	return claims
 }
 
 func (token *AccessToken) fromClaims(claims *AccessTokenClaims, encToken string) {
@@ -100,6 +100,7 @@ func IssueAccessToken(
 	audience []string,
 	lifetime time.Duration,
 ) (*AccessToken, error) {
+
 	now := time.Now()
 	exp := now.Add(lifetime)
 	token := &AccessToken{
@@ -110,13 +111,12 @@ func IssueAccessToken(
 		subject:    subject,
 	}
 
-	// encode
-	claims := new(AccessTokenClaims).fromToken(token)
-	if encodedToken, err := encodeToken(claims); err != nil {
+	claims := token.intoClaims()
+	encodedToken, err := encodeToken(claims)
+	if err != nil {
 		return nil, fmt.Errorf("failed to encode access token: %v", err)
-	} else {
-		token.encoded = encodedToken
 	}
+	token.encoded = encodedToken
 
 	return token, nil
 }

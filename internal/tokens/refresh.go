@@ -10,8 +10,10 @@ import (
 	db "git.sr.ht/~jakintosh/consent/internal/database"
 )
 
-// ==============================================
-
+// RefreshTokenClaims is a struct that represents the claims section of a JWT for the refresh token.
+// It sits between the JSON representation in the token and the [RefreshTokeb] Go struct.
+// It can be validated against module level _issuerDomain, _validAudience, and current time.
+// It implements the `validate()` function as part of the [claims] interface.
 type RefreshTokenClaims struct {
 	Expiration int64  `json:"exp"`
 	IssuedAt   int64  `json:"iat"`
@@ -46,17 +48,6 @@ func (claims *RefreshTokenClaims) validate() error {
 	return nil
 }
 
-func (claims *RefreshTokenClaims) fromToken(token *RefreshToken) *RefreshTokenClaims {
-	claims.Issuer = token.issuer
-	claims.IssuedAt = token.issuedAt.Unix()
-	claims.Expiration = token.expiration.Unix()
-	claims.Audience = strings.Join(token.audience, " ")
-	claims.Subject = token.subject
-	claims.Secret = token.secret
-
-	return claims
-}
-
 // ==============================================
 
 type RefreshToken struct {
@@ -78,16 +69,27 @@ func (t *RefreshToken) Secret() string        { return t.secret }
 func (t *RefreshToken) Encoded() string       { return t.encoded }
 
 func (token *RefreshToken) Decode(encToken string) error {
-	claims := RefreshTokenClaims{}
-	if err := validateToken(encToken, &claims); err != nil {
+	claims, err := decodeToken[*RefreshTokenClaims](encToken)
+	if err != nil {
 		if true {
 			// TODO: make this actually check log level
 			log.Println(err.Context())
 		}
 		return err
 	}
-	token.fromClaims(&claims, encToken)
+	token.fromClaims(*claims, encToken)
 	return nil
+}
+
+func (token *RefreshToken) intoClaims() *RefreshTokenClaims {
+	claims := &RefreshTokenClaims{}
+	claims.Issuer = token.issuer
+	claims.IssuedAt = token.issuedAt.Unix()
+	claims.Expiration = token.expiration.Unix()
+	claims.Audience = strings.Join(token.audience, " ")
+	claims.Subject = token.subject
+	claims.Secret = token.secret
+	return claims
 }
 
 func (token *RefreshToken) fromClaims(claims *RefreshTokenClaims, encToken string) {
@@ -107,6 +109,7 @@ func IssueRefreshToken(
 	audience []string,
 	lifetime time.Duration,
 ) (*RefreshToken, error) {
+
 	now := time.Now()
 	exp := now.Add(lifetime)
 	secret, err := generateCSRFCode()
@@ -122,16 +125,15 @@ func IssueRefreshToken(
 		secret:     secret,
 	}
 
-	// encode
-	claims := new(RefreshTokenClaims).fromToken(token)
+	claims := token.intoClaims()
 	encToken, err := encodeToken(claims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode refresh token: %v", err)
 	}
 	token.encoded = encToken
 
-	// store
-	if err = db.InsertRefresh(subject, encToken, exp.Unix()); err != nil {
+	err = db.InsertRefresh(subject, encToken, exp.Unix())
+	if err != nil {
 		return nil, fmt.Errorf("failed to insert refresh token: %v", err)
 	}
 
