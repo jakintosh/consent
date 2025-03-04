@@ -10,6 +10,7 @@ func BuildRouter() *mux.Router {
 	r := mux.NewRouter()
 
 	// ui routes
+	r.HandleFunc("/", app.Home)
 	r.HandleFunc("/login", app.Login)
 
 	// router for api
