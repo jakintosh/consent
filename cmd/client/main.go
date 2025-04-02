@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"git.sr.ht/~jakintosh/consent/pkg/client"
+	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
 func main() {
@@ -22,8 +23,11 @@ func main() {
 	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
 	verificationKey := decodePublicKey(verificationKeyBytes)
 
+	// create token client
+	validator := tokens.InitClient(verificationKey, issuerDomain, audience)
+
 	// init consent.client
-	client.Init(verificationKey, issuerDomain, audience, authUrl)
+	client.Init(validator, authUrl)
 
 	// config router
 	http.HandleFunc("/", home)
@@ -38,11 +42,11 @@ func main() {
 func home(w http.ResponseWriter, r *http.Request) {
 	accessToken, csrf, err := client.VerifyAuthorizationGetCSRF(w, r)
 	if err != nil {
-		log.Printf("failed to verify authorization: %v", err)
+		log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
 	}
 
 	if accessToken != nil {
-		w.Write([]byte(fmt.Sprintf(homeAuth, csrf)))
+		w.Write(fmt.Appendf(nil, homeAuth, csrf))
 	} else {
 		w.Write([]byte(homeUnauth))
 	}
@@ -52,11 +56,11 @@ func example(w http.ResponseWriter, r *http.Request) {
 	csrf := r.URL.Query().Get("csrf")
 	accessToken, csrf, err := client.VerifyAuthorizationCheckCSRF(w, r, csrf)
 	if err != nil {
-		log.Printf("failed to verify authorization: %v", err)
+		log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
 	}
 
 	if accessToken != nil {
-		w.Write([]byte(fmt.Sprintf(exampleAuth, accessToken.Subject(), csrf)))
+		w.Write(fmt.Appendf(nil, exampleAuth, accessToken.Subject(), csrf))
 	} else {
 		w.Write([]byte(exampleUnauth))
 	}

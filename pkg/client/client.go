@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/tokens"
+	"git.sr.ht/~jakintosh/consent/pkg/api"
+	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
 type LogLevel int
@@ -31,8 +30,11 @@ var (
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
-var _logLevel LogLevel = LogLevelDefault
-var _authUrl string
+var (
+	_logLevel      LogLevel = LogLevelDefault
+	_authUrl       string
+	tokenValidator TokenValidator
+)
 
 func _log(level LogLevel, format string, v ...any) {
 	if _logLevel >= level {
@@ -40,9 +42,11 @@ func _log(level LogLevel, format string, v ...any) {
 	}
 }
 
-func Init(publicKey *ecdsa.PublicKey, issuer string, audience string, authUrl string) {
-	tokens.InitClient(publicKey, issuer, audience)
-
+func Init(
+	validator TokenValidator,
+	authUrl string,
+) {
+	tokenValidator = validator
 	_authUrl = authUrl
 }
 
@@ -55,7 +59,10 @@ This can be passed as a route handler to fully handle the authorization
 code flow for a client. Set this to the same route you register with the
 auth server as the redirect link, and it works out of the box.
 */
-func HandleAuthorizationCode(w http.ResponseWriter, r *http.Request) {
+func HandleAuthorizationCode(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	// extract 'auth_code' refresh token
 	queries := r.URL.Query()
 	code := queries.Get("auth_code")
@@ -87,6 +94,7 @@ func VerifyAuthorization(
 	w http.ResponseWriter,
 	r *http.Request,
 ) (*AccessToken, error) {
+
 	// validate access token in the request
 	accessToken, err := validateAccessToken(r)
 	if accessToken != nil {
@@ -100,8 +108,12 @@ func VerifyAuthorization(
 	// if in refreshable state, validate refresh token
 	refreshToken, err := validateRefreshToken(r)
 	if err != nil {
-		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
-		return nil, ErrTokenInvalid
+		if errors.Is(err, ErrTokenAbsent) {
+			return nil, ErrTokenAbsent
+		} else {
+			_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+			return nil, ErrTokenInvalid
+		}
 	}
 
 	// refresh the tokens
@@ -118,7 +130,12 @@ func VerifyAuthorization(
 func VerifyAuthorizationGetCSRF(
 	w http.ResponseWriter,
 	r *http.Request,
-) (*AccessToken, string, error) {
+) (
+	*AccessToken,
+	string,
+	error,
+) {
+
 	// standard request verification
 	accessToken, err := VerifyAuthorization(w, r)
 	if err != nil {
@@ -145,7 +162,12 @@ func VerifyAuthorizationCheckCSRF(
 	w http.ResponseWriter,
 	r *http.Request,
 	reqCSRFSecret string,
-) (*AccessToken, string, error) {
+) (
+	*AccessToken,
+	string,
+	error,
+) {
+
 	// validate refresh token from request
 	refreshToken, err := validateRefreshToken(r)
 	if err != nil {
@@ -187,11 +209,17 @@ but can use this on its own to compose custom refresh flows.
 Returns decoded token structures, and an error that can be [ErrTokenRequest]
 or [ErrTokenResponse].
 */
-func RefreshTokens(refreshTokenStr string) (*AccessToken, *RefreshToken, bool) {
+func RefreshTokens(
+	refreshTokenStr string,
+) (
+	*AccessToken,
+	*RefreshToken,
+	bool,
+) {
 
 	// construct a POST request to the /api/refresh route
 	url := fmt.Sprintf("%s/api/refresh", _authUrl)
-	body := bytes.NewBuffer([]byte(fmt.Sprintf(`{ "refreshToken" : "%s" }`, refreshTokenStr)))
+	body := bytes.NewBuffer(fmt.Appendf(nil, `{ "refreshToken" : "%s" }`, refreshTokenStr))
 	_log(LogLevelDebug, "POST { refresh_token } => %s\n", url)
 	apiResponse, err := http.Post(url, "application/json", body)
 	if err != nil {
@@ -213,12 +241,12 @@ func RefreshTokens(refreshTokenStr string) (*AccessToken, *RefreshToken, bool) {
 
 	// decode tokens from response
 	accessToken := new(AccessToken)
-	if err := accessToken.Decode(refreshResponse.AccessToken); err != nil {
+	if err := accessToken.Decode(refreshResponse.AccessToken, tokenValidator); err != nil {
 		_log(LogLevelError, "failed to decode access token: %v\n", err)
 		return nil, nil, false
 	}
 	refreshToken := new(RefreshToken)
-	if err := refreshToken.Decode(refreshResponse.RefreshToken); err != nil {
+	if err := refreshToken.Decode(refreshResponse.RefreshToken, tokenValidator); err != nil {
 		_log(LogLevelError, "failed to decode refresh token: %v\n", err)
 		return nil, nil, false
 	}
@@ -287,7 +315,7 @@ func validateAccessToken(r *http.Request) (*AccessToken, error) {
 	}
 
 	token := new(AccessToken)
-	err := token.Decode(cookie.Value)
+	err := token.Decode(cookie.Value, tokenValidator)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +329,7 @@ func validateRefreshToken(r *http.Request) (*RefreshToken, error) {
 	}
 
 	token := new(RefreshToken)
-	err := token.Decode(cookie.Value)
+	err := token.Decode(cookie.Value, tokenValidator)
 	if err != nil {
 		return nil, err
 	}

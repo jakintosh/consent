@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
-	"git.sr.ht/~jakintosh/consent/internal/resources"
-	"git.sr.ht/~jakintosh/consent/internal/routing"
-	"git.sr.ht/~jakintosh/consent/internal/tokens"
+	"git.sr.ht/~jakintosh/consent/internal/app"
+	"git.sr.ht/~jakintosh/consent/pkg/api"
+	"git.sr.ht/~jakintosh/consent/pkg/tokens"
+	"github.com/gorilla/mux"
 )
 
 func main() {
+
+	// read env vars
 	dbPath := readEnvVar("DB_PATH")
 	issuerDomain := readEnvVar("ISSUER_DOMAIN")
 	templatesPath := readEnvVar("TEMPLATES_PATH")
@@ -30,11 +31,23 @@ func main() {
 		log.Fatalf("failed to parse ecdsa signing key from signing_key: %v\n", err)
 	}
 
-	database.Init(dbPath)
-	resources.Init(templatesPath, servicesPath)
-	tokens.InitServer(signingKey, issuerDomain)
+	// init program services
+	services := api.NewDynamicServicesDirectory(servicesPath)
+	templates := app.NewDynamicTemplatesDirectory(templatesPath)
+	issuer, validator := tokens.InitServer(signingKey, issuerDomain)
 
-	r := routing.BuildRouter()
+	// init endpoints
+	app.Init(services, templates)
+	api.Init(issuer, validator, services, dbPath)
+
+	// config and serve router
+	r := mux.NewRouter()
+	r.HandleFunc("/", app.Home)
+	r.HandleFunc("/login", app.Login)
+
+	// api subrouter
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	api.BuildRouter(apiRouter)
 
 	err = http.ListenAndServe(port, r)
 	if err != nil {
@@ -50,29 +63,6 @@ func readEnvVar(name string) string {
 	}
 	return str
 }
-
-func readEnvInt(name string) int {
-	v := readEnvVar(name)
-	i, err := strconv.Atoi(v)
-	if err != nil {
-		log.Fatalf("required env var '%s' could not be parsed as integer (\"%v\")\n", name, v)
-	}
-	return i
-}
-
-// func decodePublicKey(bytes []byte) *ecdsa.PublicKey {
-// 	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
-// 	if err != nil {
-// 		log.Fatalf("decodePublicKey: failed to parse ecdsa verification key from PEM block\n")
-// 	}
-
-// 	ecdsaKey, ok := parsedKey.(*ecdsa.PublicKey)
-// 	if !ok {
-// 		log.Fatalf("decodePublicKey: failed to cast parsed key as *ecdsa.PublicKey")
-// 	}
-
-// 	return ecdsaKey
-// }
 
 func loadCredential(name string, credsDir string) []byte {
 	credPath := filepath.Join(credsDir, name)

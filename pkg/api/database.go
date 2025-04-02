@@ -1,4 +1,4 @@
-package database
+package api
 
 import (
 	"database/sql"
@@ -10,7 +10,7 @@ import (
 
 var db *sql.DB
 
-func Init(dbPath string) {
+func initDatabase(dbPath string) {
 
 	var err error
 	db, err = sql.Open("sqlite3", dbPath)
@@ -18,20 +18,33 @@ func Init(dbPath string) {
 		log.Fatalf("failed to connect to database: %v\n", err)
 	}
 
-	if _, err = db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
 		log.Fatalf("failed to init database schema: couldn't enable foreign keys: %v\n", err)
 	}
-	if err = initIdentity(); err != nil {
+
+	if err := initTable("identity", `CREATE TABLE IF NOT EXISTS identity (
+			id          INTEGER PRIMARY KEY,
+			handle      TEXT UNIQUE,
+			secret      BLOB
+		);`,
+	); err != nil {
 		log.Fatalf("failed to init database: %v\n", err)
 	}
-	if err = initRefresh(); err != nil {
+
+	if err := initTable("referesh", `CREATE TABLE IF NOT EXISTS refresh (
+			id          INTEGER PRIMARY KEY,
+			owner       INTEGER,
+			jwt         TEXT,
+			expiration  INTEGER,
+			FOREIGN KEY (owner) REFERENCES identity (id)
+		);`,
+	); err != nil {
 		log.Fatalf("failed to init database: %v\n", err)
 	}
 }
 
 func initTable(name string, sql string) error {
-	_, err := db.Exec(sql)
-	if err != nil {
+	if _, err := db.Exec(sql); err != nil {
 		return fmt.Errorf("failed to init '%s' table schema: %v\n", name, err)
 	}
 	return nil

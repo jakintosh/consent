@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -27,7 +26,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = database.InsertAccount(req.Handle, hashPass)
+	err = InsertAccount(req.Handle, hashPass)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("failed to insert user: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)

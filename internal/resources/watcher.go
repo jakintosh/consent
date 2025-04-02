@@ -7,7 +7,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func watchDir(directory string, callback func()) error {
+func WatchDir(directory string, callback func()) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -34,6 +34,7 @@ func handleWatcher(watcher *fsnotify.Watcher, reload chan<- struct{}) {
 			if event.Has(fsnotify.Write | fsnotify.Remove | fsnotify.Create) {
 				reload <- struct{}{}
 			}
+
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return

@@ -5,11 +5,21 @@ import (
 	"log"
 	"net/http"
 
-	"git.sr.ht/~jakintosh/consent/internal/resources"
+	"git.sr.ht/~jakintosh/consent/pkg/api"
 )
 
+var (
+	services  api.Services
+	templates Templates
+)
+
+func Init(s api.Services, t Templates) {
+	services = s
+	templates = t
+}
+
 func returnTemplate(name string, data any, w http.ResponseWriter, r *http.Request) {
-	bytes, err := resources.RenderTemplate(name, data)
+	bytes, err := templates.RenderTemplate(name, data)
 	if err != nil {
 		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)

@@ -1,20 +1,9 @@
-package database
-
-func initIdentity() error {
-	return initTable(
-		"identity",
-		`CREATE TABLE IF NOT EXISTS identity (
-			id          INTEGER PRIMARY KEY,
-			handle      TEXT UNIQUE,
-			secret      BLOB
-		);`,
-	)
-}
+package api
 
 func InsertAccount(handle string, secret []byte) error {
 	_, err := db.Exec(`
 		INSERT INTO identity (handle, secret)
-		VALUES (?, ?)
+		VALUES (?, ?);
 		`,
 		handle,
 		secret,
@@ -26,7 +15,7 @@ func GetSecret(handle string) ([]byte, error) {
 	row := db.QueryRow(`
 		SELECT secret
 		FROM identity i
-		WHERE i.handle=?
+		WHERE i.handle=?;
 		`,
 		handle,
 	)

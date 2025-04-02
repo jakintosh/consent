@@ -6,9 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
-	"git.sr.ht/~jakintosh/consent/internal/resources"
-	"git.sr.ht/~jakintosh/consent/internal/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -55,14 +52,14 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service := resources.GetService(req.Service)
-	if service == nil {
+	service, err := services.GetService(req.Service)
+	if err != nil {
 		logApiErr(r, fmt.Sprintf("invalid service: %s", req.Service))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	refreshToken, err := tokens.IssueRefreshToken(
+	refreshToken, err := tokenIssuer.IssueRefreshToken(
 		req.Handle,
 		[]string{service.Audience},
 		time.Second*10,
@@ -73,13 +70,25 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// insert into database
+	err = InsertRefresh(
+		refreshToken.Subject(),
+		refreshToken.Encoded(),
+		refreshToken.Expiration().Unix(),
+	)
+	if err != nil {
+		logApiErr(r, "failed to insert refresh token")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	redirectUrl := buildRedirectUrlString(service.Redirect, refreshToken.Encoded())
 
 	http.Redirect(w, r, redirectUrl, http.StatusSeeOther)
 }
 
 func authenticate(handle string, secret string) error {
-	hash, err := database.GetSecret(handle)
+	hash, err := GetSecret(handle)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve secret: %v", err)
 	}

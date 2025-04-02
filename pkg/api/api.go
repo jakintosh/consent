@@ -1,16 +1,29 @@
 package api
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-var signingKey *ecdsa.PrivateKey
+var (
+	services       Services
+	tokenIssuer    tokens.Issuer
+	tokenValidator tokens.Validator
+)
 
-func Init(privateKey *ecdsa.PrivateKey) {
-	signingKey = privateKey
+func Init(
+	i tokens.Issuer,
+	v tokens.Validator,
+	s Services,
+	dbPath string,
+) {
+	tokenIssuer = i
+	tokenValidator = v
+	services = s
+	initDatabase(dbPath)
 }
 
 func decodeRequest[T any](req *T, w http.ResponseWriter, r *http.Request) bool {

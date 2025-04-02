@@ -3,11 +3,13 @@ package app
 import (
 	"fmt"
 	"net/http"
-
-	"git.sr.ht/~jakintosh/consent/internal/resources"
 )
 
-func Login(w http.ResponseWriter, r *http.Request) {
+func Login(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
 	serviceName := r.URL.Query().Get("service")
 	if serviceName == "" {
 		logAppErr(r, fmt.Sprintf("missing required query param 'service'"))
@@ -16,7 +18,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service := resources.GetService(serviceName)
+	service, err := services.GetService(serviceName)
+	if err != nil {
+		logAppErr(r, fmt.Sprintf("invalid service: %s", serviceName))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(badRequestHTML)
+		return
+	}
+
 	data := map[string]string{
 		"Display": service.Display,
 		"Name":    serviceName,

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 )
 
 type validateError struct {
@@ -40,23 +41,44 @@ func ErrTokenInvalidIssuer() error   { return errTokenInvalidIssuer }
 func ErrTokenExpired() error         { return errTokenExpired }
 func ErrTokenNotIssued() error       { return errTokenNotIssued }
 
-var _signingKey *ecdsa.PrivateKey
-var _verificationKey *ecdsa.PublicKey
-var _issuerDomain string
-var _validAudience *string
-
-func InitServer(signingKey *ecdsa.PrivateKey, issuerDomain string) {
-	_signingKey = signingKey
-	_verificationKey = &signingKey.PublicKey
-	_issuerDomain = issuerDomain
-	_validAudience = nil
+type Issuer interface {
+	SignHash([]byte) (string, error)
+	IssueRefreshToken(string, []string, time.Duration) (*RefreshToken, error)
+	IssueAccessToken(string, []string, time.Duration) (*AccessToken, error)
 }
 
-func InitClient(verificationKey *ecdsa.PublicKey, issuerDomain string, validAudience string) {
-	_signingKey = nil
-	_verificationKey = verificationKey
-	_issuerDomain = issuerDomain
-	_validAudience = &validAudience
+type Validator interface {
+	ShouldValidateAudience() bool
+	ValidateDomain(string) bool
+	ValidateAudiences(string) bool
+	VerifySignature(string, string, string) error
+}
+
+func InitServer(
+	signingKey *ecdsa.PrivateKey,
+	issuerDomain string,
+) (
+	Issuer,
+	Validator,
+) {
+	server := &Server{
+		signingKey:      signingKey,
+		verificationKey: &signingKey.PublicKey,
+		issuerDomain:    issuerDomain,
+	}
+	return server, server
+}
+
+func InitClient(
+	verificationKey *ecdsa.PublicKey,
+	issuerDomain string,
+	validAudience string,
+) Validator {
+	return &Client{
+		verificationKey: verificationKey,
+		issuerDomain:    issuerDomain,
+		validAudience:   validAudience,
+	}
 }
 
 type JWTHeader struct {
@@ -65,7 +87,7 @@ type JWTHeader struct {
 }
 
 type claims interface {
-	validate() error
+	validate(Validator) error
 	comparable
 }
 
@@ -133,24 +155,12 @@ func encodeMessage[T comparable](claims T) (string, error) {
 	return buildMessage(encHeader, encClaims), nil
 }
 
-func signHash(hash []byte) (string, error) {
-	r, s, err := ecdsa.Sign(rand.Reader, _signingKey, hash[:])
-	if err != nil {
-		return "", fmt.Errorf("failed to sign message: %v", err)
-	}
-	encSignature, err := encodeSignature(r, s)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode signature: %v", err)
-	}
-	return encSignature, nil
-}
-
-func encodeToken[T comparable](claims T) (string, error) {
+func encodeToken[T comparable](claims T, issuer Issuer) (string, error) {
 	message, err := encodeMessage(claims)
 	if err != nil {
 		return "", err
 	}
-	encSignature, err := signHash(hashMessage(message))
+	encSignature, err := issuer.SignHash(hashMessage(message))
 	if err != nil {
 		return "", err
 	}
@@ -204,7 +214,12 @@ func verifyHeader(header *JWTHeader) error {
 	return nil
 }
 
-func verifySignature(encHeader string, encClaims string, encSignature string) error {
+func verifySignature(
+	encHeader string,
+	encClaims string,
+	encSignature string,
+	verificationKey *ecdsa.PublicKey,
+) error {
 	signature, err := base64.RawURLEncoding.DecodeString(encSignature)
 	if err != nil {
 		return fmt.Errorf("invalid base64 encoding: %v", err)
@@ -217,14 +232,14 @@ func verifySignature(encHeader string, encClaims string, encSignature string) er
 
 	hash := hashMessage(buildMessage(encHeader, encClaims))
 
-	if valid := ecdsa.Verify(_verificationKey, hash, r, s); !valid {
+	if valid := ecdsa.Verify(verificationKey, hash, r, s); !valid {
 		return fmt.Errorf("verification failed")
 	}
 
 	return nil
 }
 
-func decodeToken[T claims](tokenStr string) (*T, *validateError) {
+func decodeToken[T claims](tokenStr string, validator Validator) (*T, *validateError) {
 	encHeader, encClaims, encSignature, err := validateStructure(tokenStr)
 	if err != nil {
 		return nil, &validateError{
@@ -248,7 +263,7 @@ func decodeToken[T claims](tokenStr string) (*T, *validateError) {
 		}
 	}
 
-	if err := verifySignature(encHeader, encClaims, encSignature); err != nil {
+	if err := validator.VerifySignature(encHeader, encClaims, encSignature); err != nil {
 		return nil, &validateError{
 			context: fmt.Sprintf("token signature illegal: %v", err),
 			err:     errTokenBadSignature,
@@ -262,7 +277,7 @@ func decodeToken[T claims](tokenStr string) (*T, *validateError) {
 			err:     errTokenMalformed,
 		}
 	}
-	if err = (*claims).validate(); err != nil {
+	if err = (*claims).validate(validator); err != nil {
 		return nil, &validateError{
 			context: fmt.Sprintf("token claims invalid: %v", err),
 			err:     err,

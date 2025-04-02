@@ -3,8 +3,6 @@ package api
 import (
 	"fmt"
 	"net/http"
-
-	"git.sr.ht/~jakintosh/consent/internal/database"
 )
 
 type LogoutRequest struct {
@@ -18,7 +16,7 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := database.DeleteRefresh(req.RefreshToken)
+	ok, err := DeleteRefresh(req.RefreshToken)
 	if !ok {
 		logApiErr(r, fmt.Sprintf("invalid refresh token: %s", req.RefreshToken))
 		w.WriteHeader(http.StatusBadRequest)

@@ -1,9 +1,7 @@
 package tokens
 
 import (
-	"fmt"
 	"log"
-	"slices"
 	"strings"
 	"time"
 )
@@ -18,7 +16,7 @@ type AccessTokenClaims struct {
 	Subject    string `json:"sub"`
 }
 
-func (claims *AccessTokenClaims) validate() error {
+func (claims *AccessTokenClaims) validate(validator Validator) error {
 	now := time.Now()
 
 	if time.Unix(claims.IssuedAt, 0).After(now) {
@@ -29,13 +27,12 @@ func (claims *AccessTokenClaims) validate() error {
 		return ErrTokenExpired()
 	}
 
-	if claims.Issuer != _issuerDomain {
+	if !validator.ValidateDomain(claims.Issuer) {
 		return ErrTokenInvalidIssuer()
 	}
 
-	if _validAudience != nil {
-		audiences := strings.Split(claims.Audience, " ")
-		if !slices.Contains(audiences, *_validAudience) {
+	if validator.ShouldValidateAudience() {
+		if !validator.ValidateAudiences(claims.Audience) {
 			return ErrTokenInvalidAudience()
 		}
 	}
@@ -61,8 +58,8 @@ func (t *AccessToken) Audience() []string    { return t.audience }
 func (t *AccessToken) Subject() string       { return t.subject }
 func (t *AccessToken) Encoded() string       { return t.encoded }
 
-func (token *AccessToken) Decode(encToken string) error {
-	claims, err := decodeToken[*AccessTokenClaims](encToken)
+func (token *AccessToken) Decode(encToken string, validator Validator) error {
+	claims, err := decodeToken[*AccessTokenClaims](encToken, validator)
 	if err != nil {
 		if true {
 			// TODO: make this actually check log level
@@ -91,32 +88,4 @@ func (token *AccessToken) fromClaims(claims *AccessTokenClaims, encToken string)
 	token.audience = strings.Split(claims.Audience, " ")
 	token.subject = claims.Subject
 	token.encoded = encToken
-}
-
-// ==============================================
-
-func IssueAccessToken(
-	subject string,
-	audience []string,
-	lifetime time.Duration,
-) (*AccessToken, error) {
-
-	now := time.Now()
-	exp := now.Add(lifetime)
-	token := &AccessToken{
-		issuer:     _issuerDomain,
-		issuedAt:   now,
-		expiration: exp,
-		audience:   audience,
-		subject:    subject,
-	}
-
-	claims := token.intoClaims()
-	encodedToken, err := encodeToken(claims)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode access token: %v", err)
-	}
-	token.encoded = encodedToken
-
-	return token, nil
 }

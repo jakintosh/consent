@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 name=consent
-domain=studiopollinator.com
+domain=letsbuildhomes.org
 dpl_src=./deployment
 dpl_dst=deployments
 
