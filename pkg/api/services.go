@@ -57,6 +57,7 @@ func NewDynamicServicesDirectory(dir string) *DynamicServicesDirectory {
 
 	s.Load()
 
+	// TODO: This needs to not use the internal 'resources' package
 	err := resources.WatchDir(s.servicesDir, func() { s.Load() })
 	if err != nil {
 		// TODO: maybe better error handling

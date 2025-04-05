@@ -13,7 +13,7 @@ var db *sql.DB
 func initDatabase(dbPath string) {
 
 	var err error
-	db, err = sql.Open("sqlite3", dbPath)
+	db, err = sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)
 	}
