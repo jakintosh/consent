@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 )
 
 func main() {
+	// Parse command-line flags
+	insecureCookies := flag.Bool("insecure-cookies", false, "Enable insecure cookies for local HTTP testing (DO NOT USE IN PRODUCTION)")
+	flag.Parse()
+
 	// read "env vars"
 	authUrl := "http://localhost:9001"
 	issuerDomain := "auth.studiopollinator.com"
@@ -28,6 +33,15 @@ func main() {
 
 	// init consent.client
 	client.Init(validator, authUrl)
+
+	// Configure insecure cookies if requested (for local development/testing)
+	if *insecureCookies {
+		client.SetCookieOptions(client.CookieOptions{
+			Secure:   false,
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+		})
+	}
 
 	// config router
 	http.HandleFunc("/", home)
