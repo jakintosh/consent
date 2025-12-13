@@ -1,0 +1,54 @@
+{{ define "style" }}
+		/* general form styling */
+		form.auth { max-width: 360px; margin: 2em auto; }
+		form.auth > * { display: block; display: flex; margin: 0.5em 0; }
+		form.auth > *:first-child { margin-block-start: 0; }
+		form.auth > *:last-child { margin-block-end: 0; }
+
+		/* form element styling */
+		form.auth h2 { color: #7521b0; }
+		form.auth input,
+		form.auth button { flex: 1; border: none; background-color: #0000; }
+		form.auth button { padding-block: 0.75em; font-weight: bold; color: white; background-color: #7521b0; }
+		form.auth > fieldset > legend { color: #7521b0; background-color: white;}
+
+		/* general focus */
+		form.auth input:focus,
+		form.auth button:focus { outline: none; background-color: #0000; }
+
+		/* button focus  */
+		form.auth button:hover { cursor: pointer; }
+		form.auth .focus:has(> button:focus),
+		form.auth .focus:has(> button:hover) { background-color: #7521b0b; }
+
+		/* input focus */
+		form.auth .focus:has(> input:focus) { color: #7521b0; background-color: #7521b01; }
+
+		form.auth .border { border: 1pt solid #7521b0; }
+		form.auth .submit { margin-block: 1.5em; }
+
+		.mono { font-family: monospace; }
+{{ end }}
+{{ define "content" }}
+	<form class="auth" method="POST" action="/api/login">
+		<h2>Log In</h2>
+		<div>
+			<p>
+				Use your Pollinator Network ID to log in to <span class="mono">{{.Display}}</span>.
+			</p>
+		</div>
+		<fieldset class="border focus">
+			<legend>Handle</legend>
+			<input type="text" name="handle" required />
+		</fieldset>
+		<fieldset class="border focus">
+			<legend>Secret</legend>
+		<input type="password" name="secret" required />
+		</fieldset>
+		<div class="border focus submit">
+			<input type="text" name="service" value="{{.Name}}" hidden required />
+			<button type="submit">Authenticate</button>
+		</div>
+	</form>
+{{ end }}
+{{- template "base.html" . -}}

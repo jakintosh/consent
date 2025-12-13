@@ -30,10 +30,24 @@ var (
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
+// CookieOptions configures cookie attributes.
+type CookieOptions struct {
+	Secure   bool
+	SameSite http.SameSite
+	Path     string
+}
+
 var (
 	_logLevel      LogLevel = LogLevelDefault
 	_authUrl       string
 	tokenValidator TokenValidator
+	httpClient     *http.Client = http.DefaultClient
+	cookieOptions               = CookieOptions{
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	}
+	insecureCookieWarningEmitted bool
 )
 
 func _log(level LogLevel, format string, v ...any) {
@@ -52,6 +66,24 @@ func Init(
 
 func SetLogLevel(logLevel LogLevel) {
 	_logLevel = logLevel
+}
+
+// SetHTTPClient sets a custom HTTP client for RefreshTokens.
+// This is primarily useful for testing.
+func SetHTTPClient(c *http.Client) {
+	httpClient = c
+}
+
+// SetCookieOptions configures cookie attributes.
+// WARNING: Setting Secure to false enables insecure cookies that should
+// NEVER be used in production. This option exists only for local development
+// and testing over HTTP.
+func SetCookieOptions(opts CookieOptions) {
+	cookieOptions = opts
+	if !opts.Secure && !insecureCookieWarningEmitted {
+		log.Println("WARNING: Insecure cookies enabled. This must NOT be used in production.")
+		insecureCookieWarningEmitted = true
+	}
 }
 
 /*
@@ -221,7 +253,7 @@ func RefreshTokens(
 	url := fmt.Sprintf("%s/api/refresh", _authUrl)
 	body := bytes.NewBuffer(fmt.Appendf(nil, `{ "refreshToken" : "%s" }`, refreshTokenStr))
 	_log(LogLevelDebug, "POST { refresh_token } => %s\n", url)
-	apiResponse, err := http.Post(url, "application/json", body)
+	apiResponse, err := httpClient.Post(url, "application/json", body)
 	if err != nil {
 		_log(LogLevelError, "failed to post refresh: %v\n", err)
 		return nil, nil, false
@@ -260,20 +292,20 @@ func SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshTok
 
 	accessTokenCookie := &http.Cookie{
 		Name:     "accessToken",
-		Path:     "/",
+		Path:     cookieOptions.Path,
 		Value:    accessToken.Encoded(),
 		MaxAge:   int(accessMaxAge),
-		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		SameSite: cookieOptions.SameSite,
+		Secure:   cookieOptions.Secure,
 		HttpOnly: true,
 	}
 	refreshTokenCookie := &http.Cookie{
 		Name:     "refreshToken",
-		Path:     "/",
+		Path:     cookieOptions.Path,
 		Value:    refreshToken.Encoded(),
 		MaxAge:   int(refreshMaxAge),
-		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		SameSite: cookieOptions.SameSite,
+		Secure:   cookieOptions.Secure,
 		HttpOnly: true,
 	}
 
@@ -286,12 +318,12 @@ func SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshTok
 func ClearTokenCookies(w http.ResponseWriter) {
 	accessTokenCookie := &http.Cookie{
 		Name:   "accessToken",
-		Path:   "/",
+		Path:   cookieOptions.Path,
 		MaxAge: -1,
 	}
 	refreshTokenCookie := &http.Cookie{
 		Name:   "refreshToken",
-		Path:   "/",
+		Path:   cookieOptions.Path,
 		MaxAge: -1,
 	}
 

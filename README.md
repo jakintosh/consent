@@ -56,3 +56,8 @@ Consent is ideal for:
 In sum, Consent is designed to provide easy "login with facebook" style authentication for small, open source, community-scale software projects.
 
 This approach reduces OAuth implementation time from weeks to hours while maintaining the security guarantees that make OAuth suitable for production authentication systems.
+
+## Documentation
+
+- **[Integration Guide](docs/integration-guide.md)** - Complete guide for integrating Consent into your Go application
+- **[Testing Guide](docs/testing-guide.md)** - How to test applications that use Consent (unit tests, integration tests, language-agnostic testing)

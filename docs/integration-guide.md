@@ -388,6 +388,89 @@ The client library handles refresh automatically - you just call `VerifyAuthoriz
 
 ---
 
+## Testing Your Integration
+
+Consent provides comprehensive testing tools for applications that integrate with it.
+
+### Unit Testing (No Network)
+
+Use `pkg/consenttest` to create test tokens without running a real auth server:
+
+```go
+import "git.sr.ht/~jakintosh/consent/pkg/consenttest"
+
+func TestProtectedEndpoint(t *testing.T) {
+    // Generate test keys
+    keys, _ := consenttest.NewKeys("test.example.com")
+
+    // Create validator
+    validator := consenttest.Validator(keys, "myapp.example.com")
+    client.Init(validator, "http://unused")
+
+    // Create test session
+    session, _ := consenttest.NewSession(
+        keys, "testuser", "myapp.example.com",
+        30*time.Minute, 72*time.Hour,
+    )
+
+    // Create request with auth cookies
+    req := httptest.NewRequest("GET", "/protected", nil)
+    consenttest.AddCookies(req, session, consenttest.CookieOptions{})
+
+    // Test your handler
+    rr := httptest.NewRecorder()
+    ProtectedHandler(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Errorf("expected 200, got %d", rr.Code)
+    }
+}
+```
+
+### Integration Testing (With Real Server)
+
+Use `pkg/testharness` to spawn a real Consent server for integration tests:
+
+```go
+import "git.sr.ht/~jakintosh/consent/pkg/testharness"
+
+func TestAuthFlow(t *testing.T) {
+    // Start your app
+    app := httptest.NewServer(myapp.NewRouter())
+    defer app.Close()
+
+    // Start consent-testserver
+    h := testharness.Start(t, testharness.Config{
+        RedirectURL: app.URL + "/api/authorize",
+        ServiceAudience: "myapp",
+    })
+
+    // Configure client for HTTP testing
+    client.SetCookieOptions(client.CookieOptions{
+        Secure: false, // Required for HTTP testing
+    })
+
+    // Run tests using h.BaseURL, h.Users, etc.
+}
+```
+
+### Language-Agnostic Testing
+
+For non-Go projects, use the `consent-testserver` binary directly:
+
+```bash
+consent-testserver \
+  --service-redirect http://localhost:8080/api/authorize \
+  --service-audience myapp \
+  --user alice:password123
+```
+
+This outputs JSON with the server's `base_url`, verification key, and other configuration.
+
+**For complete testing documentation**, see [`docs/testing-guide.md`](testing-guide.md).
+
+---
+
 ## Quick Reference
 
 | Task | Function |
