@@ -186,7 +186,11 @@ Use `consent-testserver` when:
 
 ```bash
 consent-testserver [flags]
+consent-testserver version
 ```
+
+**Subcommands:**
+- `version` - Print version information
 
 **Required Flags:**
 - `--service-redirect` - URL where Consent redirects after login (your app's `/api/authorize` endpoint)
@@ -201,6 +205,8 @@ consent-testserver [flags]
 - `--data-dir` - Data directory (uses temp dir if not set)
 - `--keep` - Keep data directory after exit (default: false)
 - `--quiet` - Suppress log output (default: false)
+- `-v, --verbose` - Verbose output (default: false)
+- `-h, --help` - Show help message
 
 ### JSON Output Contract
 

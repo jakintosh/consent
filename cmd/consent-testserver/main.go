@@ -8,7 +8,6 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"syscall"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	"git.sr.ht/~jakintosh/command-go/pkg/version"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/pkg/api"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -29,6 +30,197 @@ import (
 
 //go:embed templates/*
 var templatesFS embed.FS
+
+var root = &args.Command{
+	Name: "consent-testserver",
+	Help: "Test server for integration testing",
+	Config: &args.Config{
+		Author: "jakintosh",
+		HelpOption: &args.HelpOption{
+			Short: 'h',
+			Long:  "help",
+		},
+	},
+	Options: []args.Option{
+		{
+			Long: "listen",
+			Type: args.OptionTypeParameter,
+			Help: "Listen address (default uses ephemeral port)",
+		},
+		{
+			Long: "issuer-domain",
+			Type: args.OptionTypeParameter,
+			Help: "Issuer domain for JWT tokens",
+		},
+		{
+			Long: "service-name",
+			Type: args.OptionTypeParameter,
+			Help: "Service name (used as filename)",
+		},
+		{
+			Long: "service-display",
+			Type: args.OptionTypeParameter,
+			Help: "Service display name",
+		},
+		{
+			Long: "service-audience",
+			Type: args.OptionTypeParameter,
+			Help: "Service audience",
+		},
+		{
+			Long: "service-redirect",
+			Type: args.OptionTypeParameter,
+			Help: "Service redirect URL (required)",
+		},
+		{
+			Long: "user",
+			Type: args.OptionTypeArray,
+			Help: "User credentials in format 'handle:password' (repeatable)",
+		},
+		{
+			Long: "data-dir",
+			Type: args.OptionTypeParameter,
+			Help: "Data directory (uses temp dir if not set)",
+		},
+		{
+			Long: "keep",
+			Type: args.OptionTypeFlag,
+			Help: "Keep data directory on exit",
+		},
+		{
+			Long: "quiet",
+			Type: args.OptionTypeFlag,
+			Help: "Suppress log output",
+		},
+		{
+			Short: 'v',
+			Long:  "verbose",
+			Type:  args.OptionTypeFlag,
+			Help:  "Verbose output",
+		},
+	},
+	Subcommands: []*args.Command{
+		version.Command(VersionInfo),
+	},
+	Handler: func(i *args.Input) error {
+
+		// Parse configuration from input
+		cfg, err := parseConfig(i)
+		if err != nil {
+			return err
+		}
+
+		// Suppress logs if requested
+		if cfg.Quiet {
+			log.SetOutput(io.Discard)
+		}
+
+		// Create workspace
+		workspace, cleanup, err := createWorkspace(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create workspace: %v", err)
+		}
+		defer cleanup()
+
+		// Generate keys
+		signingKey, verificationKeyDER, err := generateKeys(workspace.CredentialsDir)
+		if err != nil {
+			return fmt.Errorf("failed to generate keys: %v", err)
+		}
+
+		// Write templates
+		if err := writeTemplates(workspace.TemplatesDir); err != nil {
+			return fmt.Errorf("failed to write templates: %v", err)
+		}
+
+		// Write service definition
+		if err := writeServiceDefinition(workspace.ServicesDir, cfg); err != nil {
+			return fmt.Errorf("failed to write service definition: %v", err)
+		}
+
+		// Initialize server components
+		services := api.NewDynamicServicesDirectory(workspace.ServicesDir)
+		templates := app.NewDynamicTemplatesDirectory(workspace.TemplatesDir)
+		issuer, validator := tokens.InitServer(signingKey, cfg.IssuerDomain)
+
+		// Initialize endpoints
+		app.Init(services, templates)
+		api.Init(issuer, validator, services, workspace.DBPath)
+
+		// Seed test users
+		if err := seedUsers(cfg.Users); err != nil {
+			return fmt.Errorf("failed to seed users: %v", err)
+		}
+
+		// Build router
+		r := mux.NewRouter()
+		r.HandleFunc("/", app.Home)
+		r.HandleFunc("/login", app.Login)
+		apiRouter := r.PathPrefix("/api").Subrouter()
+		api.BuildRouter(apiRouter)
+
+		// Start HTTP server with ephemeral port
+		listener, err := net.Listen("tcp", cfg.ListenAddr)
+		if err != nil {
+			return fmt.Errorf("failed to listen: %v", err)
+		}
+		defer listener.Close()
+
+		addr := listener.Addr().(*net.TCPAddr)
+		baseURL := fmt.Sprintf("http://%s:%d", addr.IP, addr.Port)
+
+		// Emit JSON contract to stdout
+		contract := OutputContract{
+			BaseURL:      baseURL,
+			IssuerDomain: cfg.IssuerDomain,
+			Paths: OutputPaths{
+				DataDir:             workspace.DataDir,
+				DBPath:              workspace.DBPath,
+				ServicesDir:         workspace.ServicesDir,
+				CredentialsDir:      workspace.CredentialsDir,
+				VerificationKeyPath: filepath.Join(workspace.CredentialsDir, "verification_key.der"),
+			},
+			Service: OutputService{
+				Name:     cfg.ServiceName,
+				Display:  cfg.ServiceDisplay,
+				Audience: cfg.ServiceAudience,
+				Redirect: cfg.ServiceRedirect,
+			},
+			Users: make([]OutputUser, len(cfg.Users)),
+			Keys: OutputKeys{
+				VerificationKeyDERBase64: base64.StdEncoding.EncodeToString(verificationKeyDER),
+			},
+		}
+
+		for i, user := range cfg.Users {
+			contract.Users[i] = OutputUser{Handle: user.Handle, Password: user.Password}
+		}
+
+		encoder := json.NewEncoder(os.Stdout)
+		if err := encoder.Encode(contract); err != nil {
+			return fmt.Errorf("failed to encode JSON contract: %v", err)
+		}
+
+		// Start server in goroutine
+		serverErr := make(chan error, 1)
+		go func() {
+			serverErr <- http.Serve(listener, r)
+		}()
+
+		// Handle graceful shutdown
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		select {
+		case err := <-serverErr:
+			return fmt.Errorf("server error: %v", err)
+		case sig := <-sigChan:
+			log.Printf("received signal %v, shutting down\n", sig)
+		}
+
+		return nil
+	},
+}
 
 // Config holds all command-line configuration
 type Config struct {
@@ -52,20 +244,20 @@ type UserCredentials struct {
 
 // OutputContract is the JSON structure emitted on stdout
 type OutputContract struct {
-	BaseURL      string               `json:"base_url"`
-	IssuerDomain string               `json:"issuer_domain"`
-	Paths        OutputPaths          `json:"paths"`
-	Service      OutputService        `json:"service"`
-	Users        []OutputUser         `json:"users"`
-	Keys         OutputKeys           `json:"keys"`
+	BaseURL      string        `json:"base_url"`
+	IssuerDomain string        `json:"issuer_domain"`
+	Paths        OutputPaths   `json:"paths"`
+	Service      OutputService `json:"service"`
+	Users        []OutputUser  `json:"users"`
+	Keys         OutputKeys    `json:"keys"`
 }
 
 type OutputPaths struct {
-	DataDir               string `json:"data_dir"`
-	DBPath                string `json:"db_path"`
-	ServicesDir           string `json:"services_dir"`
-	CredentialsDir        string `json:"credentials_dir"`
-	VerificationKeyPath   string `json:"verification_key_path"`
+	DataDir             string `json:"data_dir"`
+	DBPath              string `json:"db_path"`
+	ServicesDir         string `json:"services_dir"`
+	CredentialsDir      string `json:"credentials_dir"`
+	VerificationKeyPath string `json:"verification_key_path"`
 }
 
 type OutputService struct {
@@ -84,163 +276,47 @@ type OutputKeys struct {
 	VerificationKeyDERBase64 string `json:"verification_key_der_base64"`
 }
 
-// UserFlag is a custom flag type for repeatable --user flags
-type UserFlag []UserCredentials
-
-func (u *UserFlag) String() string {
-	return fmt.Sprintf("%v", *u)
-}
-
-func (u *UserFlag) Set(value string) error {
-	parts := strings.SplitN(value, ":", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("user must be in format 'handle:password'")
-	}
-	*u = append(*u, UserCredentials{Handle: parts[0], Password: parts[1]})
-	return nil
-}
-
 func main() {
-	// Parse flags
-	cfg := parseFlags()
-
-	// Suppress logs if requested
-	if cfg.Quiet {
-		log.SetOutput(io.Discard)
-	}
-
-	// Create workspace
-	workspace, cleanup, err := createWorkspace(cfg)
-	if err != nil {
-		log.Fatalf("failed to create workspace: %v\n", err)
-	}
-	defer cleanup()
-
-	// Generate keys
-	signingKey, verificationKeyDER, err := generateKeys(workspace.CredentialsDir)
-	if err != nil {
-		log.Fatalf("failed to generate keys: %v\n", err)
-	}
-
-	// Write templates
-	if err := writeTemplates(workspace.TemplatesDir); err != nil {
-		log.Fatalf("failed to write templates: %v\n", err)
-	}
-
-	// Write service definition
-	if err := writeServiceDefinition(workspace.ServicesDir, cfg); err != nil {
-		log.Fatalf("failed to write service definition: %v\n", err)
-	}
-
-	// Initialize server components
-	services := api.NewDynamicServicesDirectory(workspace.ServicesDir)
-	templates := app.NewDynamicTemplatesDirectory(workspace.TemplatesDir)
-	issuer, validator := tokens.InitServer(signingKey, cfg.IssuerDomain)
-
-	// Initialize endpoints
-	app.Init(services, templates)
-	api.Init(issuer, validator, services, workspace.DBPath)
-
-	// Seed test users
-	if err := seedUsers(cfg.Users); err != nil {
-		log.Fatalf("failed to seed users: %v\n", err)
-	}
-
-	// Build router
-	r := mux.NewRouter()
-	r.HandleFunc("/", app.Home)
-	r.HandleFunc("/login", app.Login)
-	apiRouter := r.PathPrefix("/api").Subrouter()
-	api.BuildRouter(apiRouter)
-
-	// Start HTTP server with ephemeral port
-	listener, err := net.Listen("tcp", cfg.ListenAddr)
-	if err != nil {
-		log.Fatalf("failed to listen: %v\n", err)
-	}
-	defer listener.Close()
-
-	addr := listener.Addr().(*net.TCPAddr)
-	baseURL := fmt.Sprintf("http://%s:%d", addr.IP, addr.Port)
-
-	// Emit JSON contract to stdout
-	contract := OutputContract{
-		BaseURL:      baseURL,
-		IssuerDomain: cfg.IssuerDomain,
-		Paths: OutputPaths{
-			DataDir:             workspace.DataDir,
-			DBPath:              workspace.DBPath,
-			ServicesDir:         workspace.ServicesDir,
-			CredentialsDir:      workspace.CredentialsDir,
-			VerificationKeyPath: filepath.Join(workspace.CredentialsDir, "verification_key.der"),
-		},
-		Service: OutputService{
-			Name:     cfg.ServiceName,
-			Display:  cfg.ServiceDisplay,
-			Audience: cfg.ServiceAudience,
-			Redirect: cfg.ServiceRedirect,
-		},
-		Users: make([]OutputUser, len(cfg.Users)),
-		Keys: OutputKeys{
-			VerificationKeyDERBase64: base64.StdEncoding.EncodeToString(verificationKeyDER),
-		},
-	}
-
-	for i, user := range cfg.Users {
-		contract.Users[i] = OutputUser{Handle: user.Handle, Password: user.Password}
-	}
-
-	encoder := json.NewEncoder(os.Stdout)
-	if err := encoder.Encode(contract); err != nil {
-		log.Fatalf("failed to encode JSON contract: %v\n", err)
-	}
-
-	// Start server in goroutine
-	serverErr := make(chan error, 1)
-	go func() {
-		serverErr <- http.Serve(listener, r)
-	}()
-
-	// Handle graceful shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case err := <-serverErr:
-		log.Fatalf("server error: %v\n", err)
-	case sig := <-sigChan:
-		log.Printf("received signal %v, shutting down\n", sig)
-	}
+	root.Parse()
 }
 
-func parseFlags() Config {
+func parseConfig(i *args.Input) (Config, error) {
 	var cfg Config
-	var users UserFlag
 
-	flag.StringVar(&cfg.ListenAddr, "listen", "127.0.0.1:0", "Listen address (default uses ephemeral port)")
-	flag.StringVar(&cfg.IssuerDomain, "issuer-domain", "consent.test", "Issuer domain for JWT tokens")
-	flag.StringVar(&cfg.ServiceName, "service-name", "test-service", "Service name (used as filename)")
-	flag.StringVar(&cfg.ServiceDisplay, "service-display", "Test Service", "Service display name")
-	flag.StringVar(&cfg.ServiceAudience, "service-audience", "test-audience", "Service audience")
-	flag.StringVar(&cfg.ServiceRedirect, "service-redirect", "", "Service redirect URL (required)")
-	flag.Var(&users, "user", "User credentials in format 'handle:password' (repeatable)")
-	flag.StringVar(&cfg.DataDir, "data-dir", "", "Data directory (uses temp dir if not set)")
-	flag.BoolVar(&cfg.Keep, "keep", false, "Keep data directory on exit")
-	flag.BoolVar(&cfg.Quiet, "quiet", false, "Suppress log output")
+	// Read options with defaults
+	cfg.ListenAddr = i.GetParameterOr("listen", "127.0.0.1:0")
+	cfg.IssuerDomain = i.GetParameterOr("issuer-domain", "consent.test")
+	cfg.ServiceName = i.GetParameterOr("service-name", "test-service")
+	cfg.ServiceDisplay = i.GetParameterOr("service-display", "Test Service")
+	cfg.ServiceAudience = i.GetParameterOr("service-audience", "test-audience")
+	cfg.DataDir = i.GetParameterOr("data-dir", "")
+	cfg.Keep = i.GetFlag("keep")
+	cfg.Quiet = i.GetFlag("quiet")
 
-	flag.Parse()
-
-	if cfg.ServiceRedirect == "" {
-		log.Fatal("--service-redirect is required")
+	// Service redirect is required
+	if redirect := i.GetParameter("service-redirect"); redirect != nil {
+		cfg.ServiceRedirect = *redirect
+	} else {
+		return cfg, fmt.Errorf("--service-redirect is required")
 	}
 
-	if len(users) == 0 {
+	// Parse user credentials from array
+	userStrings := i.GetArray("user")
+	if len(userStrings) == 0 {
+		// Default user
 		cfg.Users = []UserCredentials{{Handle: "test", Password: "test"}}
 	} else {
-		cfg.Users = users
+		cfg.Users = make([]UserCredentials, 0, len(userStrings))
+		for _, userStr := range userStrings {
+			parts := strings.SplitN(userStr, ":", 2)
+			if len(parts) != 2 {
+				return cfg, fmt.Errorf("user must be in format 'handle:password', got: %s", userStr)
+			}
+			cfg.Users = append(cfg.Users, UserCredentials{Handle: parts[0], Password: parts[1]})
+		}
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 type Workspace struct {

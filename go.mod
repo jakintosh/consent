@@ -1,6 +1,6 @@
 module git.sr.ht/~jakintosh/consent
 
-go 1.23.3
+go 1.24.1
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0
@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	git.sr.ht/~jakintosh/command-go v0.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

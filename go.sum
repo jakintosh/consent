@@ -1,3 +1,5 @@
+git.sr.ht/~jakintosh/command-go v0.2.1 h1:qcTo3FD8aw+xbfLCHR0oRv56YOyzbByzxW1m5lthFUU=
+git.sr.ht/~jakintosh/command-go v0.2.1/go.mod h1:Qp6RBvq43rwbWUnPNitASz6w18azPkUHSSrpub/slBk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/8M=
