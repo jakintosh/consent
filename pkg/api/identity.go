@@ -1,22 +1,32 @@
 package api
 
-func InsertAccount(handle string, secret []byte) error {
+import "database/sql"
+
+func insertAccount(
+	db *sql.DB,
+	handle string,
+	secret []byte,
+) error {
 	_, err := db.Exec(`
 		INSERT INTO identity (handle, secret)
-		VALUES (?, ?);
-		`,
+		VALUES (?, ?);`,
 		handle,
 		secret,
 	)
 	return err
 }
 
-func GetSecret(handle string) ([]byte, error) {
+func getSecret(
+	db *sql.DB,
+	handle string,
+) (
+	[]byte,
+	error,
+) {
 	row := db.QueryRow(`
 		SELECT secret
 		FROM identity i
-		WHERE i.handle=?;
-		`,
+		WHERE i.handle=?;`,
 		handle,
 	)
 

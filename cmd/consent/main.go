@@ -125,7 +125,7 @@ var root = &args.Command{
 
 		// Init endpoints
 		app.Init(services, templates)
-		api.Init(issuer, validator, services, dbPath)
+		authApi := api.New(issuer, validator, services, dbPath)
 
 		// Config and serve router
 		r := mux.NewRouter()
@@ -134,7 +134,7 @@ var root = &args.Command{
 
 		// API subrouter
 		apiRouter := r.PathPrefix("/api").Subrouter()
-		api.BuildRouter(apiRouter)
+		authApi.BuildRouter(apiRouter)
 
 		if verbose {
 			log.Printf("Listening on %s", port)

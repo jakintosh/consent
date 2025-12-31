@@ -12,7 +12,7 @@ func Login(
 
 	serviceName := r.URL.Query().Get("service")
 	if serviceName == "" {
-		logAppErr(r, fmt.Sprintf("missing required query param 'service'"))
+		logAppErr(r, "missing required query param 'service'")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write(badRequestHTML)
 		return

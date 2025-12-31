@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,80 +18,81 @@ type RefreshResponse struct {
 	AccessToken  string `json:"accessToken"`
 }
 
-func Refresh(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	req := RefreshRequest{}
-	if ok := decodeRequest(&req, w, r); !ok {
-		return
-	}
+func (a *API) Refresh() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		req := RefreshRequest{}
+		if ok := decodeRequest(&req, w, r); !ok {
+			return
+		}
 
-	// read the token in the request
-	token := tokens.RefreshToken{}
-	if err := token.Decode(req.RefreshToken, tokenValidator); err != nil {
-		logApiErr(r, fmt.Sprintf("couldn't decode refresh token: %v", err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+		// read the token in the request
+		token := tokens.RefreshToken{}
+		if err := token.Decode(req.RefreshToken, a.tokenValidator); err != nil {
+			logApiErr(r, fmt.Sprintf("couldn't decode refresh token: %v", err))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-	// consume the token from the db
-	ok, err := DeleteRefresh(req.RefreshToken)
-	if !ok {
-		logApiErr(r, "refresh token couldn't be deleted: not found")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("refresh token couldn't be deleted: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+		// consume the token from the db
+		ok, err := deleteRefresh(a.db, req.RefreshToken)
+		if !ok {
+			logApiErr(r, "refresh token couldn't be deleted: not found")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			logApiErr(r, fmt.Sprintf("refresh token couldn't be deleted: %v", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	// issue new access token
-	accessToken, err := tokenIssuer.IssueAccessToken(
-		token.Subject(),
-		token.Audience(),
-		time.Minute*30,
-	)
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("couldn't issue access token: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+		// issue new access token
+		accessToken, err := a.tokenIssuer.IssueAccessToken(
+			token.Subject(),
+			token.Audience(),
+			time.Minute*30,
+		)
+		if err != nil {
+			logApiErr(r, fmt.Sprintf("couldn't issue access token: %v", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	// issue new refresh token
-	refreshToken, err := tokenIssuer.IssueRefreshToken(
-		token.Subject(),
-		token.Audience(),
-		time.Hour*72,
-	)
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("couldn't issue refresh token: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+		// issue new refresh token
+		refreshToken, err := a.tokenIssuer.IssueRefreshToken(
+			token.Subject(),
+			token.Audience(),
+			time.Hour*72,
+		)
+		if err != nil {
+			logApiErr(r, fmt.Sprintf("couldn't issue refresh token: %v", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	// insert into database
-	err = InsertRefresh(
-		refreshToken.Subject(),
-		refreshToken.Encoded(),
-		refreshToken.Expiration().Unix(),
-	)
-	if err != nil {
-		logApiErr(r, "failed to insert refresh token")
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+		// insert into database
+		err = insertRefresh(
+			a.db,
+			refreshToken.Subject(),
+			refreshToken.Encoded(),
+			refreshToken.Expiration().Unix(),
+		)
+		if err != nil {
+			logApiErr(r, "failed to insert refresh token")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	response := RefreshResponse{
-		RefreshToken: refreshToken.Encoded(),
-		AccessToken:  accessToken.Encoded(),
+		response := RefreshResponse{
+			RefreshToken: refreshToken.Encoded(),
+			AccessToken:  accessToken.Encoded(),
+		}
+		returnJson(&response, w)
 	}
-	returnJson(&response, w)
 }
 
-func InsertRefresh(
+func insertRefresh(
+	db *sql.DB,
 	handle string,
 	jwt string,
 	expiration int64,
@@ -99,8 +101,7 @@ func InsertRefresh(
         INSERT INTO refresh (owner, jwt, expiration)
         SELECT i.id, ?, ?
         FROM identity i
-        WHERE i.handle=?;
-		`,
+        WHERE i.handle=?;`,
 		jwt,
 		expiration,
 		handle,
@@ -111,12 +112,17 @@ func InsertRefresh(
 	return nil
 }
 
-func GetRefreshHandle(jwt string) (string, error) {
+func getRefreshHandle(
+	db *sql.DB,
+	jwt string,
+) (
+	string,
+	error,
+) {
 	row := db.QueryRow(`
 		SELECT handle
 		FROM refresh
-		WHERE jwt=?;
-		`,
+		WHERE jwt=?;`,
 		jwt,
 	)
 
@@ -128,7 +134,13 @@ func GetRefreshHandle(jwt string) (string, error) {
 	return handle, nil
 }
 
-func DeleteRefresh(jwt string) (bool, error) {
+func deleteRefresh(
+	db *sql.DB,
+	jwt string,
+) (
+	bool,
+	error,
+) {
 	result, err := db.Exec(`
         DELETE FROM refresh
         WHERE id IN (

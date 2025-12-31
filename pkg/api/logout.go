@@ -9,24 +9,25 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-func Logout(w http.ResponseWriter, r *http.Request) {
+func (a *API) Logout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req LogoutRequest
+		if ok := decodeRequest(&req, w, r); !ok {
+			return
+		}
 
-	var req LogoutRequest
-	if ok := decodeRequest(&req, w, r); !ok {
-		return
-	}
+		ok, err := deleteRefresh(a.db, req.RefreshToken)
+		if !ok {
+			logApiErr(r, fmt.Sprintf("invalid refresh token: %s", req.RefreshToken))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			logApiErr(r, fmt.Sprintf("failed to delete refresh token: %v", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
-	ok, err := DeleteRefresh(req.RefreshToken)
-	if !ok {
-		logApiErr(r, fmt.Sprintf("invalid refresh token: %s", req.RefreshToken))
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		w.WriteHeader(http.StatusOK)
 	}
-	if err != nil {
-		logApiErr(r, fmt.Sprintf("failed to delete refresh token: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
 }

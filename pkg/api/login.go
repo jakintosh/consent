@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -20,46 +21,50 @@ type LoginResponse struct {
 	AccessToken  string `json:"accessToken"`
 }
 
-func LoginForm(w http.ResponseWriter, r *http.Request) {
-	req := LoginRequest{
-		Handle:  r.FormValue("handle"),
-		Secret:  r.FormValue("secret"),
-		Service: r.FormValue("service"),
+func (a *API) LoginForm() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		req := LoginRequest{
+			Handle:  r.FormValue("handle"),
+			Secret:  r.FormValue("secret"),
+			Service: r.FormValue("service"),
+		}
+		if req.Handle == "" ||
+			req.Secret == "" ||
+			req.Service == "" {
+			logApiErr(r, "bad form request")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		a.login(req, w, r)
 	}
-	if req.Handle == "" ||
-		req.Secret == "" ||
-		req.Service == "" {
-		logApiErr(r, "bad form request")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	login(req, w, r)
 }
 
-func LoginJson(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
-	if ok := decodeRequest(&req, w, r); !ok {
-		return
+func (a *API) LoginJson() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req LoginRequest
+		if ok := decodeRequest(&req, w, r); !ok {
+			return
+		}
+		a.login(req, w, r)
 	}
-	login(req, w, r)
 }
 
-func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
-	err := authenticate(req.Handle, req.Secret)
+func (a *API) login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
+	err := authenticate(a.db, req.Handle, req.Secret)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("'%s' failed to authenticate: %v", req.Handle, err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	service, err := services.GetService(req.Service)
+	service, err := a.services.GetService(req.Service)
 	if err != nil {
 		logApiErr(r, fmt.Sprintf("invalid service: %s", req.Service))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	refreshToken, err := tokenIssuer.IssueRefreshToken(
+	refreshToken, err := a.tokenIssuer.IssueRefreshToken(
 		req.Handle,
 		[]string{service.Audience},
 		time.Second*10,
@@ -71,7 +76,8 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 	}
 
 	// insert into database
-	err = InsertRefresh(
+	err = insertRefresh(
+		a.db,
 		refreshToken.Subject(),
 		refreshToken.Encoded(),
 		refreshToken.Expiration().Unix(),
@@ -87,8 +93,8 @@ func login(req LoginRequest, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, redirectUrl, http.StatusSeeOther)
 }
 
-func authenticate(handle string, secret string) error {
-	hash, err := GetSecret(handle)
+func authenticate(db *sql.DB, handle string, secret string) error {
+	hash, err := getSecret(db, handle)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve secret: %v", err)
 	}

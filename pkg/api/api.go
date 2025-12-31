@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -8,22 +9,25 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-var (
+type API struct {
 	services       *Services
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
-)
+	db             *sql.DB
+}
 
-func Init(
-	i tokens.Issuer,
-	v tokens.Validator,
-	s *Services,
+func New(
+	issuer tokens.Issuer,
+	validator tokens.Validator,
+	services *Services,
 	dbPath string,
-) {
-	tokenIssuer = i
-	tokenValidator = v
-	services = s
-	initDatabase(dbPath)
+) *API {
+	return &API{
+		services:       services,
+		tokenIssuer:    issuer,
+		tokenValidator: validator,
+		db:             initDatabase(dbPath),
+	}
 }
 
 func decodeRequest[T any](req *T, w http.ResponseWriter, r *http.Request) bool {
