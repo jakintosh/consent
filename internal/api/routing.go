@@ -1,16 +1,12 @@
 package api
 
-import "github.com/gorilla/mux"
+import "net/http"
 
-func (a *API) BuildRouter(r *mux.Router) {
-	r.HandleFunc("/login", a.LoginForm()).
-		Methods("POST").
-		Headers("Content-Type", "application/x-www-form-urlencoded")
-	r.HandleFunc("/login", a.LoginJson()).
-		Methods("POST").
-		Headers("Content-Type", "application/json")
-
-	r.HandleFunc("/logout", a.Logout())
-	r.HandleFunc("/refresh", a.Refresh())
-	r.HandleFunc("/register", a.Register())
+func (a *API) Router() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /login", a.Login())
+	mux.HandleFunc("POST /logout", a.Logout())
+	mux.HandleFunc("POST /refresh", a.Refresh())
+	mux.HandleFunc("POST /register", a.Register())
+	return mux
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"github.com/gorilla/mux"
 )
 
 type App struct {
@@ -24,9 +23,11 @@ func New(
 	}
 }
 
-func (a *App) BuildRouter(r *mux.Router) {
-	r.HandleFunc("/", a.Home())
-	r.HandleFunc("/login", a.Login())
+func (a *App) Router() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", a.Home())
+	mux.HandleFunc("/login", a.Login())
+	return mux
 }
 
 func (a *App) returnTemplate(

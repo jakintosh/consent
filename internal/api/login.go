@@ -21,32 +21,41 @@ type LoginResponse struct {
 	AccessToken  string `json:"accessToken"`
 }
 
-func (a *API) LoginForm() http.HandlerFunc {
+func (a *API) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		req := LoginRequest{
-			Handle:  r.FormValue("handle"),
-			Secret:  r.FormValue("secret"),
-			Service: r.FormValue("service"),
+		switch r.Header.Get("Content-Type") {
+		case "application/x-www-form-urlencoded":
+			a.loginForm(w, r)
+		case "application/json":
+			a.loginJson(w, r)
+		default:
+			w.WriteHeader(http.StatusUnsupportedMediaType)
 		}
-		if req.Handle == "" ||
-			req.Secret == "" ||
-			req.Service == "" {
-			logApiErr(r, "bad form request")
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		a.login(req, w, r)
 	}
 }
 
-func (a *API) LoginJson() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req LoginRequest
-		if ok := decodeRequest(&req, w, r); !ok {
-			return
-		}
-		a.login(req, w, r)
+func (a *API) loginForm(w http.ResponseWriter, r *http.Request) {
+	req := LoginRequest{
+		Handle:  r.FormValue("handle"),
+		Secret:  r.FormValue("secret"),
+		Service: r.FormValue("service"),
 	}
+	if req.Handle == "" ||
+		req.Secret == "" ||
+		req.Service == "" {
+		logApiErr(r, "bad form request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	a.login(req, w, r)
+}
+
+func (a *API) loginJson(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	if ok := decodeRequest(&req, w, r); !ok {
+		return
+	}
+	a.login(req, w, r)
 }
 
 func (a *API) login(req LoginRequest, w http.ResponseWriter, r *http.Request) {

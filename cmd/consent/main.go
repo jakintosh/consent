@@ -13,7 +13,6 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
-	"github.com/gorilla/mux"
 )
 
 var root = &args.Command{
@@ -128,18 +127,15 @@ var root = &args.Command{
 		apiServer := api.New(issuer, validator, services, dbPath)
 
 		// Config and serve router
-		r := mux.NewRouter()
-		appServer.BuildRouter(r)
-
-		// API subrouter
-		apiRouter := r.PathPrefix("/api").Subrouter()
-		apiServer.BuildRouter(apiRouter)
+		mux := http.NewServeMux()
+		mux.Handle("/", appServer.Router())
+		mux.Handle("/api/", http.StripPrefix("/api", apiServer.Router()))
 
 		if verbose {
 			log.Printf("Listening on %s", port)
 		}
 
-		err = http.ListenAndServe(port, r)
+		err = http.ListenAndServe(port, mux)
 		if err != nil {
 			return fmt.Errorf("server error: %v", err)
 		}
