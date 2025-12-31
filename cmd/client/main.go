@@ -9,34 +9,92 @@ import (
 	"os"
 	"path/filepath"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	"git.sr.ht/~jakintosh/command-go/pkg/version"
 	"git.sr.ht/~jakintosh/consent/pkg/client"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
+var root = &args.Command{
+	Name: "client",
+	Help: "Demo OAuth client application",
+	Config: &args.Config{
+		Author: "jakintosh",
+		HelpOption: &args.HelpOption{
+			Short: 'h',
+			Long:  "help",
+		},
+	},
+	Options: []args.Option{
+		{
+			Long: "insecure-cookies",
+			Type: args.OptionTypeFlag,
+			Help: "Enable insecure cookies for HTTP testing (DO NOT USE IN PRODUCTION)",
+		},
+		{
+			Short: 'v',
+			Long:  "verbose",
+			Type:  args.OptionTypeFlag,
+			Help:  "Verbose output",
+		},
+	},
+	Subcommands: []*args.Command{
+		version.Command(VersionInfo),
+	},
+	Handler: func(i *args.Input) error {
+
+		// Read configuration
+		insecureCookies := i.GetFlag("insecure-cookies")
+		verbose := i.GetFlag("verbose")
+
+		if verbose {
+			log.Println("Starting demo OAuth client...")
+		}
+
+		// read "env vars" (hardcoded for demo)
+		authUrl := "http://localhost:9001"
+		issuerDomain := "auth.studiopollinator.com"
+		audience := "localhost:10000"
+
+		// load credentials
+		verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
+		verificationKey := decodePublicKey(verificationKeyBytes)
+
+		// create token client
+		validator := tokens.InitClient(verificationKey, issuerDomain, audience)
+
+		// init consent.client
+		client.Init(validator, authUrl)
+
+		// Configure insecure cookies if requested (for local development/testing)
+		if insecureCookies {
+			client.SetCookieOptions(client.CookieOptions{
+				Secure:   false,
+				SameSite: http.SameSiteStrictMode,
+				Path:     "/",
+			})
+		}
+
+		// config router
+		http.HandleFunc("/", home)
+		http.HandleFunc("/api/example", example)
+		http.HandleFunc("/api/authorize", client.HandleAuthorizationCode)
+
+		if verbose {
+			log.Println("Listening on :10000")
+		}
+
+		err := http.ListenAndServe(":10000", nil)
+		if err != nil {
+			return fmt.Errorf("server error: %v", err)
+		}
+
+		return nil
+	},
+}
+
 func main() {
-	// read "env vars"
-	authUrl := "http://localhost:9001"
-	issuerDomain := "auth.studiopollinator.com"
-	audience := "localhost:10000"
-
-	// load credentials
-	verificationKeyBytes := loadCredential("verification_key.der", "./etc/secrets/")
-	verificationKey := decodePublicKey(verificationKeyBytes)
-
-	// create token client
-	validator := tokens.InitClient(verificationKey, issuerDomain, audience)
-
-	// init consent.client
-	client.Init(validator, authUrl)
-
-	// config router
-	http.HandleFunc("/", home)
-	http.HandleFunc("/api/example", example)
-	http.HandleFunc("/api/authorize", client.HandleAuthorizationCode)
-	err := http.ListenAndServe(":10000", nil)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
+	root.Parse()
 }
 
 func home(w http.ResponseWriter, r *http.Request) {

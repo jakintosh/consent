@@ -1,2 +1,5 @@
 bin/
 etc/
+
+# Generated version files
+cmd/*/version_generated.go
