@@ -27,11 +27,6 @@ var root = &args.Command{
 	},
 	Options: []args.Option{
 		{
-			Long: "insecure-cookies",
-			Type: args.OptionTypeFlag,
-			Help: "Enable insecure cookies for HTTP testing (DO NOT USE IN PRODUCTION)",
-		},
-		{
 			Short: 'v',
 			Long:  "verbose",
 			Type:  args.OptionTypeFlag,
@@ -44,7 +39,6 @@ var root = &args.Command{
 	Handler: func(i *args.Input) error {
 
 		// Read configuration
-		insecureCookies := i.GetFlag("insecure-cookies")
 		verbose := i.GetFlag("verbose")
 
 		if verbose {
@@ -64,21 +58,12 @@ var root = &args.Command{
 		validator := tokens.InitClient(verificationKey, issuerDomain, audience)
 
 		// init consent.client
-		client.Init(validator, authUrl)
-
-		// Configure insecure cookies if requested (for local development/testing)
-		if insecureCookies {
-			client.SetCookieOptions(client.CookieOptions{
-				Secure:   false,
-				SameSite: http.SameSiteStrictMode,
-				Path:     "/",
-			})
-		}
+		c := client.Init(validator, authUrl)
 
 		// config router
-		http.HandleFunc("/", home)
-		http.HandleFunc("/api/example", example)
-		http.HandleFunc("/api/authorize", client.HandleAuthorizationCode)
+		http.HandleFunc("/", homeHandler(c))
+		http.HandleFunc("/api/example", exampleHandler(c))
+		http.HandleFunc("/api/authorize", c.HandleAuthorizationCode())
 
 		if verbose {
 			log.Println("Listening on :10000")
@@ -97,30 +82,34 @@ func main() {
 	root.Parse()
 }
 
-func home(w http.ResponseWriter, r *http.Request) {
-	accessToken, csrf, err := client.VerifyAuthorizationGetCSRF(w, r)
-	if err != nil {
-		log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
-	}
+func homeHandler(c *client.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accessToken, csrf, err := c.VerifyAuthorizationGetCSRF(w, r)
+		if err != nil {
+			log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
+		}
 
-	if accessToken != nil {
-		w.Write(fmt.Appendf(nil, homeAuth, csrf))
-	} else {
-		w.Write([]byte(homeUnauth))
+		if accessToken != nil {
+			w.Write(fmt.Appendf(nil, homeAuth, csrf))
+		} else {
+			w.Write([]byte(homeUnauth))
+		}
 	}
 }
 
-func example(w http.ResponseWriter, r *http.Request) {
-	csrf := r.URL.Query().Get("csrf")
-	accessToken, csrf, err := client.VerifyAuthorizationCheckCSRF(w, r, csrf)
-	if err != nil {
-		log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
-	}
+func exampleHandler(c *client.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		csrf := r.URL.Query().Get("csrf")
+		accessToken, csrf, err := c.VerifyAuthorizationCheckCSRF(w, r, csrf)
+		if err != nil {
+			log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
+		}
 
-	if accessToken != nil {
-		w.Write(fmt.Appendf(nil, exampleAuth, accessToken.Subject(), csrf))
-	} else {
-		w.Write([]byte(exampleUnauth))
+		if accessToken != nil {
+			w.Write(fmt.Appendf(nil, exampleAuth, accessToken.Subject(), csrf))
+		} else {
+			w.Write([]byte(exampleUnauth))
+		}
 	}
 }
 

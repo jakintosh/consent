@@ -30,104 +30,106 @@ var (
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
-var (
-	_logLevel      LogLevel = LogLevelDefault
-	_authUrl       string
+type Client struct {
+	logLevel       LogLevel
+	authUrl        string
 	tokenValidator TokenValidator
-)
-
-func _log(level LogLevel, format string, v ...any) {
-	if _logLevel >= level {
-		log.Printf(format, v...)
-	}
 }
 
 func Init(
 	validator TokenValidator,
 	authUrl string,
-) {
-	tokenValidator = validator
-	_authUrl = authUrl
+) *Client {
+	return &Client{
+		logLevel:       LogLevelDefault,
+		authUrl:        authUrl,
+		tokenValidator: validator,
+	}
 }
 
-func SetLogLevel(logLevel LogLevel) {
-	_logLevel = logLevel
+func (c *Client) log(level LogLevel, format string, v ...any) {
+	if c.logLevel >= level {
+		log.Printf(format, v...)
+	}
+}
+
+func (c *Client) SetLogLevel(logLevel LogLevel) {
+	c.logLevel = logLevel
 }
 
 /*
-This can be passed as a route handler to fully handle the authorization
+HandleAuthorizationCode returns a handler that fully handles the authorization
 code flow for a client. Set this to the same route you register with the
 auth server as the redirect link, and it works out of the box.
 */
-func HandleAuthorizationCode(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	// extract 'auth_code' refresh token
-	queries := r.URL.Query()
-	code := queries.Get("auth_code")
-	if code == "" {
-		_log(LogLevelDebug, "handle auth code error: missing required 'auth_code' query param\n")
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+func (c *Client) HandleAuthorizationCode() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// extract 'auth_code' refresh token
+		queries := r.URL.Query()
+		code := queries.Get("auth_code")
+		if code == "" {
+			c.log(LogLevelDebug, "handle auth code error: missing required 'auth_code' query param\n")
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
 
-	// refresh tokens using code
-	accessToken, refreshToken, ok := RefreshTokens(code)
-	if !ok {
-		_log(LogLevelDebug, "handle auth code error: error refreshing with auth server\n")
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+		// refresh tokens using code
+		accessToken, refreshToken, ok := c.RefreshTokens(code)
+		if !ok {
+			c.log(LogLevelDebug, "handle auth code error: error refreshing with auth server\n")
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
 
-	SetTokenCookies(w, accessToken, refreshToken)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+		c.SetTokenCookies(w, accessToken, refreshToken)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
 }
 
 /*
-This allows a client to pass in an http.Request and determine weather or not
-the request is authorized, and if so, return the access token. If the access
-token is expired, this will attempt to call the authorization server to
-refresh the tokens.
+VerifyAuthorization allows a client to pass in an http.Request and determine
+whether or not the request is authorized, and if so, return the access token.
+If the access token is expired, this will attempt to call the authorization
+server to refresh the tokens.
 */
-func VerifyAuthorization(
+func (c *Client) VerifyAuthorization(
 	w http.ResponseWriter,
 	r *http.Request,
 ) (*AccessToken, error) {
 
 	// validate access token in the request
-	accessToken, err := validateAccessToken(r)
+	accessToken, err := validateAccessToken(r, c.tokenValidator)
 	if accessToken != nil {
 		return accessToken, nil
 	}
 	if !errorIsRefreshable(err) {
-		_log(LogLevelDebug, "failed to validate access token: %v\n", err)
+		c.log(LogLevelDebug, "failed to validate access token: %v\n", err)
 		return nil, ErrTokenInvalid
 	}
 
 	// if in refreshable state, validate refresh token
-	refreshToken, err := validateRefreshToken(r)
+	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
 		if errors.Is(err, ErrTokenAbsent) {
 			return nil, ErrTokenAbsent
 		} else {
-			_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+			c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
 			return nil, ErrTokenInvalid
 		}
 	}
 
 	// refresh the tokens
-	accessToken, refreshToken, ok := RefreshTokens(refreshToken.Encoded())
+	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
 	if !ok {
-		_log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
+		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
 		return nil, ErrNetworkTokenRefresh
 	}
-	SetTokenCookies(w, accessToken, refreshToken)
+	c.SetTokenCookies(w, accessToken, refreshToken)
 
 	return accessToken, err
 }
 
-func VerifyAuthorizationGetCSRF(
+func (c *Client) VerifyAuthorizationGetCSRF(
 	w http.ResponseWriter,
 	r *http.Request,
 ) (
@@ -137,15 +139,15 @@ func VerifyAuthorizationGetCSRF(
 ) {
 
 	// standard request verification
-	accessToken, err := VerifyAuthorization(w, r)
+	accessToken, err := c.VerifyAuthorization(w, r)
 	if err != nil {
 		return accessToken, "", err
 	}
 
 	// if authorized success, validate refresh token and extract csrf secret
-	refreshToken, err := validateRefreshToken(r)
+	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
-		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
 		return nil, "", err
 	}
 	csrfSecret := refreshToken.Secret()
@@ -154,11 +156,12 @@ func VerifyAuthorizationGetCSRF(
 }
 
 /*
-In this flow, we decode the RefreshToken first to see if the CSRF code matches.
-Because the AccessToken may be legally expired, we check RefreshToken's CSRF secret
-first, because after the AccessToken check the RefreshToken may have been changed.
+VerifyAuthorizationCheckCSRF decodes the RefreshToken first to see if the CSRF
+code matches. Because the AccessToken may be legally expired, we check
+RefreshToken's CSRF secret first, because after the AccessToken check the
+RefreshToken may have been changed.
 */
-func VerifyAuthorizationCheckCSRF(
+func (c *Client) VerifyAuthorizationCheckCSRF(
 	w http.ResponseWriter,
 	r *http.Request,
 	reqCSRFSecret string,
@@ -169,9 +172,9 @@ func VerifyAuthorizationCheckCSRF(
 ) {
 
 	// validate refresh token from request
-	refreshToken, err := validateRefreshToken(r)
+	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
-		_log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
 		return nil, "", ErrTokenInvalid
 	}
 
@@ -181,7 +184,7 @@ func VerifyAuthorizationCheckCSRF(
 	}
 
 	// validate access token in the request
-	accessToken, err := validateAccessToken(r)
+	accessToken, err := validateAccessToken(r, c.tokenValidator)
 	if accessToken != nil {
 		return accessToken, currentCSRFSecret, nil
 	}
@@ -190,26 +193,26 @@ func VerifyAuthorizationCheckCSRF(
 	}
 
 	// refresh the tokens
-	accessToken, refreshToken, ok := RefreshTokens(refreshToken.Encoded())
+	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
 	if !ok {
-		_log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
+		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
 		return nil, "", ErrNetworkTokenRefresh
 	}
 	newCSRFSecret := refreshToken.Secret()
 
-	SetTokenCookies(w, accessToken, refreshToken)
+	c.SetTokenCookies(w, accessToken, refreshToken)
 	return accessToken, newCSRFSecret, nil
 }
 
 /*
-Uses the provided encoded RefreshToken to fetch new tokens from the auth
-server. You can automatically invoke this behavior with VerifyAuthorization(),
-but can use this on its own to compose custom refresh flows.
+RefreshTokens uses the provided encoded RefreshToken to fetch new tokens from
+the auth server. You can automatically invoke this behavior with
+VerifyAuthorization(), but can use this on its own to compose custom refresh
+flows.
 
-Returns decoded token structures, and an error that can be [ErrTokenRequest]
-or [ErrTokenResponse].
+Returns decoded token structures and a bool indicating success.
 */
-func RefreshTokens(
+func (c *Client) RefreshTokens(
 	refreshTokenStr string,
 ) (
 	*AccessToken,
@@ -218,42 +221,42 @@ func RefreshTokens(
 ) {
 
 	// construct a POST request to the /api/refresh route
-	url := fmt.Sprintf("%s/api/refresh", _authUrl)
+	url := fmt.Sprintf("%s/api/refresh", c.authUrl)
 	body := bytes.NewBuffer(fmt.Appendf(nil, `{ "refreshToken" : "%s" }`, refreshTokenStr))
-	_log(LogLevelDebug, "POST { refresh_token } => %s\n", url)
+	c.log(LogLevelDebug, "POST { refresh_token } => %s\n", url)
 	apiResponse, err := http.Post(url, "application/json", body)
 	if err != nil {
-		_log(LogLevelError, "failed to post refresh: %v\n", err)
+		c.log(LogLevelError, "failed to post refresh: %v\n", err)
 		return nil, nil, false
 	}
 
 	// decode api response
 	if apiResponse.StatusCode != http.StatusOK {
-		_log(LogLevelDebug, "POST %s returned %s\n", url, apiResponse.Status)
+		c.log(LogLevelDebug, "POST %s returned %s\n", url, apiResponse.Status)
 		return nil, nil, false
 	}
 	defer apiResponse.Body.Close()
 	refreshResponse := new(api.RefreshResponse)
 	if err := json.NewDecoder(apiResponse.Body).Decode(refreshResponse); err != nil {
-		_log(LogLevelError, "failed to decode api response: %v\n", err)
+		c.log(LogLevelError, "failed to decode api response: %v\n", err)
 		return nil, nil, false
 	}
 
 	// decode tokens from response
 	accessToken := new(AccessToken)
-	if err := accessToken.Decode(refreshResponse.AccessToken, tokenValidator); err != nil {
-		_log(LogLevelError, "failed to decode access token: %v\n", err)
+	if err := accessToken.Decode(refreshResponse.AccessToken, c.tokenValidator); err != nil {
+		c.log(LogLevelError, "failed to decode access token: %v\n", err)
 		return nil, nil, false
 	}
 	refreshToken := new(RefreshToken)
-	if err := refreshToken.Decode(refreshResponse.RefreshToken, tokenValidator); err != nil {
-		_log(LogLevelError, "failed to decode refresh token: %v\n", err)
+	if err := refreshToken.Decode(refreshResponse.RefreshToken, c.tokenValidator); err != nil {
+		c.log(LogLevelError, "failed to decode refresh token: %v\n", err)
 		return nil, nil, false
 	}
 	return accessToken, refreshToken, true
 }
 
-func SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshToken *RefreshToken) {
+func (c *Client) SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshToken *RefreshToken) {
 	now := time.Now()
 	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
 	refreshMaxAge := refreshToken.Expiration().Sub(now).Seconds()
@@ -280,10 +283,10 @@ func SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshTok
 	http.SetCookie(w, accessTokenCookie)
 	http.SetCookie(w, refreshTokenCookie)
 
-	_log(LogLevelDebug, "set token cookies\n")
+	c.log(LogLevelDebug, "set token cookies\n")
 }
 
-func ClearTokenCookies(w http.ResponseWriter) {
+func (c *Client) ClearTokenCookies(w http.ResponseWriter) {
 	accessTokenCookie := &http.Cookie{
 		Name:   "accessToken",
 		Path:   "/",
@@ -298,7 +301,7 @@ func ClearTokenCookies(w http.ResponseWriter) {
 	http.SetCookie(w, accessTokenCookie)
 	http.SetCookie(w, refreshTokenCookie)
 
-	_log(LogLevelDebug, "cleared token cookies\n")
+	c.log(LogLevelDebug, "cleared token cookies\n")
 }
 
 func getCookie(r *http.Request, cookieName string) *http.Cookie {
@@ -308,28 +311,28 @@ func getCookie(r *http.Request, cookieName string) *http.Cookie {
 	return nil
 }
 
-func validateAccessToken(r *http.Request) (*AccessToken, error) {
+func validateAccessToken(r *http.Request, validator TokenValidator) (*AccessToken, error) {
 	cookie := getCookie(r, "accessToken")
 	if cookie == nil {
 		return nil, ErrTokenAbsent
 	}
 
 	token := new(AccessToken)
-	err := token.Decode(cookie.Value, tokenValidator)
+	err := token.Decode(cookie.Value, validator)
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
 }
 
-func validateRefreshToken(r *http.Request) (*RefreshToken, error) {
+func validateRefreshToken(r *http.Request, validator TokenValidator) (*RefreshToken, error) {
 	cookie := getCookie(r, "refreshToken")
 	if cookie == nil {
 		return nil, ErrTokenAbsent
 	}
 
 	token := new(RefreshToken)
-	err := token.Decode(cookie.Value, tokenValidator)
+	err := token.Decode(cookie.Value, validator)
 	if err != nil {
 		return nil, err
 	}
