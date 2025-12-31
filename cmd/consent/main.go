@@ -11,7 +11,7 @@ import (
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
 	"git.sr.ht/~jakintosh/consent/internal/app"
-	"git.sr.ht/~jakintosh/consent/pkg/api"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"github.com/gorilla/mux"
 )

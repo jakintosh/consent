@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/pkg/api"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 

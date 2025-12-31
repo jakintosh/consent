@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"git.sr.ht/~jakintosh/consent/pkg/api"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 )
 
 var (
