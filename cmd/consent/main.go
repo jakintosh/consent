@@ -10,8 +10,8 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
-	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"github.com/gorilla/mux"
 )
@@ -124,17 +124,16 @@ var root = &args.Command{
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
 
 		// Init endpoints
-		app.Init(services, templates)
-		authApi := api.New(issuer, validator, services, dbPath)
+		appServer := app.New(services, templates)
+		apiServer := api.New(issuer, validator, services, dbPath)
 
 		// Config and serve router
 		r := mux.NewRouter()
-		r.HandleFunc("/", app.Home)
-		r.HandleFunc("/login", app.Login)
+		appServer.BuildRouter(r)
 
 		// API subrouter
 		apiRouter := r.PathPrefix("/api").Subrouter()
-		authApi.BuildRouter(apiRouter)
+		apiServer.BuildRouter(apiRouter)
 
 		if verbose {
 			log.Printf("Listening on %s", port)

@@ -6,20 +6,36 @@ import (
 	"net/http"
 
 	"git.sr.ht/~jakintosh/consent/internal/api"
+	"github.com/gorilla/mux"
 )
 
-var (
+type App struct {
 	services  *api.Services
 	templates *Templates
-)
-
-func Init(s *api.Services, t *Templates) {
-	services = s
-	templates = t
 }
 
-func returnTemplate(name string, data any, w http.ResponseWriter, r *http.Request) {
-	bytes, err := templates.RenderTemplate(name, data)
+func New(
+	services *api.Services,
+	templates *Templates,
+) *App {
+	return &App{
+		services:  services,
+		templates: templates,
+	}
+}
+
+func (a *App) BuildRouter(r *mux.Router) {
+	r.HandleFunc("/", a.Home())
+	r.HandleFunc("/login", a.Login())
+}
+
+func (a *App) returnTemplate(
+	name string,
+	data any,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	bytes, err := a.templates.RenderTemplate(name, data)
 	if err != nil {
 		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
 		w.WriteHeader(http.StatusInternalServerError)

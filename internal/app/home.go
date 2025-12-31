@@ -4,6 +4,8 @@ import (
 	"net/http"
 )
 
-func Home(w http.ResponseWriter, r *http.Request) {
+func (a *App) Home() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 
+	}
 }
