@@ -12,6 +12,7 @@ import (
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
@@ -118,13 +119,12 @@ var root = &args.Command{
 		}
 
 		// Init program services
-		services := api.NewServices(servicesPath)
-		templates := app.NewTemplates(templatesPath)
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
+		svc := service.New(dbPath, servicesPath, issuer, validator)
 
 		// Init endpoints
-		appServer := app.New(services, templates)
-		apiServer := api.New(issuer, validator, services, dbPath)
+		appServer := app.New(svc.Catalog(), templatesPath)
+		apiServer := api.New(svc)
 
 		// Config and serve router
 		mux := http.NewServeMux()

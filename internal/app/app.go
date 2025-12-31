@@ -5,21 +5,21 @@ import (
 	"log"
 	"net/http"
 
-	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
 type App struct {
-	services  *api.Services
-	templates *Templates
+	serviceCatalog *service.ServiceCatalog
+	templates      *Templates
 }
 
 func New(
-	services *api.Services,
-	templates *Templates,
+	catalog *service.ServiceCatalog,
+	templatesDir string,
 ) *App {
 	return &App{
-		services:  services,
-		templates: templates,
+		serviceCatalog: catalog,
+		templates:      NewTemplates(templatesDir),
 	}
 }
 

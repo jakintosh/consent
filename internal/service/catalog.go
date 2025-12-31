@@ -1,4 +1,4 @@
-package api
+package service
 
 import (
 	"encoding/json"
@@ -9,14 +9,16 @@ import (
 	"path/filepath"
 )
 
-type Service struct {
+type ServiceDefinition struct {
 	Display  string   `json:"display"`
 	Audience string   `json:"audience"`
 	Redirect *url.URL `json:"redirect"`
 }
 
-func (s *Service) UnmarshalJSON(data []byte) error {
-	type Alias Service
+func (s *ServiceDefinition) UnmarshalJSON(
+	data []byte,
+) error {
+	type Alias ServiceDefinition
 	tmp := &struct {
 		Redirect string `json:"redirect"`
 		*Alias
@@ -34,23 +36,25 @@ func (s *Service) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type Services struct {
-	services map[string]*Service
+type ServiceCatalog struct {
+	services map[string]*ServiceDefinition
 }
 
-func NewServices(dir string) *Services {
+func NewServiceCatalog(
+	dir string,
+) *ServiceCatalog {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		log.Fatalf("Failed to read services directory '%s': %v", dir, err)
 	}
 
-	svcs := make(map[string]*Service)
+	svcs := make(map[string]*ServiceDefinition)
 	for _, file := range files {
 		if !file.Type().IsRegular() {
 			continue
 		}
 		name := file.Name()
-		service, err := loadService(filepath.Join(dir, name))
+		service, err := loadServiceDefinition(filepath.Join(dir, name))
 		if err != nil {
 			log.Fatalf("Failed to load service '%s': %v", name, err)
 		}
@@ -58,23 +62,33 @@ func NewServices(dir string) *Services {
 	}
 
 	log.Printf("Loaded %d services from %s", len(svcs), dir)
-	return &Services{services: svcs}
+	return &ServiceCatalog{services: svcs}
 }
 
-func (s *Services) GetService(name string) (*Service, error) {
-	if service, ok := s.services[name]; ok {
+func (c *ServiceCatalog) GetService(
+	name string,
+) (
+	*ServiceDefinition,
+	error,
+) {
+	if service, ok := c.services[name]; ok {
 		return service, nil
 	}
 	return nil, fmt.Errorf("service not found: %s", name)
 }
 
-func loadService(serviceDefPath string) (*Service, error) {
+func loadServiceDefinition(
+	serviceDefPath string,
+) (
+	*ServiceDefinition,
+	error,
+) {
 	file, err := os.ReadFile(serviceDefPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load service definition: %w", err)
 	}
 
-	service := &Service{}
+	service := &ServiceDefinition{}
 	err = json.Unmarshal(file, service)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse json of '%s': %w", serviceDefPath, err)

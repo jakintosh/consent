@@ -1,32 +1,21 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
-	"git.sr.ht/~jakintosh/consent/pkg/tokens"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
 type API struct {
-	services       *Services
-	tokenIssuer    tokens.Issuer
-	tokenValidator tokens.Validator
-	db             *sql.DB
+	service *service.Service
 }
 
-func New(
-	issuer tokens.Issuer,
-	validator tokens.Validator,
-	services *Services,
-	dbPath string,
-) *API {
+func New(svc *service.Service) *API {
 	return &API{
-		services:       services,
-		tokenIssuer:    issuer,
-		tokenValidator: validator,
-		db:             initDatabase(dbPath),
+		service: svc,
 	}
 }
 
@@ -51,4 +40,25 @@ func returnJson(data any, w http.ResponseWriter) {
 
 func logApiErr(r *http.Request, msg string) {
 	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
+}
+
+func httpStatusFromError(err error) int {
+	switch {
+	case errors.Is(err, service.ErrInvalidCredentials),
+		errors.Is(err, service.ErrAccountNotFound):
+		return http.StatusUnauthorized
+	case errors.Is(err, service.ErrServiceNotFound),
+		errors.Is(err, service.ErrTokenInvalid),
+		errors.Is(err, service.ErrTokenNotFound):
+		return http.StatusBadRequest
+	case errors.Is(err, service.ErrInternal):
+		return http.StatusInternalServerError
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
+	logApiErr(r, err.Error())
+	w.WriteHeader(httpStatusFromError(err))
 }

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -16,15 +15,9 @@ func (a *API) Logout() http.HandlerFunc {
 			return
 		}
 
-		ok, err := deleteRefresh(a.db, req.RefreshToken)
-		if !ok {
-			logApiErr(r, fmt.Sprintf("invalid refresh token: %s", req.RefreshToken))
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		err := a.service.RevokeRefreshToken(req.RefreshToken)
 		if err != nil {
-			logApiErr(r, fmt.Sprintf("failed to delete refresh token: %v", err))
-			w.WriteHeader(http.StatusInternalServerError)
+			writeError(w, r, err)
 			return
 		}
 

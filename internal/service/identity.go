@@ -1,13 +1,10 @@
-package api
+package service
 
-import "database/sql"
-
-func insertAccount(
-	db *sql.DB,
+func (s *Service) insertAccount(
 	handle string,
 	secret []byte,
 ) error {
-	_, err := db.Exec(`
+	_, err := s.db.Exec(`
 		INSERT INTO identity (handle, secret)
 		VALUES (?, ?);`,
 		handle,
@@ -16,14 +13,13 @@ func insertAccount(
 	return err
 }
 
-func getSecret(
-	db *sql.DB,
+func (s *Service) getSecret(
 	handle string,
 ) (
 	[]byte,
 	error,
 ) {
-	row := db.QueryRow(`
+	row := s.db.QueryRow(`
 		SELECT secret
 		FROM identity i
 		WHERE i.handle=?;`,
