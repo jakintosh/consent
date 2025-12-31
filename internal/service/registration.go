@@ -15,7 +15,7 @@ func (s *Service) Register(
 		return fmt.Errorf("%w: failed to hash password: %v", ErrInternal, err)
 	}
 
-	err = s.insertAccount(handle, hashPass)
+	err = s.identityStore.InsertIdentity(handle, hashPass)
 	if err != nil {
 		return fmt.Errorf("%w: failed to insert account: %v", ErrInternal, err)
 	}

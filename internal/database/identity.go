@@ -1,19 +1,25 @@
-package service
+package database
 
-func (s *Service) insertAccount(
+import "git.sr.ht/~jakintosh/consent/internal/service"
+
+func (s *SQLiteStore) IdentityStore() service.IdentityStore {
+	return s
+}
+
+func (s *SQLiteStore) InsertIdentity(
 	handle string,
 	secret []byte,
 ) error {
 	_, err := s.db.Exec(`
 		INSERT INTO identity (handle, secret)
-		VALUES (?, ?);`,
+		VALUES (?1, ?2);`,
 		handle,
 		secret,
 	)
 	return err
 }
 
-func (s *Service) getSecret(
+func (s *SQLiteStore) GetSecret(
 	handle string,
 ) (
 	[]byte,
@@ -22,7 +28,7 @@ func (s *Service) getSecret(
 	row := s.db.QueryRow(`
 		SELECT secret
 		FROM identity i
-		WHERE i.handle=?;`,
+		WHERE i.handle=?1;`,
 		handle,
 	)
 

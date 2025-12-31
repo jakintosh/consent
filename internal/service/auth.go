@@ -18,8 +18,17 @@ func (s *Service) Login(
 	*url.URL,
 	error,
 ) {
-	if err := s.authenticate(handle, secret); err != nil {
-		return nil, err
+	hash, err := s.identityStore.GetSecret(handle)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %s", ErrAccountNotFound, handle)
+		}
+		return nil, fmt.Errorf("%w: failed to retrieve secret: %v", ErrInternal, err)
+	}
+
+	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
+	if err != nil {
+		return nil, ErrInvalidCredentials
 	}
 
 	svcDef, err := s.catalog.GetService(serviceName)
@@ -36,11 +45,7 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
 	}
 
-	err = s.insertRefresh(
-		refreshToken.Subject(),
-		refreshToken.Encoded(),
-		refreshToken.Expiration().Unix(),
-	)
+	err = s.refreshStore.InsertRefreshToken(refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInternal, err)
 	}
@@ -48,26 +53,6 @@ func (s *Service) Login(
 	redirectURL := buildRedirectURL(svcDef.Redirect, refreshToken.Encoded())
 
 	return redirectURL, nil
-}
-
-func (s *Service) authenticate(
-	handle string,
-	secret string,
-) error {
-	hash, err := s.getSecret(handle)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: %s", ErrAccountNotFound, handle)
-		}
-		return fmt.Errorf("%w: failed to retrieve secret: %v", ErrInternal, err)
-	}
-
-	err = bcrypt.CompareHashAndPassword(hash, []byte(secret))
-	if err != nil {
-		return ErrInvalidCredentials
-	}
-
-	return nil
 }
 
 func buildRedirectURL(

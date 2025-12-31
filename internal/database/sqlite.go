@@ -1,4 +1,4 @@
-package service
+package database
 
 import (
 	"database/sql"
@@ -8,9 +8,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func initDatabase(
-	dbPath string,
-) *sql.DB {
+type SQLiteStore struct {
+	db *sql.DB
+}
+
+func NewSQLiteStore(dbPath string) *SQLiteStore {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)
@@ -20,6 +22,18 @@ func initDatabase(
 		log.Fatalf("failed to init database schema: couldn't enable foreign keys: %v\n", err)
 	}
 
+	if err := initSchema(db); err != nil {
+		log.Fatalf("failed to init database: %v\n", err)
+	}
+
+	return &SQLiteStore{db: db}
+}
+
+func (s *SQLiteStore) Close() error {
+	return s.db.Close()
+}
+
+func initSchema(db *sql.DB) error {
 	if err := initTable(db, "identity", `
 		CREATE TABLE IF NOT EXISTS identity (
 			id          INTEGER PRIMARY KEY,
@@ -27,10 +41,10 @@ func initDatabase(
 			secret      BLOB
 		);`,
 	); err != nil {
-		log.Fatalf("failed to init database: %v\n", err)
+		return err
 	}
 
-	if err := initTable(db, "referesh", `
+	if err := initTable(db, "refresh", `
 		CREATE TABLE IF NOT EXISTS refresh (
 			id          INTEGER PRIMARY KEY,
 			owner       INTEGER,
@@ -39,10 +53,10 @@ func initDatabase(
 			FOREIGN KEY (owner) REFERENCES identity (id)
 		);`,
 	); err != nil {
-		log.Fatalf("failed to init database: %v\n", err)
+		return err
 	}
 
-	return db
+	return nil
 }
 
 func initTable(
@@ -51,17 +65,7 @@ func initTable(
 	sql string,
 ) error {
 	if _, err := db.Exec(sql); err != nil {
-		return fmt.Errorf("failed to init '%s' table schema: %v\n", name, err)
+		return fmt.Errorf("failed to init '%s' table schema: %v", name, err)
 	}
 	return nil
-}
-
-func resultsEmpty(
-	result sql.Result,
-) bool {
-	count, err := result.RowsAffected()
-	if err != nil {
-		return false
-	}
-	return count == 0
 }

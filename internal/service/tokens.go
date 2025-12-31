@@ -19,7 +19,7 @@ func (s *Service) RefreshTokens(
 		return "", "", fmt.Errorf("%w: couldn't decode refresh token: %v", ErrTokenInvalid, err)
 	}
 
-	deleted, err := s.deleteRefresh(encodedRefreshToken)
+	deleted, err := s.refreshStore.DeleteRefreshToken(encodedRefreshToken)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: refresh token couldn't be deleted: %v", ErrInternal, err)
 	}
@@ -45,11 +45,7 @@ func (s *Service) RefreshTokens(
 		return "", "", fmt.Errorf("%w: couldn't issue refresh token: %v", ErrInternal, err)
 	}
 
-	err = s.insertRefresh(
-		newRefreshToken.Subject(),
-		newRefreshToken.Encoded(),
-		newRefreshToken.Expiration().Unix(),
-	)
+	err = s.refreshStore.InsertRefreshToken(newRefreshToken)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: failed to store refresh token: %v", ErrInternal, err)
 	}
@@ -60,7 +56,7 @@ func (s *Service) RefreshTokens(
 func (s *Service) RevokeRefreshToken(
 	refreshToken string,
 ) error {
-	deleted, err := s.deleteRefresh(refreshToken)
+	deleted, err := s.refreshStore.DeleteRefreshToken(refreshToken)
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete refresh token: %v", ErrInternal, err)
 	}

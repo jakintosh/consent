@@ -12,6 +12,7 @@ import (
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
+	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
@@ -118,9 +119,14 @@ var root = &args.Command{
 			return fmt.Errorf("failed to parse ecdsa signing key from signing_key: %v", err)
 		}
 
+		// init stores
+		db := database.NewSQLiteStore(dbPath)
+		identityStore := db.IdentityStore()
+		refreshStore := db.RefreshStore()
+
 		// Init program services
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
-		svc := service.New(dbPath, servicesPath, issuer, validator)
+		svc := service.New(identityStore, refreshStore, servicesPath, issuer, validator)
 
 		// Init endpoints
 		appServer := app.New(svc.Catalog(), templatesPath)

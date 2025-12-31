@@ -1,7 +1,6 @@
 package service
 
 import (
-	"database/sql"
 	"errors"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -17,20 +16,23 @@ var (
 )
 
 type Service struct {
-	db             *sql.DB
+	identityStore  IdentityStore
+	refreshStore   RefreshStore
 	catalog        *ServiceCatalog
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
 }
 
 func New(
-	dbPath string,
+	identityStore IdentityStore,
+	refreshStore RefreshStore,
 	catalogDir string,
 	issuer tokens.Issuer,
 	validator tokens.Validator,
 ) *Service {
 	return &Service{
-		db:             initDatabase(dbPath),
+		identityStore:  identityStore,
+		refreshStore:   refreshStore,
 		catalog:        NewServiceCatalog(catalogDir),
 		tokenIssuer:    issuer,
 		tokenValidator: validator,
