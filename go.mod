@@ -3,14 +3,13 @@ module git.sr.ht/~jakintosh/consent
 go 1.24.1
 
 require (
-	github.com/fsnotify/fsnotify v1.8.0
+	git.sr.ht/~jakintosh/command-go v0.2.1
 	github.com/gorilla/mux v1.8.1
 	golang.org/x/crypto v0.30.0
 	modernc.org/sqlite v1.37.0
 )
 
 require (
-	git.sr.ht/~jakintosh/command-go v0.2.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

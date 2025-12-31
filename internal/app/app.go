@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	services  api.Services
-	templates Templates
+	services  *api.Services
+	templates *Templates
 )
 
-func Init(s api.Services, t Templates) {
+func Init(s *api.Services, t *Templates) {
 	services = s
 	templates = t
 }

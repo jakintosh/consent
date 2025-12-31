@@ -7,13 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-
-	"git.sr.ht/~jakintosh/consent/internal/resources"
 )
-
-type Services interface {
-	GetService(name string) (*Service, error)
-}
 
 type Service struct {
 	Display  string   `json:"display"`
@@ -40,76 +34,44 @@ func (s *Service) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-//
-// Dynamic file-based services provider
-
-type DynamicServicesDirectory struct {
-	servicesDir string
-	services    map[string]*Service
+type Services struct {
+	services map[string]*Service
 }
 
-func NewDynamicServicesDirectory(dir string) *DynamicServicesDirectory {
-
-	s := &DynamicServicesDirectory{
-		servicesDir: dir,
-		services:    make(map[string]*Service),
-	}
-
-	s.Load()
-
-	// TODO: This needs to not use the internal 'resources' package
-	err := resources.WatchDir(s.servicesDir, func() { s.Load() })
+func NewServices(dir string) *Services {
+	files, err := os.ReadDir(dir)
 	if err != nil {
-		// TODO: maybe better error handling
-		log.Fatalf("Failed to start service watcher: %v", err)
+		log.Fatalf("Failed to read services directory '%s': %v", dir, err)
 	}
 
-	return s
-}
-
-func (s *DynamicServicesDirectory) Load() {
-
-	files, err := os.ReadDir(s.servicesDir)
-	if err != nil {
-		// TODO: maybe better error handling
-		log.Printf("services: failed to read service defs dir: %v\n", err)
-		return
-	}
-
-	clear(s.services)
+	svcs := make(map[string]*Service)
 	for _, file := range files {
 		if !file.Type().IsRegular() {
 			continue
 		}
 		name := file.Name()
-		service, err := loadService(filepath.Join(s.servicesDir, name))
+		service, err := loadService(filepath.Join(dir, name))
 		if err != nil {
-			// TODO: maybe better error handling
-			log.Printf("services: failed to read service def for '%s': %v\n", name, err)
-			return
+			log.Fatalf("Failed to load service '%s': %v", name, err)
 		}
-
-		if _, ok := s.services[name]; ok {
-			// TODO: maybe better error handling
-			log.Printf("services: duplicate definition for '%s'; overwriting\n", name)
-			return
-		}
-		s.services[name] = service
+		svcs[name] = service
 	}
 
-	log.Printf("Loaded services from %s\n", s.servicesDir)
+	log.Printf("Loaded %d services from %s", len(svcs), dir)
+	return &Services{services: svcs}
 }
 
-func loadService(
-	serviceDefPath string,
-) (
-	*Service,
-	error,
-) {
+func (s *Services) GetService(name string) (*Service, error) {
+	if service, ok := s.services[name]; ok {
+		return service, nil
+	}
+	return nil, fmt.Errorf("service not found: %s", name)
+}
 
+func loadService(serviceDefPath string) (*Service, error) {
 	file, err := os.ReadFile(serviceDefPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load services definitions: %w\n", err)
+		return nil, fmt.Errorf("failed to load service definition: %w", err)
 	}
 
 	service := &Service{}
@@ -118,18 +80,4 @@ func loadService(
 		return nil, fmt.Errorf("failed to parse json of '%s': %w", serviceDefPath, err)
 	}
 	return service, nil
-}
-
-//
-// Services interface
-
-func (s *DynamicServicesDirectory) GetService(
-	name string,
-) (*Service, error) {
-
-	if service, ok := s.services[name]; ok {
-		return service, nil
-	} else {
-		return nil, fmt.Errorf("service not found")
-	}
 }

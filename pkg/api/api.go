@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	services       Services
+	services       *Services
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
 )
@@ -17,7 +17,7 @@ var (
 func Init(
 	i tokens.Issuer,
 	v tokens.Validator,
-	s Services,
+	s *Services,
 	dbPath string,
 ) {
 	tokenIssuer = i

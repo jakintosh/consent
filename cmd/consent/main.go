@@ -119,8 +119,8 @@ var root = &args.Command{
 		}
 
 		// Init program services
-		services := api.NewDynamicServicesDirectory(servicesPath)
-		templates := app.NewDynamicTemplatesDirectory(templatesPath)
+		services := api.NewServices(servicesPath)
+		templates := app.NewTemplates(templatesPath)
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
 
 		// Init endpoints
