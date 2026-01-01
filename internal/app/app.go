@@ -1,3 +1,4 @@
+// Package app provides web UI handlers with HTML templates for the consent server login page.
 package app
 
 import (

@@ -34,19 +34,36 @@ var (
 	errTokenNotIssued       = errors.New("token not issued yet")
 )
 
-func ErrTokenMalformed() error       { return errTokenMalformed }
-func ErrTokenBadSignature() error    { return errTokenBadSignature }
-func ErrTokenInvalidAudience() error { return errTokenInvalidAudience }
-func ErrTokenInvalidIssuer() error   { return errTokenInvalidIssuer }
-func ErrTokenExpired() error         { return errTokenExpired }
-func ErrTokenNotIssued() error       { return errTokenNotIssued }
+// ErrTokenMalformed returns an error indicating the token structure is invalid or cannot be parsed.
+func ErrTokenMalformed() error { return errTokenMalformed }
 
+// ErrTokenBadSignature returns an error indicating the token's signature verification failed.
+func ErrTokenBadSignature() error { return errTokenBadSignature }
+
+// ErrTokenInvalidAudience returns an error indicating the token's audience claim doesn't match the expected value.
+func ErrTokenInvalidAudience() error { return errTokenInvalidAudience }
+
+// ErrTokenInvalidIssuer returns an error indicating the token's issuer claim doesn't match the expected value.
+func ErrTokenInvalidIssuer() error { return errTokenInvalidIssuer }
+
+// ErrTokenExpired returns an error indicating the token has passed its expiration time.
+func ErrTokenExpired() error { return errTokenExpired }
+
+// ErrTokenNotIssued returns an error indicating the token's issued-at time is in the future.
+func ErrTokenNotIssued() error { return errTokenNotIssued }
+
+// Issuer can issue new tokens by signing them with a private key.
+// This interface is implemented by Server, which has access to the signing key.
 type Issuer interface {
 	SignHash([]byte) (string, error)
 	IssueRefreshToken(string, []string, time.Duration) (*RefreshToken, error)
 	IssueAccessToken(string, []string, time.Duration) (*AccessToken, error)
 }
 
+// Validator can validate tokens by verifying signatures with a public key.
+// This interface is implemented by both Server and Client.
+// Server validates tokens without checking audience (since it issued them).
+// Client validates tokens and enforces audience matching.
 type Validator interface {
 	ShouldValidateAudience() bool
 	ValidateDomain(string) bool
@@ -54,6 +71,15 @@ type Validator interface {
 	VerifySignature(string, string, string) error
 }
 
+// InitServer creates a token issuer and validator for the consent auth server.
+// The returned Issuer can create new tokens signed with the private key.
+// The returned Validator can verify tokens but does not enforce audience checks.
+//
+// Parameters:
+//   - signingKey: ECDSA private key used to sign tokens
+//   - issuerDomain: Domain name of the consent server (e.g., "consent.example.com")
+//
+// Returns both an Issuer and Validator interface backed by the same Server instance.
 func InitServer(
 	signingKey *ecdsa.PrivateKey,
 	issuerDomain string,
@@ -69,6 +95,15 @@ func InitServer(
 	return server, server
 }
 
+// InitClient creates a token validator for backend applications integrating with consent.
+// The returned Validator can verify token signatures and enforces audience matching.
+//
+// Parameters:
+//   - verificationKey: ECDSA public key from the consent server (for signature verification)
+//   - issuerDomain: Expected issuer domain (must match tokens' "iss" claim)
+//   - validAudience: Your application's identifier (must be in tokens' "aud" claim)
+//
+// Returns a Validator that rejects tokens not intended for this application.
 func InitClient(
 	verificationKey *ecdsa.PublicKey,
 	issuerDomain string,

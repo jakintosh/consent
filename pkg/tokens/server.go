@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// Server implements both Issuer and Validator interfaces for the consent auth server.
+// It holds the private signing key for issuing tokens and the corresponding public key
+// for verification. Create a Server instance using InitServer.
 type Server struct {
 	signingKey      *ecdsa.PrivateKey
 	verificationKey *ecdsa.PublicKey

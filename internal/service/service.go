@@ -1,3 +1,5 @@
+// Package service implements the business logic layer for the consent identity server.
+// It handles user authentication, registration, token management, and service catalog operations.
 package service
 
 import (
@@ -56,6 +58,9 @@ func (m PasswordMode) Cost() int {
 	}
 }
 
+// Service coordinates authentication, registration, and token operations.
+// It depends on storage interfaces (IdentityStore, RefreshStore) and delegates
+// to them for persistence.
 type Service struct {
 	identityStore  IdentityStore
 	refreshStore   RefreshStore

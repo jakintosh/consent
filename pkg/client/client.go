@@ -13,29 +13,53 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
+// LogLevel controls the verbosity of client logging output.
 type LogLevel int
 
 const (
-	LogLevelNone LogLevel = iota
-	LogLevelError
-	LogLevelInfo
-	LogLevelDebug
+	LogLevelNone  LogLevel = iota // No logging
+	LogLevelError                  // Log errors only
+	LogLevelInfo                   // Log errors and informational messages
+	LogLevelDebug                  // Log everything including debug details
 )
+
 const LogLevelDefault = LogLevelError
 
 var (
-	ErrTokenAbsent         = errors.New("token not present")
-	ErrTokenInvalid        = errors.New("token invalid")
-	ErrCSRFInvalid         = errors.New("csrf secret incorrect")
+	// ErrTokenAbsent indicates no token cookie was found in the request.
+	ErrTokenAbsent = errors.New("token not present")
+
+	// ErrTokenInvalid indicates the token is malformed, has an invalid signature,
+	// wrong issuer/audience, or is expired and cannot be refreshed.
+	ErrTokenInvalid = errors.New("token invalid")
+
+	// ErrCSRFInvalid indicates the provided CSRF secret doesn't match the
+	// refresh token's secret.
+	ErrCSRFInvalid = errors.New("csrf secret incorrect")
+
+	// ErrNetworkTokenRefresh indicates a network error occurred while
+	// communicating with the consent server during token refresh.
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
+// Client manages authorization for a backend application integrating with
+// the consent identity server. It handles token validation, automatic refresh,
+// and cookie management.
+//
+// Create a Client using Init, then use its methods to protect your HTTP handlers.
 type Client struct {
 	logLevel       LogLevel
 	authUrl        string
 	tokenValidator TokenValidator
 }
 
+// Init creates a new Client for integrating with the consent identity server.
+//
+// Parameters:
+//   - validator: Token validator (typically from tokens.InitClient)
+//   - authUrl: Full URL of the consent server (e.g., "https://consent.example.com")
+//
+// The client defaults to LogLevelError. Use SetLogLevel to adjust verbosity.
 func Init(
 	validator TokenValidator,
 	authUrl string,
@@ -129,6 +153,13 @@ func (c *Client) VerifyAuthorization(
 	return accessToken, err
 }
 
+// VerifyAuthorizationGetCSRF verifies authorization and returns the CSRF secret
+// from the refresh token. Use this for GET requests that need to provide a CSRF
+// token to the client (e.g., in a form or as a query parameter for subsequent
+// state-changing requests).
+//
+// Returns the access token, CSRF secret, and any error. If the access token is
+// expired, it will be automatically refreshed.
 func (c *Client) VerifyAuthorizationGetCSRF(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -256,6 +287,11 @@ func (c *Client) RefreshTokens(
 	return accessToken, refreshToken, true
 }
 
+// SetTokenCookies sets secure HTTP-only cookies for the access and refresh tokens.
+// The cookies are configured with SameSite=Strict, Secure=true, and HttpOnly=true
+// for security. Cookie expiration is set to match the token lifetimes.
+//
+// Call this after successful login or token refresh to store tokens in the client's browser.
 func (c *Client) SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshToken *RefreshToken) {
 	now := time.Now()
 	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
@@ -286,6 +322,8 @@ func (c *Client) SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken
 	c.log(LogLevelDebug, "set token cookies\n")
 }
 
+// ClearTokenCookies removes the access and refresh token cookies by setting
+// their MaxAge to -1. Call this during logout to clear the user's session.
 func (c *Client) ClearTokenCookies(w http.ResponseWriter) {
 	accessTokenCookie := &http.Cookie{
 		Name:   "accessToken",

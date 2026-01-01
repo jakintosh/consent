@@ -45,6 +45,12 @@ func (claims *RefreshTokenClaims) validate(validator Validator) error {
 
 // ==============================================
 
+// RefreshToken represents a long-lived JWT token used to obtain new access tokens.
+// Unlike access tokens, refresh tokens include a CSRF secret for additional security.
+//
+// Refresh tokens are typically valid for weeks or months and should be stored in
+// secure HTTP-only cookies. The included CSRF secret must be provided by the client
+// when using the token to refresh, protecting against CSRF attacks.
 type RefreshToken struct {
 	issuer     string
 	issuedAt   time.Time

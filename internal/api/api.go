@@ -1,3 +1,5 @@
+// Package api provides RESTful HTTP handlers for authentication operations
+// (login, logout, register, token refresh).
 package api
 
 import (

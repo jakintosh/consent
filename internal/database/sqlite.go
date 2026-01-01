@@ -1,3 +1,4 @@
+// Package database provides SQLite persistence for identity and refresh token storage.
 package database
 
 import (

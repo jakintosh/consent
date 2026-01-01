@@ -1,3 +1,4 @@
+// Package testutil provides test environment setup and utilities for internal package tests.
 package testutil
 
 import (

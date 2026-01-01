@@ -8,6 +8,9 @@ import (
 
 // ==============================================
 
+// AccessTokenClaims represents the JWT claims for an access token.
+// It contains standard JWT claims (exp, iat, iss, aud, sub) and sits between
+// the JSON representation in the token and the AccessToken Go struct.
 type AccessTokenClaims struct {
 	Expiration int64  `json:"exp"`
 	IssuedAt   int64  `json:"iat"`
@@ -42,6 +45,12 @@ func (claims *AccessTokenClaims) validate(validator Validator) error {
 
 // ==============================================
 
+// AccessToken represents a short-lived JWT token used for API authorization.
+// Access tokens are issued by the consent server and validated by backend applications.
+// They contain the user's identity (subject) and the intended application (audience).
+//
+// Access tokens are typically valid for a short duration (e.g., 1 hour) and should be
+// stored in HTTP-only cookies or authorization headers.
 type AccessToken struct {
 	issuer     string
 	issuedAt   time.Time

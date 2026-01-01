@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// Client implements the Validator interface for backend applications.
+// It holds the consent server's public key for signature verification and enforces
+// that tokens are intended for this specific application (audience checking).
+// Create a Client instance using InitClient.
 type Client struct {
 	verificationKey *ecdsa.PublicKey
 	issuerDomain    string
