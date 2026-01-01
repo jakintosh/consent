@@ -82,7 +82,7 @@ func main() {
 	root.Parse()
 }
 
-func homeHandler(c *client.Client) http.HandlerFunc {
+func homeHandler(c client.Verifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		accessToken, csrf, err := c.VerifyAuthorizationGetCSRF(w, r)
 		if err != nil {
@@ -97,7 +97,7 @@ func homeHandler(c *client.Client) http.HandlerFunc {
 	}
 }
 
-func exampleHandler(c *client.Client) http.HandlerFunc {
+func exampleHandler(c client.Verifier) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		csrf := r.URL.Query().Get("csrf")
 		accessToken, csrf, err := c.VerifyAuthorizationCheckCSRF(w, r, csrf)
