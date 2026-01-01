@@ -49,8 +49,11 @@ func httpStatusFromError(err error) int {
 		return http.StatusUnauthorized
 	case errors.Is(err, service.ErrServiceNotFound),
 		errors.Is(err, service.ErrTokenInvalid),
-		errors.Is(err, service.ErrTokenNotFound):
+		errors.Is(err, service.ErrTokenNotFound),
+		errors.Is(err, service.ErrInvalidHandle):
 		return http.StatusBadRequest
+	case errors.Is(err, service.ErrHandleExists):
+		return http.StatusConflict
 	case errors.Is(err, service.ErrInternal):
 		return http.StatusInternalServerError
 	default:

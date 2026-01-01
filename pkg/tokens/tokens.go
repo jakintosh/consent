@@ -117,10 +117,13 @@ func hashMessage(message string) []byte {
 }
 
 func encodeSignature(r *big.Int, s *big.Int) (string, error) {
-	signature := append(r.Bytes(), s.Bytes()...)
-	if len(signature) != 64 {
-		return "", fmt.Errorf("invalid signature length")
-	}
+	signature := make([]byte, 64)
+	rBytes := r.Bytes()
+	sBytes := s.Bytes()
+	// Right-align r in first 32 bytes (padding with zeros on the left)
+	copy(signature[32-len(rBytes):32], rBytes)
+	// Right-align s in second 32 bytes (padding with zeros on the left)
+	copy(signature[64-len(sBytes):64], sBytes)
 	encSignature := base64.RawURLEncoding.EncodeToString(signature)
 	return encSignature, nil
 }

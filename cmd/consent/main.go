@@ -126,7 +126,7 @@ var root = &args.Command{
 
 		// Init program services
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
-		svc := service.New(identityStore, refreshStore, servicesPath, issuer, validator)
+		svc := service.New(identityStore, refreshStore, servicesPath, issuer, validator, service.PasswordModeProduction)
 
 		// Init endpoints
 		appServer := app.New(svc.Catalog(), templatesPath)
