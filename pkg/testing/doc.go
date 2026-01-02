@@ -7,6 +7,7 @@
 //   - TestEnv: Token issuing and validation utilities
 //   - TestVerifier: A client.Verifier implementation that works locally
 //   - HTTP helpers: Functions to create authenticated test requests
+//   - Dev login handler: A prebuilt handler for local browsing
 //
 // # Basic Usage
 //
@@ -20,7 +21,7 @@
 //	    router := myapp.NewRouter(tv)  // tv implements client.Verifier
 //
 //	    // Create an authenticated request
-//	    req, _ := tv.AuthenticatedRequest("GET", "/api/profile", "alice")
+//	    req, _ := tv.AuthenticatedRequest("GET", "/api/profile", testing.DefaultTestSubject)
 //	    rr := httptest.NewRecorder()
 //
 //	    router.ServeHTTP(rr, req)
@@ -38,7 +39,7 @@
 //	    env := testing.NewTestEnv("consent.example.com", "my-app")
 //
 //	    // Issue an already-expired access token
-//	    accessToken, _ := env.IssueAccessToken("alice", -1*time.Hour)
+//	    accessToken, _ := env.IssueAccessToken(testing.DefaultTestSubject, -1*time.Hour)
 //
 //	    req, _ := http.NewRequest("GET", "/api/profile", nil)
 //	    env.AddAccessTokenCookie(req, accessToken)
@@ -55,16 +56,33 @@
 //	    env := tv.TestEnv()
 //
 //	    // Issue tokens to get the CSRF secret
-//	    refreshToken, _ := env.IssueRefreshToken("alice", time.Hour)
+//	    refreshToken, _ := env.IssueRefreshToken(testing.DefaultTestSubject, time.Hour)
 //	    csrfSecret := refreshToken.Secret()
 //
 //	    // Build request with CSRF
 //	    req, _ := http.NewRequest("POST", "/api/settings?csrf="+csrfSecret, nil)
-//	    accessToken, _ := env.IssueAccessToken("alice", time.Hour)
+//	    accessToken, _ := env.IssueAccessToken(testing.DefaultTestSubject, time.Hour)
 //	    env.AddAuthCookies(req, accessToken, refreshToken)
 //
 //	    // Test...
 //	}
+//
+// # Development Mode (No Consent Server)
+//
+// For local dev with a browser, you can add a dev-only login handler that
+// sets cookies without running a consent server:
+//
+//	tv := testing.NewTestVerifier(
+//	    "consent.example.com",
+//	    "my-app",
+//	)
+//
+//	http.HandleFunc("/dev/login", tv.HandleDevLogin())
+//
+// HandleDevLogin always uses DefaultTestSubject. For custom subjects, issue
+// tokens with TestEnv and call SetTokenCookies.
+//
+// The testing package always uses insecure cookies; do not use it in production.
 //
 // # Integration with Your Application
 //

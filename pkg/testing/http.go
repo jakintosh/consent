@@ -2,7 +2,6 @@ package testing
 
 import (
 	"net/http"
-	"time"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
@@ -22,11 +21,11 @@ func (env *TestEnv) AuthenticatedRequest(
 		return nil, err
 	}
 
-	accessToken, err := env.IssueAccessToken(subject, 30*time.Minute)
+	accessToken, err := env.IssueAccessToken(subject, defaultAccessTokenLifetime)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := env.IssueRefreshToken(subject, 24*time.Hour)
+	refreshToken, err := env.IssueRefreshToken(subject, defaultRefreshTokenLifetime)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,7 @@ func (env *TestEnv) AddAccessTokenCookie(
 	accessToken *tokens.AccessToken,
 ) {
 	req.AddCookie(&http.Cookie{
-		Name:  "accessToken",
+		Name:  accessTokenCookieName,
 		Value: accessToken.Encoded(),
 	})
 }
@@ -62,7 +61,7 @@ func (env *TestEnv) AddRefreshTokenCookie(
 	refreshToken *tokens.RefreshToken,
 ) {
 	req.AddCookie(&http.Cookie{
-		Name:  "refreshToken",
+		Name:  refreshTokenCookieName,
 		Value: refreshToken.Encoded(),
 	})
 }

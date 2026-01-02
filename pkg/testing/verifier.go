@@ -32,7 +32,9 @@ func NewTestVerifier(
 func NewTestVerifierWithEnv(
 	env *TestEnv,
 ) *TestVerifier {
-	return &TestVerifier{env: env}
+	return &TestVerifier{
+		env: env,
+	}
 }
 
 // TestEnv returns the underlying TestEnv for token issuance.
@@ -82,7 +84,7 @@ func (tv *TestVerifier) VerifyAuthorization(
 	if err != nil {
 		return nil, err
 	}
-	tv.setTokenCookies(w, accessToken, refreshToken)
+	setTokenCookies(w, accessToken, refreshToken)
 
 	return accessToken, nil
 }
@@ -148,7 +150,7 @@ func (tv *TestVerifier) VerifyAuthorizationCheckCSRF(
 	}
 	newCSRFSecret := refreshToken.Secret()
 
-	tv.setTokenCookies(w, accessToken, refreshToken)
+	setTokenCookies(w, accessToken, refreshToken)
 	return accessToken, newCSRFSecret, nil
 }
 
@@ -163,12 +165,12 @@ func (tv *TestVerifier) refreshTokens(
 	subject := oldRefresh.Subject()
 	audience := oldRefresh.Audience()
 
-	accessToken, err := tv.env.Issuer.IssueAccessToken(subject, audience, 30*time.Minute)
+	accessToken, err := tv.env.Issuer.IssueAccessToken(subject, audience, defaultAccessTokenLifetime)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	refreshToken, err := tv.env.Issuer.IssueRefreshToken(subject, audience, 24*time.Hour)
+	refreshToken, err := tv.env.Issuer.IssueRefreshToken(subject, audience, defaultRefreshTokenLifetime)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,7 +184,7 @@ func (tv *TestVerifier) validateAccessToken(
 	*tokens.AccessToken,
 	error,
 ) {
-	cookie, err := r.Cookie("accessToken")
+	cookie, err := r.Cookie(accessTokenCookieName)
 	if err != nil {
 		return nil, client.ErrTokenAbsent
 	}
@@ -200,7 +202,7 @@ func (tv *TestVerifier) validateRefreshToken(
 	*tokens.RefreshToken,
 	error,
 ) {
-	cookie, err := r.Cookie("refreshToken")
+	cookie, err := r.Cookie(refreshTokenCookieName)
 	if err != nil {
 		return nil, client.ErrTokenAbsent
 	}
@@ -212,31 +214,31 @@ func (tv *TestVerifier) validateRefreshToken(
 	return token, nil
 }
 
-func (tv *TestVerifier) setTokenCookies(
+func setTokenCookies(
 	w http.ResponseWriter,
-	accessToken *tokens.AccessToken,
-	refreshToken *tokens.RefreshToken,
+	accessToken *AccessToken,
+	refreshToken *RefreshToken,
 ) {
 	now := time.Now()
 	accessMaxAge := int(accessToken.Expiration().Sub(now).Seconds())
 	refreshMaxAge := int(refreshToken.Expiration().Sub(now).Seconds())
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "accessToken",
-		Path:     "/",
+		Name:     accessTokenCookieName,
+		Path:     defaultCookiePath,
 		Value:    accessToken.Encoded(),
 		MaxAge:   accessMaxAge,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: true,
 	})
 	http.SetCookie(w, &http.Cookie{
-		Name:     "refreshToken",
-		Path:     "/",
+		Name:     refreshTokenCookieName,
+		Path:     defaultCookiePath,
 		Value:    refreshToken.Encoded(),
 		MaxAge:   refreshMaxAge,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: true,
 	})
 }

@@ -2,6 +2,7 @@ package testing
 
 import (
 	"crypto/ecdsa"
+	"net/http"
 	"time"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -91,4 +92,14 @@ func (env *TestEnv) IssueRefreshTokenWithAudience(
 	error,
 ) {
 	return env.Issuer.IssueRefreshToken(subject, audience, lifetime)
+}
+
+// SetTokenCookies sets HTTP-only cookies for the access and refresh tokens.
+// Cookies are intentionally insecure to support http://localhost in dev.
+func (env *TestEnv) SetTokenCookies(
+	w http.ResponseWriter,
+	accessToken *AccessToken,
+	refreshToken *RefreshToken,
+) {
+	setTokenCookies(w, accessToken, refreshToken)
 }
