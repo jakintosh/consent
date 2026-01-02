@@ -56,6 +56,9 @@
 //	// 2. Set secure cookies
 //	// 3. Redirect to your home page
 //
+// If you want to abstract this callback for dependency injection, depend on
+// AuthorizationCodeHandler or AuthClient instead of *Client.
+//
 // # CSRF Protection
 //
 // For state-changing operations, use CSRF protection with refresh tokens:
@@ -121,6 +124,9 @@
 //	type MyApp struct {
 //	    auth client.Verifier  // Not *client.Client
 //	}
+//
+// If a component needs both verification and the auth code callback, depend on
+// client.AuthClient (Verifier + AuthorizationCodeHandler).
 //
 // In production, pass a *client.Client. In tests, use the testing package's
 // TestVerifier. See the testing package documentation for details.
