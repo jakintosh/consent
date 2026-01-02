@@ -103,3 +103,9 @@ func (env *TestEnv) SetTokenCookies(
 ) {
 	setTokenCookies(w, accessToken, refreshToken)
 }
+
+// ClearTokenCookies removes the access and refresh token cookies by setting
+// their MaxAge to -1. Cookies are intentionally insecure to support http://localhost in dev.
+func (env *TestEnv) ClearTokenCookies(w http.ResponseWriter) {
+	clearTokenCookies(w)
+}

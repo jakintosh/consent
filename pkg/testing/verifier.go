@@ -243,6 +243,25 @@ func setTokenCookies(
 	})
 }
 
+func clearTokenCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     accessTokenCookieName,
+		Path:     defaultCookiePath,
+		MaxAge:   -1,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   false,
+		HttpOnly: true,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshTokenCookieName,
+		Path:     defaultCookiePath,
+		MaxAge:   -1,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   false,
+		HttpOnly: true,
+	})
+}
+
 func errorIsRefreshable(err error) bool {
 	if errors.Is(err, client.ErrTokenAbsent) {
 		return true

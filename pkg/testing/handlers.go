@@ -22,3 +22,11 @@ func (tv *TestVerifier) HandleDevLogin() http.HandlerFunc {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
+
+// HandleDevLogout returns a handler that clears auth cookies.
+func (tv *TestVerifier) HandleDevLogout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tv.env.ClearTokenCookies(w)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}

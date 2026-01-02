@@ -78,6 +78,7 @@
 //	)
 //
 //	http.HandleFunc("/dev/login", tv.HandleDevLogin())
+//	http.HandleFunc("/dev/logout", tv.HandleDevLogout())
 //
 // HandleDevLogin always uses DefaultTestSubject. For custom subjects, issue
 // tokens with TestEnv and call SetTokenCookies.
