@@ -56,3 +56,88 @@ Consent is ideal for:
 In sum, Consent is designed to provide easy "login with facebook" style authentication for small, open source, community-scale software projects.
 
 This approach reduces OAuth implementation time from weeks to hours while maintaining the security guarantees that make OAuth suitable for production authentication systems.
+
+## Package Overview
+
+The `pkg/` directory contains public packages for consuming projects:
+
+- **`pkg/client`**: Client library for backend applications integrating with a consent server. Provides the `Verifier` interface for protecting routes, automatic token refresh, and CSRF protection.
+- **`pkg/tokens`**: JWT token utilities including `InitClient` for creating token validators with ECDSA public keys.
+- **`pkg/testing`**: Test utilities for consuming projects. Provides `TestVerifier` (implements `client.Verifier`) for testing authenticated routes without a real consent server, plus dev login handlers for local browser-based development.
+
+## Integration Guide
+
+### Production Integration
+
+```go
+import (
+    "git.sr.ht/~jakintosh/consent/pkg/client"
+    "git.sr.ht/~jakintosh/consent/pkg/tokens"
+)
+
+// Initialize with consent server's public key
+validator := tokens.InitClient(publicKey, "consent.example.com", "myapp.example.com")
+authClient := client.Init(validator, "https://consent.example.com")
+
+// Protect routes
+func protectedHandler(w http.ResponseWriter, r *http.Request) {
+    accessToken, err := authClient.VerifyAuthorization(w, r)
+    if err != nil {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+    // Use accessToken.Subject() for user identity
+}
+
+// Handle authorization code callback
+http.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
+```
+
+### Testing Integration
+
+```go
+import (
+    "git.sr.ht/~jakintosh/consent/pkg/testing"
+)
+
+func TestProtectedRoute(t *testing.T) {
+    // TestVerifier implements client.Verifier - no network required
+    tv := testing.NewTestVerifier("consent.example.com", "my-app")
+
+    router := myapp.NewRouter(tv)  // Inject as Verifier interface
+
+    req, _ := tv.AuthenticatedRequest("GET", "/api/profile", testing.DefaultTestSubject)
+    rr := httptest.NewRecorder()
+    router.ServeHTTP(rr, req)
+
+    if rr.Code != http.StatusOK {
+        t.Errorf("expected 200, got %d", rr.Code)
+    }
+}
+```
+
+### Development Mode
+
+For local browser-based development without running a consent server:
+
+```go
+tv := testing.NewTestVerifier("consent.example.com", "my-app")
+
+http.HandleFunc("/dev/login", tv.HandleDevLogin())
+http.HandleFunc("/dev/logout", tv.HandleDevLogout())
+```
+
+## Interface Design
+
+For testability, depend on the `client.Verifier` interface rather than `*client.Client`:
+
+```go
+type MyApp struct {
+    auth client.Verifier  // Not *client.Client
+}
+```
+
+In production, pass a `*client.Client` (which implements `Verifier`).
+In tests, pass a `*testing.TestVerifier`.
+
+If your component needs both verification and the auth code callback, use `client.AuthClient` (combines `Verifier` + `AuthorizationCodeHandler`).
