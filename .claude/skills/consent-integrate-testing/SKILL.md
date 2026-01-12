@@ -1,5 +1,5 @@
 ---
-name: integrate-testing
+name: consent-integrate-testing
 description: Use this skill when integrating an external Go project with consent testing utilities. Triggers include testing authenticated routes, setting up dev mode login, writing tests for authorization, using TestVerifier, creating authenticated test requests, or local development without a real consent server.
 ---
 

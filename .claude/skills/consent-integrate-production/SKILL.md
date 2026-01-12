@@ -1,5 +1,5 @@
 ---
-name: integrate-production
+name: consent-integrate-production
 description: Use this skill when integrating an external Go project with a production consent identity server. Triggers include setting up authentication, protecting routes with tokens, handling OAuth authorization codes, configuring ECDSA public keys, implementing CSRF protection, or connecting to a consent server.
 ---
 
