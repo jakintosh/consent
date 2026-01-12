@@ -16,12 +16,16 @@ type App struct {
 
 func New(
 	catalog *service.ServiceCatalog,
-	templatesDir string,
-) *App {
+) (*App, error) {
+	templates, err := NewTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load templates: %w", err)
+	}
+
 	return &App{
 		serviceCatalog: catalog,
-		templates:      NewTemplates(templatesDir),
-	}
+		templates:      templates,
+	}, nil
 }
 
 func (a *App) Router() http.Handler {

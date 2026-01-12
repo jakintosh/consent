@@ -2,22 +2,23 @@ package app
 
 import (
 	"bytes"
+	"embed"
 	"html/template"
-	"log"
-	"path/filepath"
 )
+
+//go:embed templates/*
+var templatesFS embed.FS
 
 type Templates struct {
 	templates *template.Template
 }
 
-func NewTemplates(dir string) *Templates {
-	t, err := template.ParseGlob(filepath.Join(dir, "*"))
+func NewTemplates() (*Templates, error) {
+	t, err := template.ParseFS(templatesFS, "templates/*")
 	if err != nil {
-		log.Fatalf("Failed to load templates from '%s': %v", dir, err)
+		return nil, err
 	}
-	log.Printf("Loaded templates from %s", dir)
-	return &Templates{templates: t}
+	return &Templates{templates: t}, nil
 }
 
 func (t *Templates) RenderTemplate(name string, data any) ([]byte, error) {

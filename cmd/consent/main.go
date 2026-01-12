@@ -39,11 +39,6 @@ var root = &args.Command{
 			Help: "JWT issuer domain (env: ISSUER_DOMAIN)",
 		},
 		{
-			Long: "templates-path",
-			Type: args.OptionTypeParameter,
-			Help: "HTML templates directory (env: TEMPLATES_PATH)",
-		},
-		{
 			Long: "services-path",
 			Type: args.OptionTypeParameter,
 			Help: "Services configuration directory (env: SERVICES_PATH)",
@@ -81,11 +76,6 @@ var root = &args.Command{
 			return fmt.Errorf("--issuer-domain or ISSUER_DOMAIN is required")
 		}
 
-		templatesPath := resolveOption(i, "templates-path", "TEMPLATES_PATH", "")
-		if templatesPath == "" {
-			return fmt.Errorf("--templates-path or TEMPLATES_PATH is required")
-		}
-
 		servicesPath := resolveOption(i, "services-path", "SERVICES_PATH", "")
 		if servicesPath == "" {
 			return fmt.Errorf("--services-path or SERVICES_PATH is required")
@@ -106,7 +96,6 @@ var root = &args.Command{
 			log.Printf("Starting consent server...")
 			log.Printf("  Database: %s", dbPath)
 			log.Printf("  Issuer: %s", issuerDomain)
-			log.Printf("  Templates: %s", templatesPath)
 			log.Printf("  Services: %s", servicesPath)
 			log.Printf("  Port: %s", port)
 			log.Printf("  Credentials: %s", credsDir)
@@ -129,7 +118,10 @@ var root = &args.Command{
 		svc := service.New(identityStore, refreshStore, servicesPath, issuer, validator, service.PasswordModeProduction)
 
 		// Init endpoints
-		appServer := app.New(svc.Catalog(), templatesPath)
+		appServer, err := app.New(svc.Catalog())
+		if err != nil {
+			return fmt.Errorf("failed to initialize app server: %w", err)
+		}
 		apiServer := api.New(svc)
 
 		// Config and serve router
