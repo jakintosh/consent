@@ -63,9 +63,12 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: %v", ErrInternal, err)
 	}
 
-	redirectURL := buildRedirectURL(svcDef.Redirect, refreshToken.Encoded())
+	redirectURL, err := parseRedirectURL(svcDef.Redirect)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, err)
+	}
 
-	return redirectURL, nil
+	return buildRedirectURL(redirectURL, refreshToken.Encoded()), nil
 }
 
 func buildRedirectURL(

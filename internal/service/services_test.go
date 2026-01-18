@@ -64,8 +64,8 @@ func TestGetServiceByName_Success(t *testing.T) {
 	if serviceDef.Name != "svc-a" {
 		t.Errorf("Name = %s, want svc-a", serviceDef.Name)
 	}
-	if serviceDef.Redirect.String() != "https://svc-a.test/callback" {
-		t.Errorf("Redirect = %s, want https://svc-a.test/callback", serviceDef.Redirect.String())
+	if serviceDef.Redirect != "https://svc-a.test/callback" {
+		t.Errorf("Redirect = %s, want https://svc-a.test/callback", serviceDef.Redirect)
 	}
 }
 
@@ -84,7 +84,14 @@ func TestUpdateService_Success(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	err := env.Service.UpdateService("svc-a", "Service A2", "aud-b", "https://svc-a.test/new")
+	display := "Service A2"
+	audience := "aud-b"
+	redirect := "https://svc-a.test/new"
+	err := env.Service.UpdateService("svc-a", service.UpdateServiceRequest{
+		Display:  &display,
+		Audience: &audience,
+		Redirect: &redirect,
+	})
 	if err != nil {
 		t.Fatalf("UpdateService failed: %v", err)
 	}
@@ -102,7 +109,10 @@ func TestUpdateService_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
-	err := env.Service.UpdateService("missing", "Service A2", "aud-b", "https://svc-a.test/new")
+	display := "Service A2"
+	err := env.Service.UpdateService("missing", service.UpdateServiceRequest{
+		Display: &display,
+	})
 	if !errors.Is(err, service.ErrServiceNotFound) {
 		t.Fatalf("expected ErrServiceNotFound, got %v", err)
 	}
@@ -113,7 +123,10 @@ func TestUpdateService_InvalidRedirect(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	err := env.Service.UpdateService("svc-a", "Service A2", "aud-b", "bad-url")
+	redirect := "bad-url"
+	err := env.Service.UpdateService("svc-a", service.UpdateServiceRequest{
+		Redirect: &redirect,
+	})
 	if !errors.Is(err, service.ErrInvalidRedirect) {
 		t.Fatalf("expected ErrInvalidRedirect, got %v", err)
 	}

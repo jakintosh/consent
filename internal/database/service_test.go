@@ -162,7 +162,7 @@ func TestListServices_Multiple(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	services := []service.ServiceRecord{
+	services := []service.ServiceDefinition{
 		{
 			Name:     "svc-b",
 			Display:  "Service B",

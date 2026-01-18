@@ -30,7 +30,7 @@ func (s *SQLStore) InsertService(
 func (s *SQLStore) GetService(
 	name string,
 ) (
-	service.ServiceRecord,
+	service.ServiceDefinition,
 	error,
 ) {
 	row := s.db.QueryRow(`
@@ -40,10 +40,10 @@ func (s *SQLStore) GetService(
 		name,
 	)
 
-	var record service.ServiceRecord
+	var record service.ServiceDefinition
 	err := row.Scan(&record.Name, &record.Display, &record.Audience, &record.Redirect)
 	if err != nil {
-		return service.ServiceRecord{}, fmt.Errorf("couldn't scan service: %w", err)
+		return service.ServiceDefinition{}, fmt.Errorf("couldn't scan service: %w", err)
 	}
 	return record, nil
 }
@@ -91,7 +91,7 @@ func (s *SQLStore) DeleteService(
 	return deleted, nil
 }
 
-func (s *SQLStore) ListServices() ([]service.ServiceRecord, error) {
+func (s *SQLStore) ListServices() ([]service.ServiceDefinition, error) {
 	rows, err := s.db.Query(`
 		SELECT name, display, audience, redirect
 		FROM service
@@ -101,9 +101,9 @@ func (s *SQLStore) ListServices() ([]service.ServiceRecord, error) {
 	}
 	defer rows.Close()
 
-	var records []service.ServiceRecord
+	var records []service.ServiceDefinition
 	for rows.Next() {
-		var record service.ServiceRecord
+		var record service.ServiceDefinition
 		if err := rows.Scan(&record.Name, &record.Display, &record.Audience, &record.Redirect); err != nil {
 			return nil, fmt.Errorf("couldn't scan service: %w", err)
 		}

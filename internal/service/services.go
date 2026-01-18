@@ -11,7 +11,7 @@ import (
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
-type CreateServiceRequest struct {
+type ServiceDefinition struct {
 	Name     string `json:"name"`
 	Display  string `json:"display"`
 	Audience string `json:"audience"`
@@ -19,9 +19,9 @@ type CreateServiceRequest struct {
 }
 
 type UpdateServiceRequest struct {
-	Display  string `json:"display"`
-	Audience string `json:"audience"`
-	Redirect string `json:"redirect"`
+	Display  *string `json:"display,omitempty"`
+	Audience *string `json:"audience,omitempty"`
+	Redirect *string `json:"redirect,omitempty"`
 }
 
 func (s *Service) CreateService(
@@ -73,31 +73,43 @@ func (s *Service) GetServiceByName(
 		return nil, fmt.Errorf("%w: failed to get service: %v", ErrInternal, err)
 	}
 
-	redirectURL, err := parseRedirectURL(record.Redirect)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInternal, err)
-	}
-
-	return &ServiceDefinition{
-		Name:     record.Name,
-		Display:  record.Display,
-		Audience: record.Audience,
-		Redirect: redirectURL,
-	}, nil
+	return &record, nil
 }
 
 func (s *Service) UpdateService(
 	name string,
-	display string,
-	audience string,
-	redirect string,
+	req UpdateServiceRequest,
 ) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ErrInvalidService
 	}
 
-	if strings.TrimSpace(display) == "" || strings.TrimSpace(audience) == "" || strings.TrimSpace(redirect) == "" {
+	// Fetch current record to merge with partial updates
+	current, err := s.store.GetService(name)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: %s", ErrServiceNotFound, name)
+		}
+		return fmt.Errorf("%w: failed to get service: %v", ErrInternal, err)
+	}
+
+	// Apply updates (use current values as defaults)
+	display := current.Display
+	if req.Display != nil {
+		display = strings.TrimSpace(*req.Display)
+	}
+	audience := current.Audience
+	if req.Audience != nil {
+		audience = strings.TrimSpace(*req.Audience)
+	}
+	redirect := current.Redirect
+	if req.Redirect != nil {
+		redirect = strings.TrimSpace(*req.Redirect)
+	}
+
+	// Validate final values
+	if display == "" || audience == "" || redirect == "" {
 		return ErrInvalidService
 	}
 
@@ -105,7 +117,7 @@ func (s *Service) UpdateService(
 		return err
 	}
 
-	err := s.store.UpdateService(name, display, audience, redirect)
+	err = s.store.UpdateService(name, display, audience, redirect)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -134,45 +146,22 @@ func (s *Service) DeleteService(
 	return nil
 }
 
-func (s *Service) ListServices() ([]*ServiceDefinition, error) {
+func (s *Service) ListServices() (
+	[]ServiceDefinition,
+	error,
+) {
 	records, err := s.store.ListServices()
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to list services: %v", ErrInternal, err)
 	}
-
-	services := make([]*ServiceDefinition, 0, len(records))
-	for _, record := range records {
-		redirectURL, err := parseRedirectURL(record.Redirect)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrInternal, err)
-		}
-		services = append(services, &ServiceDefinition{
-			Name:     record.Name,
-			Display:  record.Display,
-			Audience: record.Audience,
-			Redirect: redirectURL,
-		})
-	}
-
-	return services, nil
-}
-
-func parseRedirectURL(redirect string) (*url.URL, error) {
-	parsed, err := url.Parse(redirect)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRedirect, err)
-	}
-	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, ErrInvalidRedirect
-	}
-	return parsed, nil
+	return records, nil
 }
 
 func (s *Service) handleCreateService(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	req, err := decodeRequest[CreateServiceRequest](r)
+	req, err := decodeRequest[ServiceDefinition](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return
@@ -203,13 +192,7 @@ func (s *Service) handleGetService(
 		return
 	}
 
-	response := CreateServiceRequest{
-		Name:     serviceDef.Name,
-		Display:  serviceDef.Display,
-		Audience: serviceDef.Audience,
-		Redirect: serviceDef.Redirect.String(),
-	}
-	wire.WriteData(w, http.StatusOK, response)
+	wire.WriteData(w, http.StatusOK, serviceDef)
 }
 
 func (s *Service) handleUpdateService(
@@ -228,7 +211,7 @@ func (s *Service) handleUpdateService(
 		return
 	}
 
-	err = s.UpdateService(name, req.Display, req.Audience, req.Redirect)
+	err = s.UpdateService(name, req)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -266,15 +249,19 @@ func (s *Service) handleListServices(
 		return
 	}
 
-	response := make([]CreateServiceRequest, 0, len(services))
-	for _, serviceDef := range services {
-		response = append(response, CreateServiceRequest{
-			Name:     serviceDef.Name,
-			Display:  serviceDef.Display,
-			Audience: serviceDef.Audience,
-			Redirect: serviceDef.Redirect.String(),
-		})
-	}
+	wire.WriteData(w, http.StatusOK, services)
+}
 
-	wire.WriteData(w, http.StatusOK, response)
+func parseRedirectURL(redirect string) (
+	*url.URL,
+	error,
+) {
+	parsed, err := url.Parse(redirect)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidRedirect, err)
+	}
+	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, ErrInvalidRedirect
+	}
+	return parsed, nil
 }
