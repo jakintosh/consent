@@ -59,11 +59,9 @@ func (m PasswordMode) Cost() int {
 }
 
 // Service coordinates authentication, registration, and token operations.
-// It depends on storage interfaces (IdentityStore, RefreshStore) and delegates
-// to them for persistence.
+// It depends on a Store interface and delegates to it for persistence.
 type Service struct {
-	identityStore  IdentityStore
-	refreshStore   RefreshStore
+	store          Store
 	catalog        *ServiceCatalog
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
@@ -71,16 +69,14 @@ type Service struct {
 }
 
 func New(
-	identityStore IdentityStore,
-	refreshStore RefreshStore,
+	store Store,
 	catalogDir string,
 	issuer tokens.Issuer,
 	validator tokens.Validator,
 	passwordMode PasswordMode,
 ) *Service {
 	return &Service{
-		identityStore:  identityStore,
-		refreshStore:   refreshStore,
+		store:          store,
 		catalog:        NewServiceCatalog(catalogDir),
 		tokenIssuer:    issuer,
 		tokenValidator: validator,

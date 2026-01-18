@@ -20,7 +20,7 @@ func (s *Service) Register(
 		return fmt.Errorf("%w: failed to hash password: %v", ErrInternal, err)
 	}
 
-	err = s.identityStore.InsertIdentity(handle, hashPass)
+	err = s.store.InsertIdentity(handle, hashPass)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return ErrHandleExists

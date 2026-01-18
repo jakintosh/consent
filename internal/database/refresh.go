@@ -4,13 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
-
-func (s *SQLiteStore) RefreshStore() service.RefreshStore {
-	return s
-}
 
 func (s *SQLiteStore) InsertRefreshToken(
 	token *tokens.RefreshToken,

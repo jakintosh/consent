@@ -5,19 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
+	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
-
-func setupIdentityStore(t *testing.T) *database.SQLiteStore {
-	t.Helper()
-	store := database.NewSQLiteStore(":memory:")
-	t.Cleanup(func() { _ = store.Close() })
-	return store
-}
 
 func TestInsertIdentity_Success(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// inserting a new identity succeeds
 	err := store.InsertIdentity("alice", []byte("hashed-password"))
@@ -28,7 +21,7 @@ func TestInsertIdentity_Success(t *testing.T) {
 
 func TestInsertIdentity_DuplicateHandle(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// first insert succeeds
 	if err := store.InsertIdentity("alice", []byte("password1")); err != nil {
@@ -44,7 +37,7 @@ func TestInsertIdentity_DuplicateHandle(t *testing.T) {
 
 func TestInsertIdentity_MultipleUsers(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// multiple unique users can be inserted
 	if err := store.InsertIdentity("alice", []byte("password-a")); err != nil {
@@ -60,7 +53,7 @@ func TestInsertIdentity_MultipleUsers(t *testing.T) {
 
 func TestGetSecret_ExistingUser(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// setup
 	expected := []byte("my-secret-hash")
@@ -82,7 +75,7 @@ func TestGetSecret_ExistingUser(t *testing.T) {
 
 func TestGetSecret_NonExistentUser(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// querying non-existent user returns ErrNoRows
 	_, err := store.GetSecret("unknown")
@@ -93,7 +86,7 @@ func TestGetSecret_NonExistentUser(t *testing.T) {
 
 func TestGetSecret_CorrectUser(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// setup two users
 	if err := store.InsertIdentity("alice", []byte("alice-secret")); err != nil {
@@ -123,7 +116,7 @@ func TestGetSecret_CorrectUser(t *testing.T) {
 
 func TestInsertIdentity_EmptyHandle(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// empty handle is allowed by schema
 	err := store.InsertIdentity("", []byte("password"))
@@ -134,7 +127,7 @@ func TestInsertIdentity_EmptyHandle(t *testing.T) {
 
 func TestInsertIdentity_BinarySecret(t *testing.T) {
 	t.Parallel()
-	store := setupIdentityStore(t)
+	store := testutil.SetupTestDB(t)
 
 	// binary data is stored and retrieved correctly
 	binarySecret := []byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd}

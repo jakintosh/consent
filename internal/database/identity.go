@@ -1,11 +1,5 @@
 package database
 
-import "git.sr.ht/~jakintosh/consent/internal/service"
-
-func (s *SQLiteStore) IdentityStore() service.IdentityStore {
-	return s
-}
-
 func (s *SQLiteStore) InsertIdentity(
 	handle string,
 	secret []byte,

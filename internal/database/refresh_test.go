@@ -3,7 +3,6 @@ package database_test
 import (
 	"testing"
 
-	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -12,20 +11,10 @@ var (
 	testAudience2 = []string{"test-audience-2"}
 )
 
-func setupRefreshStore(t *testing.T) (*database.SQLiteStore, *testutil.TestEnv) {
-	t.Helper()
-	env := testutil.SetupTestEnv(t)
-
-	// refresh env test data
-	env.RegisterTestUser(t, "alice", "password")
-	env.RegisterTestUser(t, "bob", "password")
-
-	return env.DB, env
-}
-
 func TestInsertRefreshToken_Success(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -39,7 +28,8 @@ func TestInsertRefreshToken_Success(t *testing.T) {
 
 func TestInsertRefreshToken_MultipleTokens(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token1 := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -56,7 +46,8 @@ func TestInsertRefreshToken_MultipleTokens(t *testing.T) {
 
 func TestDeleteRefreshToken_Exists(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -78,7 +69,8 @@ func TestDeleteRefreshToken_Exists(t *testing.T) {
 
 func TestDeleteRefreshToken_NotExists(t *testing.T) {
 	t.Parallel()
-	store, _ := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// deleting non-existent token returns false
 	deleted, err := store.DeleteRefreshToken("nonexistent-jwt")
@@ -92,7 +84,8 @@ func TestDeleteRefreshToken_NotExists(t *testing.T) {
 
 func TestDeleteRefreshToken_DoubleDelete(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -123,7 +116,8 @@ func TestDeleteRefreshToken_DoubleDelete(t *testing.T) {
 
 func TestGetRefreshTokenOwner_Exists(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -145,7 +139,8 @@ func TestGetRefreshTokenOwner_Exists(t *testing.T) {
 
 func TestGetRefreshTokenOwner_NotExists(t *testing.T) {
 	t.Parallel()
-	store, _ := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// querying non-existent token returns error
 	_, err := store.GetRefreshTokenOwner("nonexistent-jwt")
@@ -156,7 +151,8 @@ func TestGetRefreshTokenOwner_NotExists(t *testing.T) {
 
 func TestGetRefreshTokenOwner_AfterDelete(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
 
 	// setup env
 	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
@@ -178,7 +174,12 @@ func TestGetRefreshTokenOwner_AfterDelete(t *testing.T) {
 
 func TestRefreshToken_MultipleUsers(t *testing.T) {
 	t.Parallel()
-	store, env := setupRefreshStore(t)
+	env := testutil.SetupTestEnvWithUsers(
+		t,
+		testutil.TestUser{Handle: "alice", Password: "password"},
+		testutil.TestUser{Handle: "bob", Password: "password"},
+	)
+	store := env.DB
 
 	// setup env
 	aliceToken := env.IssueTestRefreshToken(t, "alice", testAudience1)

@@ -18,7 +18,7 @@ func (s *Service) Login(
 	*url.URL,
 	error,
 ) {
-	hash, err := s.identityStore.GetSecret(handle)
+	hash, err := s.store.GetSecret(handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrAccountNotFound, handle)
@@ -45,7 +45,7 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
 	}
 
-	err = s.refreshStore.InsertRefreshToken(refreshToken)
+	err = s.store.InsertRefreshToken(refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInternal, err)
 	}

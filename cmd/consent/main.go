@@ -108,14 +108,12 @@ var root = &args.Command{
 			return fmt.Errorf("failed to parse ecdsa signing key from signing_key: %v", err)
 		}
 
-		// init stores
+		// init store
 		db := database.NewSQLiteStore(dbPath)
-		identityStore := db.IdentityStore()
-		refreshStore := db.RefreshStore()
 
 		// Init program services
 		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
-		svc := service.New(identityStore, refreshStore, servicesPath, issuer, validator, service.PasswordModeProduction)
+		svc := service.New(db, servicesPath, issuer, validator, service.PasswordModeProduction)
 
 		// Init endpoints
 		appServer, err := app.New(svc.Catalog())

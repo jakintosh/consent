@@ -45,14 +45,29 @@ type TestEnv struct {
 	TokenValidator tokens.Validator
 }
 
-// SetupTestEnv creates an isolated test environment with in-memory SQLite
+// SetupTestDB creates an in-memory SQLite database with cleanup.
+func SetupTestDB(t *testing.T) *database.SQLiteStore {
+	t.Helper()
+	db := database.NewSQLiteStore(":memory:")
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+	return db
+}
+
+// TestUser provides credentials for seeding users in tests.
+type TestUser struct {
+	Handle   string
+	Password string
+}
+
+// SetupTestEnv creates an isolated test environment with in-memory SQLite.
 func SetupTestEnv(
 	t *testing.T,
 ) *TestEnv {
 	t.Helper()
 
-	// create in-memory SQLite database
-	db := database.NewSQLiteStore(":memory:")
+	db := SetupTestDB(t)
 
 	// use cached signing key (generated once across all tests)
 	signingKey := getSharedSigningKey()
@@ -65,18 +80,12 @@ func SetupTestEnv(
 
 	// create service
 	svc := service.New(
-		db.IdentityStore(),
-		db.RefreshStore(),
+		db,
 		servicesDir,
 		issuer,
 		validator,
 		service.PasswordModeTesting,
 	)
-
-	// setup cleanup
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
 
 	return &TestEnv{
 		DB:             db,
@@ -86,7 +95,20 @@ func SetupTestEnv(
 	}
 }
 
-// SetupTestEnvWithRouter creates TestEnv and configures the API router
+// SetupTestEnvWithUsers creates TestEnv and registers the provided users.
+func SetupTestEnvWithUsers(
+	t *testing.T,
+	users ...TestUser,
+) *TestEnv {
+	t.Helper()
+	env := SetupTestEnv(t)
+	for _, user := range users {
+		env.RegisterTestUser(t, user.Handle, user.Password)
+	}
+	return env
+}
+
+// SetupTestEnvWithRouter creates TestEnv and configures the API router.
 func SetupTestEnvWithRouter(
 	t *testing.T,
 ) *TestEnv {
