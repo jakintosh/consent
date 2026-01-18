@@ -3,23 +3,13 @@
 package service
 
 import (
-	"errors"
+	"encoding/json"
 	"log"
+	"net/http"
 	"os"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrAccountNotFound    = errors.New("account not found")
-	ErrServiceNotFound    = errors.New("service not found")
-	ErrTokenInvalid       = errors.New("token invalid")
-	ErrTokenNotFound      = errors.New("token not found")
-	ErrInternal           = errors.New("internal error")
-	ErrHandleExists       = errors.New("handle already exists")
-	ErrInvalidHandle      = errors.New("invalid handle")
 )
 
 // PasswordMode controls bcrypt cost for password hashing.
@@ -89,4 +79,19 @@ func New(options ServiceOptions) *Service {
 
 func (s *Service) Catalog() *ServiceCatalog {
 	return s.catalog
+}
+
+func (s *Service) Router() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /login", s.handleLogin)
+	mux.HandleFunc("POST /logout", s.handleLogout)
+	mux.HandleFunc("POST /refresh", s.handleRefresh)
+	mux.HandleFunc("POST /register", s.handleRegister)
+	return mux
+}
+
+func decodeRequest[T any](w http.ResponseWriter, r *http.Request) (T, error) {
+	var req T
+	err := json.NewDecoder(r.Body).Decode(&req)
+	return req, err
 }

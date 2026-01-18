@@ -1,4 +1,4 @@
-package api_test
+package service_test
 
 import (
 	"net/http"
@@ -9,7 +9,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestRegister_Success(t *testing.T) {
+func TestAPIRegister_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -22,7 +22,7 @@ func TestRegister_Success(t *testing.T) {
 	result.ExpectStatus(t, http.StatusOK)
 }
 
-func TestRegister_InvalidJSON(t *testing.T) {
+func TestAPIRegister_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -32,7 +32,7 @@ func TestRegister_InvalidJSON(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRegister_DuplicateUser(t *testing.T) {
+func TestAPIRegister_DuplicateUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -53,7 +53,7 @@ func TestRegister_DuplicateUser(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRegister_ThenLogin(t *testing.T) {
+func TestAPIRegister_ThenLogin(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -82,7 +82,7 @@ func TestRegister_ThenLogin(t *testing.T) {
 	}
 }
 
-func TestRegister_EmptyBody(t *testing.T) {
+func TestAPIRegister_EmptyBody(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -92,7 +92,7 @@ func TestRegister_EmptyBody(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRegister_MultipleUsers(t *testing.T) {
+func TestAPIRegister_MultipleUsers(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 

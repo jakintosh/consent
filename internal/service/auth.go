@@ -4,11 +4,24 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type LoginRequest struct {
+	Handle  string `json:"handle"`
+	Secret  string `json:"secret"`
+	Service string `json:"service"`
+}
+
+type LoginResponse struct {
+	RefreshToken string `json:"refreshToken"`
+	AccessToken  string `json:"accessToken"`
+}
 
 func (s *Service) Login(
 	handle string,
@@ -64,4 +77,37 @@ func buildRedirectURL(
 	q.Set("auth_code", refreshToken)
 	redirectURL.RawQuery = q.Encode()
 	return &redirectURL
+}
+
+func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	switch r.Header.Get("Content-Type") {
+	case "application/x-www-form-urlencoded":
+		req = LoginRequest{
+			Handle:  r.FormValue("handle"),
+			Secret:  r.FormValue("secret"),
+			Service: r.FormValue("service"),
+		}
+		if req.Handle == "" || req.Secret == "" || req.Service == "" {
+			wire.WriteError(w, http.StatusBadRequest, "Missing form fields")
+			return
+		}
+	case "application/json":
+		var err error
+		if req, err = decodeRequest[LoginRequest](w, r); err != nil {
+			wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
+			return
+		}
+	default:
+		wire.WriteError(w, http.StatusUnsupportedMediaType, "Unsupported content type")
+		return
+	}
+
+	redirectURL, err := s.Login(req.Handle, req.Secret, req.Service)
+	if err != nil {
+		wire.WriteError(w, httpStatusFromError(err), err.Error())
+		return
+	}
+
+	http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
 }

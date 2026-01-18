@@ -1,15 +1,15 @@
-package api_test
+package service_test
 
 import (
 	"net/http"
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
-	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestRefresh_Success(t *testing.T) {
+func TestAPIRefresh_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -21,7 +21,7 @@ func TestRefresh_Success(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	result := wire.TestPost[service.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
 	response := result.ExpectOK(t)
 	if response.AccessToken == "" {
 		t.Error("expected non-empty access token")
@@ -31,7 +31,7 @@ func TestRefresh_Success(t *testing.T) {
 	}
 }
 
-func TestRefresh_InvalidToken(t *testing.T) {
+func TestAPIRefresh_InvalidToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -44,7 +44,7 @@ func TestRefresh_InvalidToken(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRefresh_TokenNotInStore(t *testing.T) {
+func TestAPIRefresh_TokenNotInStore(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -61,7 +61,7 @@ func TestRefresh_TokenNotInStore(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRefresh_InvalidatesOldToken(t *testing.T) {
+func TestAPIRefresh_InvalidatesOldToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -73,7 +73,7 @@ func TestRefresh_InvalidatesOldToken(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	result := wire.TestPost[service.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
 	result.ExpectOK(t)
 
 	// second refresh with same token fails (token was rotated)
@@ -82,7 +82,7 @@ func TestRefresh_InvalidatesOldToken(t *testing.T) {
 	badResult.ExpectError(t)
 }
 
-func TestRefresh_InvalidJSON(t *testing.T) {
+func TestAPIRefresh_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -92,7 +92,7 @@ func TestRefresh_InvalidJSON(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestRefresh_NewTokenCanBeUsed(t *testing.T) {
+func TestAPIRefresh_NewTokenCanBeUsed(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -104,14 +104,14 @@ func TestRefresh_NewTokenCanBeUsed(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	result := wire.TestPost[service.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
 	response1 := result.ExpectOK(t)
 
 	// new refresh token can be used for another refresh
 	body2 := `{
 		"refreshToken": "` + response1.RefreshToken + `"
 	}`
-	result = wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body2, jsonHeader)
+	result = wire.TestPost[service.RefreshResponse](env.Router, "/refresh", body2, jsonHeader)
 	response2 := result.ExpectOK(t)
 	if response2.AccessToken == "" {
 		t.Error("second refresh should return access token")

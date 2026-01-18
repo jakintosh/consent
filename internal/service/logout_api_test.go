@@ -1,4 +1,4 @@
-package api_test
+package service_test
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestLogout_Success(t *testing.T) {
+func TestAPILogout_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -24,7 +24,7 @@ func TestLogout_Success(t *testing.T) {
 	result.ExpectStatus(t, http.StatusOK)
 }
 
-func TestLogout_TokenNotFound(t *testing.T) {
+func TestAPILogout_TokenNotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -37,7 +37,7 @@ func TestLogout_TokenNotFound(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogout_InvalidatesToken(t *testing.T) {
+func TestAPILogout_InvalidatesToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -61,7 +61,7 @@ func TestLogout_InvalidatesToken(t *testing.T) {
 	refreshResult.ExpectError(t)
 }
 
-func TestLogout_InvalidJSON(t *testing.T) {
+func TestAPILogout_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -71,7 +71,7 @@ func TestLogout_InvalidJSON(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogout_DoubleLogout(t *testing.T) {
+func TestAPILogout_DoubleLogout(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -92,7 +92,7 @@ func TestLogout_DoubleLogout(t *testing.T) {
 	second.ExpectError(t)
 }
 
-func TestLogout_EmptyToken(t *testing.T) {
+func TestAPILogout_EmptyToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 

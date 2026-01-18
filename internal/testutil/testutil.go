@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -48,7 +47,7 @@ type TestEnv struct {
 // SetupTestDB creates an in-memory SQLite database with cleanup.
 func SetupTestDB(t *testing.T) *database.SQLStore {
 	t.Helper()
-	db := database.NewSQLiteStore(database.SQLStoreOptions{Path: ":memory:"})
+	db := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
 	t.Cleanup(func() {
 		_ = db.Close()
 	})
@@ -117,8 +116,7 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
-	a := api.New(env.Service)
-	env.Router = a.Router()
+	env.Router = env.Service.Router()
 	return env
 }
 

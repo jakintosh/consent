@@ -17,7 +17,7 @@ type SQLStore struct {
 	db *sql.DB
 }
 
-func NewSQLiteStore(opts SQLStoreOptions) *SQLStore {
+func NewSQLStore(opts SQLStoreOptions) *SQLStore {
 	db, err := sql.Open("sqlite", opts.Path)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)

@@ -10,7 +10,6 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
-	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -112,7 +111,7 @@ var root = &args.Command{
 		dbOpts := database.SQLStoreOptions{
 			Path: dbPath,
 		}
-		db := database.NewSQLiteStore(dbOpts)
+		db := database.NewSQLStore(dbOpts)
 
 		// init service
 		opts := service.ServiceOptions{
@@ -131,12 +130,11 @@ var root = &args.Command{
 		if err != nil {
 			return fmt.Errorf("failed to initialize app server: %w", err)
 		}
-		apiServer := api.New(svc)
 
 		// Config and serve router
 		mux := http.NewServeMux()
 		mux.Handle("/", appServer.Router())
-		mux.Handle("/api/", http.StripPrefix("/api", apiServer.Router()))
+		mux.Handle("/api/", http.StripPrefix("/api", svc.Router()))
 
 		if verbose {
 			log.Printf("Listening on %s", port)

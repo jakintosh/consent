@@ -1,4 +1,4 @@
-package api_test
+package service_test
 
 import (
 	"net/http"
@@ -11,7 +11,7 @@ import (
 
 var jsonHeader = wire.TestHeader{Key: "Content-Type", Value: "application/json"}
 
-func TestLogin_JSON_Success(t *testing.T) {
+func TestAPILogin_JSON_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -35,7 +35,7 @@ func TestLogin_JSON_Success(t *testing.T) {
 	}
 }
 
-func TestLogin_JSON_RedirectTarget(t *testing.T) {
+func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -62,7 +62,7 @@ func TestLogin_JSON_RedirectTarget(t *testing.T) {
 	}
 }
 
-func TestLogin_UnsupportedContentType(t *testing.T) {
+func TestAPILogin_UnsupportedContentType(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -72,7 +72,7 @@ func TestLogin_UnsupportedContentType(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogin_InvalidCredentials(t *testing.T) {
+func TestAPILogin_InvalidCredentials(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -90,7 +90,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogin_UnknownUser(t *testing.T) {
+func TestAPILogin_UnknownUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -105,7 +105,7 @@ func TestLogin_UnknownUser(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogin_UnknownService(t *testing.T) {
+func TestAPILogin_UnknownService(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -123,7 +123,7 @@ func TestLogin_UnknownService(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogin_InvalidJSON(t *testing.T) {
+func TestAPILogin_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
@@ -133,7 +133,7 @@ func TestLogin_InvalidJSON(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestLogin_MissingFields(t *testing.T) {
+func TestAPILogin_MissingFields(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 

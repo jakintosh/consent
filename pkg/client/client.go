@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"git.sr.ht/~jakintosh/consent/internal/api"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
@@ -18,9 +18,9 @@ type LogLevel int
 
 const (
 	LogLevelNone  LogLevel = iota // No logging
-	LogLevelError                  // Log errors only
-	LogLevelInfo                   // Log errors and informational messages
-	LogLevelDebug                  // Log everything including debug details
+	LogLevelError                 // Log errors only
+	LogLevelInfo                  // Log errors and informational messages
+	LogLevelDebug                 // Log everything including debug details
 )
 
 const LogLevelDefault = LogLevelError
@@ -267,7 +267,7 @@ func (c *Client) RefreshTokens(
 		return nil, nil, false
 	}
 	defer apiResponse.Body.Close()
-	refreshResponse := new(api.RefreshResponse)
+	refreshResponse := new(service.RefreshResponse)
 	if err := json.NewDecoder(apiResponse.Body).Decode(refreshResponse); err != nil {
 		c.log(LogLevelError, "failed to decode api response: %v\n", err)
 		return nil, nil, false

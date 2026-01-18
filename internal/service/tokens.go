@@ -2,10 +2,25 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+type RefreshRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+type RefreshResponse struct {
+	RefreshToken string `json:"refreshToken"`
+	AccessToken  string `json:"accessToken"`
+}
 
 func (s *Service) RefreshTokens(
 	encodedRefreshToken string,
@@ -64,4 +79,46 @@ func (s *Service) RevokeRefreshToken(
 		return ErrTokenNotFound
 	}
 	return nil
+}
+
+func (s *Service) handleRefresh(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	req, err := decodeRequest[RefreshRequest](w, r)
+	if err != nil {
+		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
+		return
+	}
+
+	accessToken, refreshToken, err := s.RefreshTokens(req.RefreshToken)
+	if err != nil {
+		wire.WriteError(w, httpStatusFromError(err), err.Error())
+		return
+	}
+
+	response := RefreshResponse{
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
+	}
+	wire.WriteData(w, http.StatusOK, response)
+}
+
+func (s *Service) handleLogout(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	req, err := decodeRequest[LogoutRequest](w, r)
+	if err != nil {
+		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
+		return
+	}
+
+	err = s.RevokeRefreshToken(req.RefreshToken)
+	if err != nil {
+		wire.WriteError(w, httpStatusFromError(err), err.Error())
+		return
+	}
+
+	wire.WriteData(w, http.StatusOK, nil)
 }
