@@ -15,6 +15,7 @@ func TestLogin_Success(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// valid login returns redirect URL with auth_code
 	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
@@ -36,6 +37,7 @@ func TestLogin_RedirectURL(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login redirects to service's configured callback URL
 	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
@@ -56,6 +58,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// wrong password returns ErrInvalidCredentials
 	_, err := env.Service.Login("alice", "wrongpassword", "test-service")
@@ -69,6 +72,7 @@ func TestLogin_UnknownUser(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	// unknown user returns ErrAccountNotFound
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 	_, err := env.Service.Login("unknown", "password", "test-service")
 	if !errors.Is(err, service.ErrAccountNotFound) {
 		t.Errorf("expected ErrAccountNotFound, got %v", err)
@@ -81,6 +85,7 @@ func TestLogin_UnknownService(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// unknown service returns ErrServiceNotFound
 	_, err := env.Service.Login("alice", "password123", "nonexistent-service")
@@ -95,6 +100,7 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login and get auth_code
 	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
@@ -119,6 +125,7 @@ func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login and get auth_code
 	redirectURL, err := env.Service.Login("alice", "password123", "test-service")

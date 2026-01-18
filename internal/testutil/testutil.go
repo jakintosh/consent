@@ -6,8 +6,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"net/http"
-	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -80,14 +78,10 @@ func SetupTestEnv(
 	// create token issuer/validator for test helpers
 	issuer, validator := tokens.InitServer(tkServerOpts)
 
-	// get path to testdata/services
-	servicesDir := getTestDataPath("services")
-
 	// create service
 	serviceOpts := service.ServiceOptions{
 		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
-		CatalogDir:      servicesDir,
 		TokenServerOpts: tkServerOpts,
 	}
 	svc, err := service.New(serviceOpts)
@@ -100,6 +94,20 @@ func SetupTestEnv(
 		Service:        svc,
 		TokenIssuer:    issuer,
 		TokenValidator: validator,
+	}
+}
+
+// CreateTestService seeds a service definition for tests.
+func (env *TestEnv) CreateTestService(
+	t *testing.T,
+	name string,
+	display string,
+	audience string,
+	redirect string,
+) {
+	t.Helper()
+	if err := env.Service.CreateService(name, display, audience, redirect); err != nil {
+		t.Fatalf("failed to create test service: %v", err)
 	}
 }
 
@@ -122,17 +130,9 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 	env.Router = env.Service.Router()
 	return env
-}
-
-// getTestDataPath returns the path to a subdirectory in testdata
-func getTestDataPath(
-	subdir string,
-) string {
-	_, filename, _, _ := runtime.Caller(0)
-	// Go up from internal/testutil to repo root, then into testdata
-	return filepath.Join(filepath.Dir(filename), "..", "..", "testdata", subdir)
 }
 
 // RegisterTestUser creates a test user in the database

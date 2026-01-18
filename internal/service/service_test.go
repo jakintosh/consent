@@ -15,12 +15,15 @@ func TestNew_CreatesService(t *testing.T) {
 	}
 }
 
-func TestService_Catalog(t *testing.T) {
+func TestService_Defaults(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
-	catalog := env.Service.Catalog()
-	if catalog == nil {
-		t.Fatal("expected non-nil catalog")
+	services, err := env.Service.ListServices()
+	if err != nil {
+		t.Fatalf("ListServices failed: %v", err)
+	}
+	if len(services) != 0 {
+		t.Fatalf("expected no services, got %d", len(services))
 	}
 }

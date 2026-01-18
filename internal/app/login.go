@@ -15,7 +15,7 @@ func (a *App) Login() http.HandlerFunc {
 			return
 		}
 
-		svcDef, err := a.serviceCatalog.GetService(serviceName)
+		svcDef, err := a.service.GetServiceByName(serviceName)
 		if err != nil {
 			logAppErr(r, fmt.Sprintf("invalid service: %s", serviceName))
 			w.WriteHeader(http.StatusBadRequest)
@@ -26,12 +26,6 @@ func (a *App) Login() http.HandlerFunc {
 		data := map[string]string{
 			"Display": svcDef.Display,
 			"Name":    serviceName,
-		}
-		if svcDef == nil {
-			logAppErr(r, fmt.Sprintf("requested service '%s' not registered", serviceName))
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(badRequestHTML)
-			return
 		}
 
 		a.returnTemplate("login.html", data, w, r)

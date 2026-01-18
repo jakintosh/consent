@@ -10,12 +10,12 @@ import (
 )
 
 type AppOptions struct {
-	Catalog *service.ServiceCatalog
+	Service *service.Service
 }
 
 type App struct {
-	serviceCatalog *service.ServiceCatalog
-	templates      *Templates
+	service   *service.Service
+	templates *Templates
 }
 
 func New(
@@ -27,8 +27,8 @@ func New(
 	}
 
 	return &App{
-		serviceCatalog: options.Catalog,
-		templates:      templates,
+		service:   options.Service,
+		templates: templates,
 	}, nil
 }
 

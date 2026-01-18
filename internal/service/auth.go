@@ -44,7 +44,7 @@ func (s *Service) Login(
 		return nil, ErrInvalidCredentials
 	}
 
-	svcDef, err := s.catalog.GetService(serviceName)
+	svcDef, err := s.GetServiceByName(serviceName)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrServiceNotFound, serviceName)
 	}

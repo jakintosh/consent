@@ -1,5 +1,5 @@
 // Package service implements the business logic layer for the consent identity server.
-// It handles user authentication, registration, token management, and service catalog operations.
+// It handles user authentication, registration, token management, and service management operations.
 package service
 
 import (
@@ -51,7 +51,6 @@ func (m PasswordMode) Cost() int {
 // ServiceOptions configures Service initialization.
 type ServiceOptions struct {
 	Store           Store
-	CatalogDir      string
 	TokenServerOpts tokens.ServerOptions
 	PasswordMode    PasswordMode
 }
@@ -61,7 +60,6 @@ type ServiceOptions struct {
 type Service struct {
 	passwordMode   PasswordMode
 	store          Store
-	catalog        *ServiceCatalog
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
 }
@@ -73,21 +71,12 @@ func New(
 	error,
 ) {
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
-	catalog, err := NewServiceCatalog(options.CatalogDir)
-	if err != nil {
-		return nil, err
-	}
 	return &Service{
 		passwordMode:   options.PasswordMode,
 		store:          options.Store,
-		catalog:        catalog,
 		tokenIssuer:    issuer,
 		tokenValidator: validator,
 	}, nil
-}
-
-func (s *Service) Catalog() *ServiceCatalog {
-	return s.catalog
 }
 
 func (s *Service) Router() http.Handler {
@@ -96,6 +85,11 @@ func (s *Service) Router() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /register", s.handleRegister)
+	mux.HandleFunc("GET /services", s.handleListServices)
+	mux.HandleFunc("POST /services", s.handleCreateService)
+	mux.HandleFunc("GET /services/{name}", s.handleGetService)
+	mux.HandleFunc("PUT /services/{name}", s.handleUpdateService)
+	mux.HandleFunc("DELETE /services/{name}", s.handleDeleteService)
 	return mux
 }
 

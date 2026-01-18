@@ -14,6 +14,9 @@ var (
 	ErrInternal           = errors.New("internal error")
 	ErrHandleExists       = errors.New("handle already exists")
 	ErrInvalidHandle      = errors.New("invalid handle")
+	ErrServiceExists      = errors.New("service already exists")
+	ErrInvalidService     = errors.New("invalid service")
+	ErrInvalidRedirect    = errors.New("invalid redirect URL")
 )
 
 func httpStatusFromError(err error) int {
@@ -26,8 +29,12 @@ func httpStatusFromError(err error) int {
 		errors.Is(err, ErrTokenNotFound),
 		errors.Is(err, ErrInvalidHandle):
 		return http.StatusBadRequest
-	case errors.Is(err, ErrHandleExists):
+	case errors.Is(err, ErrHandleExists),
+		errors.Is(err, ErrServiceExists):
 		return http.StatusConflict
+	case errors.Is(err, ErrInvalidRedirect),
+		errors.Is(err, ErrInvalidService):
+		return http.StatusBadRequest
 	case errors.Is(err, ErrInternal):
 		return http.StatusInternalServerError
 	default:

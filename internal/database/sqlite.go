@@ -60,6 +60,17 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	if err := initTable(db, "service", `
+		CREATE TABLE IF NOT EXISTS service (
+			name      TEXT PRIMARY KEY,
+			display   TEXT NOT NULL,
+			audience  TEXT NOT NULL,
+			redirect  TEXT NOT NULL
+		);`,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 

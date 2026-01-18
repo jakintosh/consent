@@ -38,11 +38,6 @@ var root = &args.Command{
 			Help: "JWT issuer domain (env: ISSUER_DOMAIN)",
 		},
 		{
-			Long: "services-path",
-			Type: args.OptionTypeParameter,
-			Help: "Services configuration directory (env: SERVICES_PATH)",
-		},
-		{
 			Long: "port",
 			Type: args.OptionTypeParameter,
 			Help: "HTTP listen port (env: PORT)",
@@ -75,11 +70,6 @@ var root = &args.Command{
 			return fmt.Errorf("--issuer-domain or ISSUER_DOMAIN is required")
 		}
 
-		servicesPath := resolveOption(i, "services-path", "SERVICES_PATH", "")
-		if servicesPath == "" {
-			return fmt.Errorf("--services-path or SERVICES_PATH is required")
-		}
-
 		portStr := resolveOption(i, "port", "PORT", "")
 		if portStr == "" {
 			return fmt.Errorf("--port or PORT is required")
@@ -95,7 +85,6 @@ var root = &args.Command{
 			log.Printf("Starting consent server...")
 			log.Printf("  Database: %s", dbPath)
 			log.Printf("  Issuer: %s", issuerDomain)
-			log.Printf("  Services: %s", servicesPath)
 			log.Printf("  Port: %s", port)
 			log.Printf("  Credentials: %s", credsDir)
 		}
@@ -120,7 +109,6 @@ var root = &args.Command{
 		svcOpts := service.ServiceOptions{
 			PasswordMode: service.PasswordModeProduction,
 			Store:        db,
-			CatalogDir:   servicesPath,
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   signingKey,
 				IssuerDomain: issuerDomain,
@@ -133,7 +121,7 @@ var root = &args.Command{
 
 		// init app
 		appOpts := app.AppOptions{
-			Catalog: svc.Catalog(),
+			Service: svc,
 		}
 		appServer, err := app.New(appOpts)
 		if err != nil {

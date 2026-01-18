@@ -30,6 +30,7 @@ func TestRegister_ThenLogin(t *testing.T) {
 	}
 
 	// registered user can login
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 	redirectURL, err := env.Service.Login("alice", "securepassword", "test-service")
 	if err != nil {
 		t.Errorf("registered user cannot login: %v", err)
@@ -98,6 +99,7 @@ func TestRegister_MultipleUsers(t *testing.T) {
 	}
 
 	// all registered users can login
+	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 	for _, u := range users {
 		_, err := env.Service.Login(u.handle, u.password, "test-service")
 		if err != nil {
