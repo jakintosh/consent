@@ -71,26 +71,30 @@ type Validator interface {
 	VerifySignature(string, string, string) error
 }
 
+// ServerOptions configures the token server.
+type ServerOptions struct {
+	SigningKey   *ecdsa.PrivateKey
+	IssuerDomain string
+}
+
 // InitServer creates a token issuer and validator for the consent auth server.
 // The returned Issuer can create new tokens signed with the private key.
 // The returned Validator can verify tokens but does not enforce audience checks.
 //
 // Parameters:
-//   - signingKey: ECDSA private key used to sign tokens
-//   - issuerDomain: Domain name of the consent server (e.g., "consent.example.com")
+//   - options: ServerOptions with signing key and issuer domain
 //
 // Returns both an Issuer and Validator interface backed by the same Server instance.
 func InitServer(
-	signingKey *ecdsa.PrivateKey,
-	issuerDomain string,
+	options ServerOptions,
 ) (
 	Issuer,
 	Validator,
 ) {
 	server := &Server{
-		signingKey:      signingKey,
-		verificationKey: &signingKey.PublicKey,
-		issuerDomain:    issuerDomain,
+		signingKey:      options.SigningKey,
+		verificationKey: &options.SigningKey.PublicKey,
+		issuerDomain:    options.IssuerDomain,
 	}
 	return server, server
 }

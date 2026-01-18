@@ -10,8 +10,7 @@ import (
 
 func TestRefreshToken_Decode_Valid(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue a valid token
 	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
@@ -35,8 +34,7 @@ func TestRefreshToken_Decode_Valid(t *testing.T) {
 
 func TestRefreshToken_Decode_Expired(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token that's already expired
 	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, -time.Hour)
@@ -57,8 +55,7 @@ func TestRefreshToken_Decode_Expired(t *testing.T) {
 
 func TestRefreshToken_HasSecret(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue refresh token
 	token, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
@@ -74,8 +71,7 @@ func TestRefreshToken_HasSecret(t *testing.T) {
 
 func TestRefreshToken_UniqueSecrets(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue two tokens
 	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
@@ -96,8 +92,7 @@ func TestRefreshToken_UniqueSecrets(t *testing.T) {
 
 func TestRefreshToken_UniqueEncodings(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue two tokens
 	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
@@ -118,8 +113,7 @@ func TestRefreshToken_UniqueEncodings(t *testing.T) {
 
 func TestRefreshToken_Fields(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with specific values
 	token, err := issuer.IssueRefreshToken("user123", []string{"aud1", "aud2"}, time.Hour)
@@ -153,8 +147,7 @@ func TestRefreshToken_Fields(t *testing.T) {
 
 func TestRefreshToken_SecretPreservedAfterDecode(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
 	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)

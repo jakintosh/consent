@@ -38,7 +38,7 @@ func getSharedSigningKey() *ecdsa.PrivateKey {
 
 // TestEnv provides all dependencies needed for testing
 type TestEnv struct {
-	DB             *database.SQLiteStore
+	DB             *database.SQLStore
 	Service        *service.Service
 	Router         http.Handler
 	TokenIssuer    tokens.Issuer
@@ -46,9 +46,9 @@ type TestEnv struct {
 }
 
 // SetupTestDB creates an in-memory SQLite database with cleanup.
-func SetupTestDB(t *testing.T) *database.SQLiteStore {
+func SetupTestDB(t *testing.T) *database.SQLStore {
 	t.Helper()
-	db := database.NewSQLiteStore(":memory:")
+	db := database.NewSQLiteStore(database.SQLStoreOptions{Path: ":memory:"})
 	t.Cleanup(func() {
 		_ = db.Close()
 	})
@@ -70,22 +70,25 @@ func SetupTestEnv(
 	db := SetupTestDB(t)
 
 	// use cached signing key (generated once across all tests)
-	signingKey := getSharedSigningKey()
+	tkServerOpts := tokens.ServerOptions{
+		SigningKey:   getSharedSigningKey(),
+		IssuerDomain: "test.consent.local",
+	}
 
-	// create token issuer/validator
-	issuer, validator := tokens.InitServer(signingKey, "test.consent.local")
+	// create token issuer/validator for test helpers
+	issuer, validator := tokens.InitServer(tkServerOpts)
 
 	// get path to testdata/services
 	servicesDir := getTestDataPath("services")
 
 	// create service
-	svc := service.New(
-		db,
-		servicesDir,
-		issuer,
-		validator,
-		service.PasswordModeTesting,
-	)
+	serviceOpts := service.ServiceOptions{
+		Store:           db,
+		CatalogDir:      servicesDir,
+		PasswordMode:    service.PasswordModeTesting,
+		TokenServerOpts: tkServerOpts,
+	}
+	svc := service.New(serviceOpts)
 
 	return &TestEnv{
 		DB:             db,

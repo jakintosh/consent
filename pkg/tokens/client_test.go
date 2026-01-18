@@ -70,7 +70,7 @@ func TestClient_ValidateAudiences_Multiple(t *testing.T) {
 func TestClient_VerifySignature_Valid(t *testing.T) {
 	t.Parallel()
 	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "consent.domain")
+	issuer, _ := newTestServerWithKey(t, key, "consent.domain")
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue a token
@@ -98,7 +98,7 @@ func TestClient_VerifySignature_WrongKey(t *testing.T) {
 	key2 := generateTestKey(t)
 
 	// issue with one key, verify with another
-	issuer, _ := tokens.InitServer(key1, "consent.domain")
+	issuer, _ := newTestServerWithKey(t, key1, "consent.domain")
 	clientValidator := tokens.InitClient(&key2.PublicKey, "consent.domain", "my-app")
 
 	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
@@ -118,7 +118,7 @@ func TestClient_VerifySignature_WrongKey(t *testing.T) {
 func TestClient_DecodeToken_WrongAudience(t *testing.T) {
 	t.Parallel()
 	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "consent.domain")
+	issuer, _ := newTestServer(t, "consent.domain")
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue token with different audience
@@ -138,7 +138,7 @@ func TestClient_DecodeToken_WrongAudience(t *testing.T) {
 func TestClient_DecodeToken_WrongIssuer(t *testing.T) {
 	t.Parallel()
 	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "wrong.domain")
+	issuer, _ := newTestServer(t, "wrong.domain")
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue token with wrong issuer

@@ -1,6 +1,6 @@
 package database
 
-func (s *SQLiteStore) InsertIdentity(
+func (s *SQLStore) InsertIdentity(
 	handle string,
 	secret []byte,
 ) error {
@@ -13,7 +13,7 @@ func (s *SQLiteStore) InsertIdentity(
 	return err
 }
 
-func (s *SQLiteStore) GetSecret(
+func (s *SQLStore) GetSecret(
 	handle string,
 ) (
 	[]byte,

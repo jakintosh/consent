@@ -7,7 +7,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-func (s *SQLiteStore) InsertRefreshToken(
+func (s *SQLStore) InsertRefreshToken(
 	token *tokens.RefreshToken,
 ) error {
 	_, err := s.db.Exec(`
@@ -25,7 +25,7 @@ func (s *SQLiteStore) InsertRefreshToken(
 	return nil
 }
 
-func (s *SQLiteStore) GetRefreshTokenOwner(
+func (s *SQLStore) GetRefreshTokenOwner(
 	jwt string,
 ) (
 	string,
@@ -47,7 +47,7 @@ func (s *SQLiteStore) GetRefreshTokenOwner(
 	return handle, nil
 }
 
-func (s *SQLiteStore) DeleteRefreshToken(
+func (s *SQLStore) DeleteRefreshToken(
 	jwt string,
 ) (
 	bool,

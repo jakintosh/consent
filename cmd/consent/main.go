@@ -109,11 +109,22 @@ var root = &args.Command{
 		}
 
 		// init store
-		db := database.NewSQLiteStore(dbPath)
+		dbOpts := database.SQLStoreOptions{
+			Path: dbPath,
+		}
+		db := database.NewSQLiteStore(dbOpts)
 
-		// Init program services
-		issuer, validator := tokens.InitServer(signingKey, issuerDomain)
-		svc := service.New(db, servicesPath, issuer, validator, service.PasswordModeProduction)
+		// init service
+		opts := service.ServiceOptions{
+			Store:      db,
+			CatalogDir: servicesPath,
+			TokenServerOpts: tokens.ServerOptions{
+				SigningKey:   signingKey,
+				IssuerDomain: issuerDomain,
+			},
+			PasswordMode: service.PasswordModeProduction,
+		}
+		svc := service.New(opts)
 
 		// Init endpoints
 		appServer, err := app.New(svc.Catalog())

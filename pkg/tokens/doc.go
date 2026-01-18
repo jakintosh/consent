@@ -18,7 +18,10 @@
 // generate new tokens:
 //
 //	// Initialize with your ECDSA private key
-//	issuer, validator := tokens.InitServer(signingKey, "consent.example.com")
+//	issuer, validator := tokens.InitServer(tokens.ServerOptions{
+//		SigningKey:   signingKey,
+//		IssuerDomain: "consent.example.com",
+//	})
 //
 //	// Issue an access token valid for 1 hour
 //	accessToken, err := issuer.IssueAccessToken(

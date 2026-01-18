@@ -10,8 +10,7 @@ import (
 
 func TestAccessToken_Decode_Valid(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue a valid token
 	original, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
@@ -35,8 +34,7 @@ func TestAccessToken_Decode_Valid(t *testing.T) {
 
 func TestAccessToken_Decode_Expired(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token that's already expired
 	original, err := issuer.IssueAccessToken("user", []string{"aud"}, -time.Hour)
@@ -57,11 +55,9 @@ func TestAccessToken_Decode_Expired(t *testing.T) {
 
 func TestAccessToken_Decode_WrongIssuer(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-
 	// issue from one domain, validate with another
-	issuer, _ := tokens.InitServer(key, "wrong.domain")
-	_, validator := tokens.InitServer(key, "correct.domain")
+	issuer, _ := newTestServer(t, "wrong.domain")
+	_, validator := newTestServer(t, "correct.domain")
 
 	original, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
 	if err != nil {
@@ -81,8 +77,7 @@ func TestAccessToken_Decode_WrongIssuer(t *testing.T) {
 
 func TestAccessToken_Decode_Malformed(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	_, validator := tokens.InitServer(key, "test.domain")
+	_, validator := newTestServer(t, "test.domain")
 
 	decoded := &tokens.AccessToken{}
 
@@ -110,8 +105,7 @@ func TestAccessToken_Decode_Malformed(t *testing.T) {
 
 func TestAccessToken_Fields(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with specific values
 	token, err := issuer.IssueAccessToken("user123", []string{"aud1", "aud2"}, time.Hour)

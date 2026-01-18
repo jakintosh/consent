@@ -58,6 +58,14 @@ func (m PasswordMode) Cost() int {
 	}
 }
 
+// ServiceOptions configures Service initialization.
+type ServiceOptions struct {
+	Store           Store
+	CatalogDir      string
+	TokenServerOpts tokens.ServerOptions
+	PasswordMode    PasswordMode
+}
+
 // Service coordinates authentication, registration, and token operations.
 // It depends on a Store interface and delegates to it for persistence.
 type Service struct {
@@ -68,19 +76,14 @@ type Service struct {
 	passwordMode   PasswordMode
 }
 
-func New(
-	store Store,
-	catalogDir string,
-	issuer tokens.Issuer,
-	validator tokens.Validator,
-	passwordMode PasswordMode,
-) *Service {
+func New(options ServiceOptions) *Service {
+	issuer, validator := tokens.InitServer(options.TokenServerOpts)
 	return &Service{
-		store:          store,
-		catalog:        NewServiceCatalog(catalogDir),
+		store:          options.Store,
+		catalog:        NewServiceCatalog(options.CatalogDir),
 		tokenIssuer:    issuer,
 		tokenValidator: validator,
-		passwordMode:   passwordMode,
+		passwordMode:   options.PasswordMode,
 	}
 }
 

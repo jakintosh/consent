@@ -9,12 +9,16 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type SQLiteStore struct {
+type SQLStoreOptions struct {
+	Path string
+}
+
+type SQLStore struct {
 	db *sql.DB
 }
 
-func NewSQLiteStore(dbPath string) *SQLiteStore {
-	db, err := sql.Open("sqlite", dbPath)
+func NewSQLiteStore(opts SQLStoreOptions) *SQLStore {
+	db, err := sql.Open("sqlite", opts.Path)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v\n", err)
 	}
@@ -27,10 +31,10 @@ func NewSQLiteStore(dbPath string) *SQLiteStore {
 		log.Fatalf("failed to init database: %v\n", err)
 	}
 
-	return &SQLiteStore{db: db}
+	return &SQLStore{db: db}
 }
 
-func (s *SQLiteStore) Close() error {
+func (s *SQLStore) Close() error {
 	return s.db.Close()
 }
 

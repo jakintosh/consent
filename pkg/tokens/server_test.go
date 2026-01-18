@@ -9,8 +9,7 @@ import (
 
 func TestServer_IssueRefreshToken(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issuing refresh token succeeds with correct fields
 	token, err := issuer.IssueRefreshToken("subject", []string{"aud"}, time.Hour)
@@ -33,8 +32,7 @@ func TestServer_IssueRefreshToken(t *testing.T) {
 
 func TestServer_IssueAccessToken(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issuing access token succeeds with correct fields
 	token, err := issuer.IssueAccessToken("subject", []string{"aud"}, 30*time.Minute)
@@ -54,8 +52,7 @@ func TestServer_IssueAccessToken(t *testing.T) {
 
 func TestServer_SignHash(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// create a 32-byte hash (SHA256)
 	hash := make([]byte, 32)
@@ -75,8 +72,7 @@ func TestServer_SignHash(t *testing.T) {
 
 func TestServer_ValidateDomain(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	_, validator := tokens.InitServer(key, "test.domain")
+	_, validator := newTestServer(t, "test.domain")
 
 	// matching domain returns true
 	if !validator.ValidateDomain("test.domain") {
@@ -91,8 +87,7 @@ func TestServer_ValidateDomain(t *testing.T) {
 
 func TestServer_ShouldValidateAudience(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	_, validator := tokens.InitServer(key, "test.domain")
+	_, validator := newTestServer(t, "test.domain")
 
 	// server-side validator does not require audience validation
 	if validator.ShouldValidateAudience() {
@@ -102,8 +97,7 @@ func TestServer_ShouldValidateAudience(t *testing.T) {
 
 func TestServer_TokenExpiration(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, _ := tokens.InitServer(key, "test.domain")
+	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with 1 hour lifetime
 	token, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
@@ -122,8 +116,7 @@ func TestServer_TokenExpiration(t *testing.T) {
 
 func TestServer_MultipleAudiences(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token with multiple audiences
 	audiences := []string{"app1", "app2", "app3"}

@@ -40,12 +40,26 @@ func generateTestKey(t *testing.T) *ecdsa.PrivateKey {
 	return key
 }
 
+func newTestServer(t *testing.T, domain string) (tokens.Issuer, tokens.Validator) {
+	t.Helper()
+	return newTestServerWithKey(t, getSharedTestKey(t), domain)
+}
+
+func newTestServerWithKey(
+	t *testing.T,
+	key *ecdsa.PrivateKey,
+	domain string,
+) (tokens.Issuer, tokens.Validator) {
+	t.Helper()
+	return tokens.InitServer(tokens.ServerOptions{
+		SigningKey:   key,
+		IssuerDomain: domain,
+	})
+}
+
 func TestInitServer(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-
-	// server initialization returns issuer and validator
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 	if issuer == nil {
 		t.Error("InitServer returned nil issuer")
 	}
@@ -67,8 +81,7 @@ func TestInitClient(t *testing.T) {
 
 func TestRefreshToken_RoundTrip(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
 	original, err := issuer.IssueRefreshToken("user123", []string{"aud1"}, time.Hour)
@@ -97,8 +110,7 @@ func TestRefreshToken_RoundTrip(t *testing.T) {
 
 func TestAccessToken_RoundTrip(t *testing.T) {
 	t.Parallel()
-	key := getSharedTestKey(t)
-	issuer, validator := tokens.InitServer(key, "test.domain")
+	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
 	original, err := issuer.IssueAccessToken("user123", []string{"aud1"}, time.Hour)
@@ -125,9 +137,8 @@ func TestAccessToken_RoundTrip(t *testing.T) {
 func TestToken_CrossValidation(t *testing.T) {
 	t.Parallel()
 	key := getSharedTestKey(t)
-
 	// issue token from server
-	issuer, _ := tokens.InitServer(key, "consent.server")
+	issuer, _ := newTestServerWithKey(t, key, "consent.server")
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.server", "my-app")
 
 	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
