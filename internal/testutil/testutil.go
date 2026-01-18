@@ -47,7 +47,10 @@ type TestEnv struct {
 // SetupTestDB creates an in-memory SQLite database with cleanup.
 func SetupTestDB(t *testing.T) *database.SQLStore {
 	t.Helper()
-	db := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+	db, err := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+	if err != nil {
+		t.Fatalf("failed to setup test database: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = db.Close()
 	})
@@ -82,12 +85,15 @@ func SetupTestEnv(
 
 	// create service
 	serviceOpts := service.ServiceOptions{
+		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
 		CatalogDir:      servicesDir,
-		PasswordMode:    service.PasswordModeTesting,
 		TokenServerOpts: tkServerOpts,
 	}
-	svc := service.New(serviceOpts)
+	svc, err := service.New(serviceOpts)
+	if err != nil {
+		t.Fatalf("failed to initialize test service: %v", err)
+	}
 
 	return &TestEnv{
 		DB:             db,

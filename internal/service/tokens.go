@@ -85,7 +85,7 @@ func (s *Service) handleRefresh(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	req, err := decodeRequest[RefreshRequest](w, r)
+	req, err := decodeRequest[RefreshRequest](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return
@@ -108,7 +108,7 @@ func (s *Service) handleLogout(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	req, err := decodeRequest[LogoutRequest](w, r)
+	req, err := decodeRequest[LogoutRequest](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return

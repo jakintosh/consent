@@ -42,7 +42,7 @@ func (s *Service) handleRegister(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	req, err := decodeRequest[RegistrationRequest](w, r)
+	req, err := decodeRequest[RegistrationRequest](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return

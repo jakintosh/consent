@@ -59,22 +59,31 @@ type ServiceOptions struct {
 // Service coordinates authentication, registration, and token operations.
 // It depends on a Store interface and delegates to it for persistence.
 type Service struct {
+	passwordMode   PasswordMode
 	store          Store
 	catalog        *ServiceCatalog
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
-	passwordMode   PasswordMode
 }
 
-func New(options ServiceOptions) *Service {
+func New(
+	options ServiceOptions,
+) (
+	*Service,
+	error,
+) {
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
+	catalog, err := NewServiceCatalog(options.CatalogDir)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
+		passwordMode:   options.PasswordMode,
 		store:          options.Store,
-		catalog:        NewServiceCatalog(options.CatalogDir),
+		catalog:        catalog,
 		tokenIssuer:    issuer,
 		tokenValidator: validator,
-		passwordMode:   options.PasswordMode,
-	}
+	}, nil
 }
 
 func (s *Service) Catalog() *ServiceCatalog {
@@ -90,7 +99,7 @@ func (s *Service) Router() http.Handler {
 	return mux
 }
 
-func decodeRequest[T any](w http.ResponseWriter, r *http.Request) (T, error) {
+func decodeRequest[T any](r *http.Request) (T, error) {
 	var req T
 	err := json.NewDecoder(r.Body).Decode(&req)
 	return req, err

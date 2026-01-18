@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -42,10 +41,13 @@ type ServiceCatalog struct {
 
 func NewServiceCatalog(
 	dir string,
-) *ServiceCatalog {
+) (
+	*ServiceCatalog,
+	error,
+) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatalf("Failed to read services directory '%s': %v", dir, err)
+		return nil, fmt.Errorf("failed to read services directory '%s': %w", dir, err)
 	}
 
 	svcs := make(map[string]*ServiceDefinition)
@@ -56,13 +58,12 @@ func NewServiceCatalog(
 		name := file.Name()
 		service, err := loadServiceDefinition(filepath.Join(dir, name))
 		if err != nil {
-			log.Fatalf("Failed to load service '%s': %v", name, err)
+			return nil, fmt.Errorf("failed to load service '%s': %w", name, err)
 		}
 		svcs[name] = service
 	}
 
-	log.Printf("Loaded %d services from %s", len(svcs), dir)
-	return &ServiceCatalog{services: svcs}
+	return &ServiceCatalog{services: svcs}, nil
 }
 
 func (c *ServiceCatalog) GetService(

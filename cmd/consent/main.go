@@ -111,19 +111,25 @@ var root = &args.Command{
 		dbOpts := database.SQLStoreOptions{
 			Path: dbPath,
 		}
-		db := database.NewSQLStore(dbOpts)
+		db, err := database.NewSQLStore(dbOpts)
+		if err != nil {
+			return fmt.Errorf("failed to initialize database: %w", err)
+		}
 
 		// init service
 		svcOpts := service.ServiceOptions{
-			Store:      db,
-			CatalogDir: servicesPath,
+			PasswordMode: service.PasswordModeProduction,
+			Store:        db,
+			CatalogDir:   servicesPath,
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   signingKey,
 				IssuerDomain: issuerDomain,
 			},
-			PasswordMode: service.PasswordModeProduction,
 		}
-		svc := service.New(svcOpts)
+		svc, err := service.New(svcOpts)
+		if err != nil {
+			return fmt.Errorf("failed to initialize service: %w", err)
+		}
 
 		// init app
 		appOpts := app.AppOptions{

@@ -39,7 +39,10 @@ func TestNewSQLiteStore_CreatesSchema(t *testing.T) {
 func TestSQLiteStore_Close(t *testing.T) {
 	t.Parallel()
 	// Close is called explicitly to validate success without test cleanup.
-	store := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+	store, err := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+	if err != nil {
+		t.Fatalf("failed to initialize store: %v", err)
+	}
 
 	// closing store succeeds without error
 	if err := store.Close(); err != nil {

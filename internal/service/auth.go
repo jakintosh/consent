@@ -94,7 +94,7 @@ func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	case "application/json":
 		var err error
-		if req, err = decodeRequest[LoginRequest](w, r); err != nil {
+		if req, err = decodeRequest[LoginRequest](r); err != nil {
 			wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 			return
 		}

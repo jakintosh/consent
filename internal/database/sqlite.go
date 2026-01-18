@@ -4,7 +4,6 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	_ "modernc.org/sqlite"
 )
@@ -17,21 +16,21 @@ type SQLStore struct {
 	db *sql.DB
 }
 
-func NewSQLStore(opts SQLStoreOptions) *SQLStore {
+func NewSQLStore(opts SQLStoreOptions) (*SQLStore, error) {
 	db, err := sql.Open("sqlite", opts.Path)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v\n", err)
+		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}
 
 	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		log.Fatalf("failed to init database schema: couldn't enable foreign keys: %v\n", err)
+		return nil, fmt.Errorf("failed to init database schema: couldn't enable foreign keys: %v", err)
 	}
 
 	if err := initSchema(db); err != nil {
-		log.Fatalf("failed to init database: %v\n", err)
+		return nil, fmt.Errorf("failed to init database: %v", err)
 	}
 
-	return &SQLStore{db: db}
+	return &SQLStore{db: db}, nil
 }
 
 func (s *SQLStore) Close() error {
