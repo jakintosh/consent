@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type LoginRequest struct {
@@ -22,7 +24,7 @@ func (a *API) Login() http.HandlerFunc {
 		var req LoginRequest
 		switch r.Header.Get("Content-Type") {
 		case "application/x-www-form-urlencoded":
-			req := LoginRequest{
+			req = LoginRequest{
 				Handle:  r.FormValue("handle"),
 				Secret:  r.FormValue("secret"),
 				Service: r.FormValue("service"),
@@ -30,8 +32,7 @@ func (a *API) Login() http.HandlerFunc {
 			if req.Handle == "" ||
 				req.Secret == "" ||
 				req.Service == "" {
-				logApiErr(r, "bad form request")
-				w.WriteHeader(http.StatusBadRequest)
+				wire.WriteError(w, http.StatusBadRequest, "Missing form fields")
 				return
 			}
 		case "application/json":
@@ -39,14 +40,14 @@ func (a *API) Login() http.HandlerFunc {
 				return
 			}
 		default:
-			w.WriteHeader(http.StatusUnsupportedMediaType)
+			wire.WriteError(w, http.StatusUnsupportedMediaType, "Unsupported content type")
 			return
 		}
 
 		// run login
 		redirectUrl, err := a.service.Login(req.Handle, req.Secret, req.Service)
 		if err != nil {
-			writeError(w, r, err)
+			wire.WriteError(w, httpStatusFromError(err), err.Error())
 			return
 		}
 

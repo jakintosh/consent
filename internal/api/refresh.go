@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type RefreshRequest struct {
@@ -22,7 +24,7 @@ func (a *API) Refresh() http.HandlerFunc {
 
 		accessToken, refreshToken, err := a.service.RefreshTokens(req.RefreshToken)
 		if err != nil {
-			writeError(w, r, err)
+			wire.WriteError(w, httpStatusFromError(err), err.Error())
 			return
 		}
 
@@ -30,6 +32,6 @@ func (a *API) Refresh() http.HandlerFunc {
 			RefreshToken: refreshToken,
 			AccessToken:  accessToken,
 		}
-		returnJson(&response, w)
+		wire.WriteData(w, http.StatusOK, response)
 	}
 }

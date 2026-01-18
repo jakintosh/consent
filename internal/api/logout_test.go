@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -19,8 +20,8 @@ func TestLogout_Success(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := testutil.PostJSON(env.Router, "/logout", body, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[any](env.Router, "/logout", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusOK)
 }
 
 func TestLogout_TokenNotFound(t *testing.T) {
@@ -31,8 +32,9 @@ func TestLogout_TokenNotFound(t *testing.T) {
 	body := `{
 		"refreshToken": "nonexistent-token"
 	}`
-	result := testutil.PostJSON(env.Router, "/logout", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/logout", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestLogout_InvalidatesToken(t *testing.T) {
@@ -47,15 +49,16 @@ func TestLogout_InvalidatesToken(t *testing.T) {
 	logoutBody := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := testutil.PostJSON(env.Router, "/logout", logoutBody, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[any](env.Router, "/logout", logoutBody, jsonHeader)
+	result.ExpectStatus(t, http.StatusOK)
 
 	// refresh should now fail
 	refreshBody := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result = testutil.PostJSON(env.Router, "/refresh", refreshBody, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	refreshResult := wire.TestPost[any](env.Router, "/refresh", refreshBody, jsonHeader)
+	refreshResult.ExpectStatus(t, http.StatusBadRequest)
+	refreshResult.ExpectError(t)
 }
 
 func TestLogout_InvalidJSON(t *testing.T) {
@@ -63,8 +66,9 @@ func TestLogout_InvalidJSON(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// logout with malformed json fails
-	result := testutil.PostJSON(env.Router, "/logout", "bad-json", nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/logout", "bad-json", jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestLogout_DoubleLogout(t *testing.T) {
@@ -79,12 +83,13 @@ func TestLogout_DoubleLogout(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := testutil.PostJSON(env.Router, "/logout", body, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[any](env.Router, "/logout", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusOK)
 
 	// second logout fails
-	result = testutil.PostJSON(env.Router, "/logout", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	second := wire.TestPost[any](env.Router, "/logout", body, jsonHeader)
+	second.ExpectStatus(t, http.StatusBadRequest)
+	second.ExpectError(t)
 }
 
 func TestLogout_EmptyToken(t *testing.T) {
@@ -95,6 +100,7 @@ func TestLogout_EmptyToken(t *testing.T) {
 	body := `{
 		"refreshToken": ""
 	}`
-	result := testutil.PostJSON(env.Router, "/logout", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/logout", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }

@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type LogoutRequest struct {
@@ -17,10 +19,10 @@ func (a *API) Logout() http.HandlerFunc {
 
 		err := a.service.RevokeRefreshToken(req.RefreshToken)
 		if err != nil {
-			writeError(w, r, err)
+			wire.WriteError(w, httpStatusFromError(err), err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		wire.WriteData(w, http.StatusOK, nil)
 	}
 }

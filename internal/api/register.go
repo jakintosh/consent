@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type RegistrationRequest struct {
@@ -18,10 +20,10 @@ func (a *API) Register() http.HandlerFunc {
 
 		err := a.service.Register(req.Handle, req.Password)
 		if err != nil {
-			writeError(w, r, err)
+			wire.WriteError(w, httpStatusFromError(err), err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		wire.WriteData(w, http.StatusOK, nil)
 	}
 }

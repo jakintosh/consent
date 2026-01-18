@@ -5,8 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
+
+var jsonHeader = wire.TestHeader{Key: "Content-Type", Value: "application/json"}
 
 func TestLogin_JSON_Success(t *testing.T) {
 	t.Parallel()
@@ -21,8 +24,12 @@ func TestLogin_JSON_Success(t *testing.T) {
 		"secret": "password123",
 		"service": "test-service"
 	}`
-	result := testutil.PostJSON(env.Router, "/login", body, nil)
-	location := testutil.ExpectRedirect(t, result)
+	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusSeeOther)
+	location := result.Headers.Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header in redirect")
+	}
 	if !strings.Contains(location, "auth_code=") {
 		t.Errorf("redirect URL missing auth_code: %s", location)
 	}
@@ -41,8 +48,12 @@ func TestLogin_JSON_RedirectTarget(t *testing.T) {
 		"secret": "password123",
 		"service": "test-service"
 	}`
-	result := testutil.PostJSON(env.Router, "/login", body, nil)
-	location := testutil.ExpectRedirect(t, result)
+	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusSeeOther)
+	location := result.Headers.Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header in redirect")
+	}
 	if !strings.Contains(location, "localhost:8080") {
 		t.Errorf("redirect should be to service URL, got: %s", location)
 	}
@@ -56,9 +67,9 @@ func TestLogin_UnsupportedContentType(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// non-JSON content type is rejected
-	result := testutil.Post(env.Router, "/login", "data", nil,
-		testutil.Header{Key: "Content-Type", Value: "text/plain"})
-	testutil.ExpectStatus(t, http.StatusUnsupportedMediaType, result)
+	result := wire.TestPost[any](env.Router, "/login", "data", wire.TestHeader{Key: "Content-Type", Value: "text/plain"})
+	result.ExpectStatus(t, http.StatusUnsupportedMediaType)
+	result.ExpectError(t)
 }
 
 func TestLogin_InvalidCredentials(t *testing.T) {
@@ -74,8 +85,9 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 		"secret": "wrongpassword",
 		"service": "test-service"
 	}`
-	result := testutil.PostJSON(env.Router, "/login", body, nil)
-	testutil.ExpectStatus(t, http.StatusUnauthorized, result)
+	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusUnauthorized)
+	result.ExpectError(t)
 }
 
 func TestLogin_UnknownUser(t *testing.T) {
@@ -88,8 +100,9 @@ func TestLogin_UnknownUser(t *testing.T) {
 		"secret": "password",
 		"service": "test-service"
 	}`
-	result := testutil.PostJSON(env.Router, "/login", body, nil)
-	testutil.ExpectStatus(t, http.StatusUnauthorized, result)
+	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusUnauthorized)
+	result.ExpectError(t)
 }
 
 func TestLogin_UnknownService(t *testing.T) {
@@ -105,8 +118,9 @@ func TestLogin_UnknownService(t *testing.T) {
 		"secret": "password123",
 		"service": "unknown"
 	}`
-	result := testutil.PostJSON(env.Router, "/login", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestLogin_InvalidJSON(t *testing.T) {
@@ -114,8 +128,9 @@ func TestLogin_InvalidJSON(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// malformed JSON returns 400
-	result := testutil.PostJSON(env.Router, "/login", "not-json", nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/login", "not-json", jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestLogin_MissingFields(t *testing.T) {
@@ -135,7 +150,7 @@ func TestLogin_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testutil.PostJSON(env.Router, "/login", tt.body, nil)
+			result := wire.TestPost[any](env.Router, "/login", tt.body, jsonHeader)
 			// should either fail at login or return auth error
 			if result.Code == http.StatusSeeOther {
 				t.Error("should not redirect with missing fields")

@@ -5,9 +5,9 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
@@ -24,24 +24,10 @@ func New(svc *service.Service) *API {
 func decodeRequest[T any](req *T, w http.ResponseWriter, r *http.Request) bool {
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		logApiErr(r, "bad json request")
-		w.WriteHeader(http.StatusBadRequest)
+		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return false
 	}
 	return true
-}
-
-func returnJson(data any, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(data)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-}
-
-func logApiErr(r *http.Request, msg string) {
-	log.Printf("%s %s: %s\n", r.Method, r.RequestURI, msg)
 }
 
 func httpStatusFromError(err error) int {
@@ -61,9 +47,4 @@ func httpStatusFromError(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
-}
-
-func writeError(w http.ResponseWriter, r *http.Request, err error) {
-	logApiErr(r, err.Error())
-	w.WriteHeader(httpStatusFromError(err))
 }

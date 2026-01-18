@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
@@ -20,9 +21,8 @@ func TestRefresh_Success(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	var response api.RefreshResponse
-	result := testutil.PostJSON(env.Router, "/refresh", body, &response)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	response := result.ExpectOK(t)
 	if response.AccessToken == "" {
 		t.Error("expected non-empty access token")
 	}
@@ -39,8 +39,9 @@ func TestRefresh_InvalidToken(t *testing.T) {
 	body := `{
 		"refreshToken": "invalid-token"
 	}`
-	result := testutil.PostJSON(env.Router, "/refresh", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/refresh", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestRefresh_TokenNotInStore(t *testing.T) {
@@ -55,8 +56,9 @@ func TestRefresh_TokenNotInStore(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := testutil.PostJSON(env.Router, "/refresh", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/refresh", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestRefresh_InvalidatesOldToken(t *testing.T) {
@@ -71,12 +73,13 @@ func TestRefresh_InvalidatesOldToken(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := testutil.PostJSON(env.Router, "/refresh", body, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	result.ExpectOK(t)
 
 	// second refresh with same token fails (token was rotated)
-	result = testutil.PostJSON(env.Router, "/refresh", body, nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	badResult := wire.TestPost[any](env.Router, "/refresh", body, jsonHeader)
+	badResult.ExpectStatus(t, http.StatusBadRequest)
+	badResult.ExpectError(t)
 }
 
 func TestRefresh_InvalidJSON(t *testing.T) {
@@ -84,8 +87,9 @@ func TestRefresh_InvalidJSON(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// malformed JSON returns 400
-	result := testutil.PostJSON(env.Router, "/refresh", "bad-json", nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/refresh", "bad-json", jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestRefresh_NewTokenCanBeUsed(t *testing.T) {
@@ -100,17 +104,15 @@ func TestRefresh_NewTokenCanBeUsed(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	var response1 api.RefreshResponse
-	result := testutil.PostJSON(env.Router, "/refresh", body, &response1)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body, jsonHeader)
+	response1 := result.ExpectOK(t)
 
 	// new refresh token can be used for another refresh
 	body2 := `{
 		"refreshToken": "` + response1.RefreshToken + `"
 	}`
-	var response2 api.RefreshResponse
-	result = testutil.PostJSON(env.Router, "/refresh", body2, &response2)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result = wire.TestPost[api.RefreshResponse](env.Router, "/refresh", body2, jsonHeader)
+	response2 := result.ExpectOK(t)
 	if response2.AccessToken == "" {
 		t.Error("second refresh should return access token")
 	}

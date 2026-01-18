@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -17,8 +18,8 @@ func TestRegister_Success(t *testing.T) {
 		"username": "newuser",
 		"password": "securepass"
 	}`
-	result := testutil.PostJSON(env.Router, "/register", body, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[any](env.Router, "/register", body, jsonHeader)
+	result.ExpectStatus(t, http.StatusOK)
 }
 
 func TestRegister_InvalidJSON(t *testing.T) {
@@ -26,8 +27,9 @@ func TestRegister_InvalidJSON(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// malformed JSON returns 400
-	result := testutil.PostJSON(env.Router, "/register", "not-json", nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/register", "not-json", jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestRegister_DuplicateUser(t *testing.T) {
@@ -39,15 +41,16 @@ func TestRegister_DuplicateUser(t *testing.T) {
 		"username": "alice",
 		"password": "pass1"
 	}`
-	testutil.PostJSON(env.Router, "/register", body, nil)
+	wire.TestPost[any](env.Router, "/register", body, jsonHeader)
 
 	// second registration with same username returns 409
 	body2 := `{
 		"username": "alice",
 		"password": "pass2"
 	}`
-	result := testutil.PostJSON(env.Router, "/register", body2, nil)
-	testutil.ExpectStatus(t, http.StatusConflict, result)
+	result := wire.TestPost[any](env.Router, "/register", body2, jsonHeader)
+	result.ExpectStatus(t, http.StatusConflict)
+	result.ExpectError(t)
 }
 
 func TestRegister_ThenLogin(t *testing.T) {
@@ -59,8 +62,8 @@ func TestRegister_ThenLogin(t *testing.T) {
 		"username": "newuser",
 		"password": "mypassword"
 	}`
-	result := testutil.PostJSON(env.Router, "/register", regBody, nil)
-	testutil.ExpectStatus(t, http.StatusOK, result)
+	result := wire.TestPost[any](env.Router, "/register", regBody, jsonHeader)
+	result.ExpectStatus(t, http.StatusOK)
 
 	// login with registered credentials succeeds
 	loginBody := `{
@@ -68,8 +71,12 @@ func TestRegister_ThenLogin(t *testing.T) {
 		"secret": "mypassword",
 		"service": "test-service"
 	}`
-	result = testutil.PostJSON(env.Router, "/login", loginBody, nil)
-	location := testutil.ExpectRedirect(t, result)
+	loginResult := wire.TestPost[any](env.Router, "/login", loginBody, jsonHeader)
+	loginResult.ExpectStatus(t, http.StatusSeeOther)
+	location := loginResult.Headers.Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header in redirect")
+	}
 	if !strings.Contains(location, "auth_code=") {
 		t.Errorf("login after register should work, got redirect: %s", location)
 	}
@@ -80,8 +87,9 @@ func TestRegister_EmptyBody(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// empty JSON body returns 400
-	result := testutil.PostJSON(env.Router, "/register", "{}", nil)
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
+	result := wire.TestPost[any](env.Router, "/register", "{}", jsonHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestRegister_MultipleUsers(t *testing.T) {
@@ -95,7 +103,7 @@ func TestRegister_MultipleUsers(t *testing.T) {
 			"username": "` + user + `",
 			"password": "password"
 		}`
-		result := testutil.PostJSON(env.Router, "/register", body, nil)
-		testutil.ExpectStatus(t, http.StatusOK, result)
+		result := wire.TestPost[any](env.Router, "/register", body, jsonHeader)
+		result.ExpectStatus(t, http.StatusOK)
 	}
 }
