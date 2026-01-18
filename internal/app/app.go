@@ -9,13 +9,17 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
+type AppOptions struct {
+	Catalog *service.ServiceCatalog
+}
+
 type App struct {
 	serviceCatalog *service.ServiceCatalog
 	templates      *Templates
 }
 
 func New(
-	catalog *service.ServiceCatalog,
+	options AppOptions,
 ) (*App, error) {
 	templates, err := NewTemplates()
 	if err != nil {
@@ -23,7 +27,7 @@ func New(
 	}
 
 	return &App{
-		serviceCatalog: catalog,
+		serviceCatalog: options.Catalog,
 		templates:      templates,
 	}, nil
 }

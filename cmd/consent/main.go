@@ -114,7 +114,7 @@ var root = &args.Command{
 		db := database.NewSQLStore(dbOpts)
 
 		// init service
-		opts := service.ServiceOptions{
+		svcOpts := service.ServiceOptions{
 			Store:      db,
 			CatalogDir: servicesPath,
 			TokenServerOpts: tokens.ServerOptions{
@@ -123,15 +123,18 @@ var root = &args.Command{
 			},
 			PasswordMode: service.PasswordModeProduction,
 		}
-		svc := service.New(opts)
+		svc := service.New(svcOpts)
 
-		// Init endpoints
-		appServer, err := app.New(svc.Catalog())
+		// init app
+		appOpts := app.AppOptions{
+			Catalog: svc.Catalog(),
+		}
+		appServer, err := app.New(appOpts)
 		if err != nil {
 			return fmt.Errorf("failed to initialize app server: %w", err)
 		}
 
-		// Config and serve router
+		// config and serve router
 		mux := http.NewServeMux()
 		mux.Handle("/", appServer.Router())
 		mux.Handle("/api/", http.StripPrefix("/api", svc.Router()))
@@ -140,12 +143,7 @@ var root = &args.Command{
 			log.Printf("Listening on %s", port)
 		}
 
-		err = http.ListenAndServe(port, mux)
-		if err != nil {
-			return fmt.Errorf("server error: %v", err)
-		}
-
-		return nil
+		return http.ListenAndServe(port, mux)
 	},
 }
 
