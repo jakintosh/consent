@@ -6,7 +6,6 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type serviceDefinition struct {
@@ -38,7 +37,7 @@ var servicesListCmd = &args.Command{
 	Name: "list",
 	Help: "List services",
 	Handler: func(i *args.Input) error {
-		client, err := newAPIClient(i)
+		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -62,7 +61,7 @@ var servicesGetCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := newAPIClient(i)
+		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -108,7 +107,7 @@ var servicesCreateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := newAPIClient(i)
+		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -172,7 +171,7 @@ var servicesUpdateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := newAPIClient(i)
+		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -218,7 +217,7 @@ var servicesDeleteCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := newAPIClient(i)
+		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -235,10 +234,6 @@ var servicesDeleteCmd = &args.Command{
 		fmt.Println("ok")
 		return nil
 	},
-}
-
-func newAPIClient(i *args.Input) (wire.Client, error) {
-	return envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
 }
 
 func printJSON(value any) error {

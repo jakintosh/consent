@@ -10,10 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
+
+const testBootstrapAPIKey = "test.0123456789abcdef"
 
 var (
 	sharedSigningKey     *ecdsa.PrivateKey
@@ -40,6 +44,12 @@ type TestEnv struct {
 	Router         http.Handler
 	TokenIssuer    tokens.Issuer
 	TokenValidator tokens.Validator
+}
+
+// APIKeyHeader returns a valid auth header for API key protected routes.
+func (env *TestEnv) APIKeyHeader(t *testing.T) wire.TestHeader {
+	t.Helper()
+	return wire.TestHeader{Key: "Authorization", Value: "Bearer " + testBootstrapAPIKey}
 }
 
 // SetupTestDB creates an in-memory SQLite database with cleanup.
@@ -83,6 +93,10 @@ func SetupTestEnv(
 		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
 		TokenServerOpts: tkServerOpts,
+		KeysOptions: keys.Options{
+			Store:          db.KeysStore,
+			BootstrapToken: testBootstrapAPIKey,
+		},
 	}
 	svc, err := service.New(serviceOpts)
 	if err != nil {

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -82,6 +84,9 @@ var serveCmd = &args.Command{
 			return fmt.Errorf("failed to parse ecdsa signing key from signing_key: %v", err)
 		}
 
+		bootstrapKeyRaw := string(loadCredential("api_key", credsDir))
+		bootstrapKey := strings.TrimSpace(bootstrapKeyRaw)
+
 		dbOpts := database.SQLStoreOptions{
 			Path: dbPath,
 		}
@@ -96,6 +101,10 @@ var serveCmd = &args.Command{
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   signingKey,
 				IssuerDomain: issuerDomain,
+			},
+			KeysOptions: keys.Options{
+				Store:          db.KeysStore,
+				BootstrapToken: bootstrapKey,
 			},
 		}
 		svc, err := service.New(svcOpts)

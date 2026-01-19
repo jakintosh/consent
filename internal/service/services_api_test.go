@@ -11,9 +11,10 @@ import (
 func TestAPICreateService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	svc, err := env.Service.GetServiceByName("svc-a")
@@ -28,10 +29,11 @@ func TestAPICreateService_Success(t *testing.T) {
 func TestAPICreateService_DuplicateName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusConflict)
 	result.ExpectError(t)
 }
@@ -39,9 +41,11 @@ func TestAPICreateService_DuplicateName(t *testing.T) {
 func TestAPICreateService_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"not-a-url"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -49,9 +53,11 @@ func TestAPICreateService_InvalidRedirect(t *testing.T) {
 func TestAPICreateService_MissingName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -59,9 +65,11 @@ func TestAPICreateService_MissingName(t *testing.T) {
 func TestAPICreateService_MissingDisplay(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -69,9 +77,11 @@ func TestAPICreateService_MissingDisplay(t *testing.T) {
 func TestAPICreateService_MissingAudience(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -79,9 +89,11 @@ func TestAPICreateService_MissingAudience(t *testing.T) {
 func TestAPICreateService_MissingRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a"}`
-	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -89,9 +101,10 @@ func TestAPICreateService_MissingRedirect(t *testing.T) {
 func TestAPIGetService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	result := wire.TestGet[map[string]string](env.Router, "/services/svc-a")
+	result := wire.TestGet[map[string]string](env.Router, "/services/svc-a", authHeader)
 	response := result.ExpectOK(t)
 	if response["name"] != "svc-a" {
 		t.Errorf("name = %s, want svc-a", response["name"])
@@ -104,8 +117,9 @@ func TestAPIGetService_Success(t *testing.T) {
 func TestAPIGetService_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestGet[any](env.Router, "/services/missing")
+	result := wire.TestGet[any](env.Router, "/services/missing", authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -113,10 +127,11 @@ func TestAPIGetService_NotFound(t *testing.T) {
 func TestAPIUpdateService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPut[any](env.Router, "/services/svc-a", body, jsonHeader)
+	result := wire.TestPut[any](env.Router, "/services/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	svc, err := env.Service.GetServiceByName("svc-a")
@@ -131,9 +146,10 @@ func TestAPIUpdateService_Success(t *testing.T) {
 func TestAPIUpdateService_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPut[any](env.Router, "/services/missing", body, jsonHeader)
+	result := wire.TestPut[any](env.Router, "/services/missing", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -141,10 +157,11 @@ func TestAPIUpdateService_NotFound(t *testing.T) {
 func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"bad-url"}`
-	result := wire.TestPut[any](env.Router, "/services/svc-a", body, jsonHeader)
+	result := wire.TestPut[any](env.Router, "/services/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -152,9 +169,10 @@ func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
 func TestAPIDeleteService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	result := wire.TestDelete[any](env.Router, "/services/svc-a")
+	result := wire.TestDelete[any](env.Router, "/services/svc-a", authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	_, err := env.Service.GetServiceByName("svc-a")
@@ -166,8 +184,9 @@ func TestAPIDeleteService_Success(t *testing.T) {
 func TestAPIDeleteService_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestDelete[any](env.Router, "/services/missing")
+	result := wire.TestDelete[any](env.Router, "/services/missing", authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -175,8 +194,9 @@ func TestAPIDeleteService_NotFound(t *testing.T) {
 func TestAPIListServices_Seeded(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestGet[[]map[string]string](env.Router, "/services")
+	result := wire.TestGet[[]map[string]string](env.Router, "/services", authHeader)
 	response := result.ExpectOK(t)
 	if len(response) != 1 {
 		t.Fatalf("expected 1 service (seeded), got %d", len(response))
@@ -189,10 +209,11 @@ func TestAPIListServices_Seeded(t *testing.T) {
 func TestAPIListServices_Multiple(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 	env.CreateTestService(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback")
 
-	result := wire.TestGet[[]map[string]string](env.Router, "/services")
+	result := wire.TestGet[[]map[string]string](env.Router, "/services", authHeader)
 	response := result.ExpectOK(t)
 	if len(response) != 3 {
 		t.Fatalf("expected 3 services, got %d", len(response))

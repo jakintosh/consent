@@ -4,10 +4,12 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -53,15 +55,17 @@ type ServiceOptions struct {
 	Store           Store
 	TokenServerOpts tokens.ServerOptions
 	PasswordMode    PasswordMode
+	KeysOptions     keys.Options
 }
 
 // Service coordinates authentication, registration, and token operations.
 // It depends on a Store interface and delegates to it for persistence.
 type Service struct {
-	passwordMode   PasswordMode
 	store          Store
+	passwordMode   PasswordMode
 	tokenIssuer    tokens.Issuer
 	tokenValidator tokens.Validator
+	keys           *keys.Service
 }
 
 func New(
@@ -70,10 +74,20 @@ func New(
 	*Service,
 	error,
 ) {
+	if options.KeysOptions.Store == nil {
+		return nil, errors.New("service: keys options store required")
+	}
+
+	keysSvc, err := keys.New(options.KeysOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
 	return &Service{
 		passwordMode:   options.PasswordMode,
 		store:          options.Store,
+		keys:           keysSvc,
 		tokenIssuer:    issuer,
 		tokenValidator: validator,
 	}, nil
@@ -85,11 +99,16 @@ func (s *Service) Router() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /register", s.handleRegister)
-	mux.HandleFunc("GET /services", s.handleListServices)
-	mux.HandleFunc("POST /services", s.handleCreateService)
-	mux.HandleFunc("GET /services/{name}", s.handleGetService)
-	mux.HandleFunc("PUT /services/{name}", s.handleUpdateService)
-	mux.HandleFunc("DELETE /services/{name}", s.handleDeleteService)
+
+	auth := s.keys.WithAuth
+	mux.HandleFunc("GET /services", auth(s.handleListServices))
+	mux.HandleFunc("POST /services", auth(s.handleCreateService))
+	mux.HandleFunc("GET /services/{name}", auth(s.handleGetService))
+	mux.HandleFunc("PUT /services/{name}", auth(s.handleUpdateService))
+	mux.HandleFunc("DELETE /services/{name}", auth(s.handleDeleteService))
+
+	s.keys.Router(mux, "", auth)
+
 	return mux
 }
 

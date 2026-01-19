@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	_ "modernc.org/sqlite"
 )
 
@@ -13,7 +14,8 @@ type SQLStoreOptions struct {
 }
 
 type SQLStore struct {
-	db *sql.DB
+	db        *sql.DB
+	KeysStore *keys.SQLStore
 }
 
 func NewSQLStore(opts SQLStoreOptions) (*SQLStore, error) {
@@ -30,7 +32,12 @@ func NewSQLStore(opts SQLStoreOptions) (*SQLStore, error) {
 		return nil, fmt.Errorf("failed to init database: %v", err)
 	}
 
-	return &SQLStore{db: db}, nil
+	keysStore, err := keys.NewSQL(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize keys store: %v", err)
+	}
+
+	return &SQLStore{db: db, KeysStore: keysStore}, nil
 }
 
 func (s *SQLStore) Close() error {
