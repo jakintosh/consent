@@ -59,6 +59,17 @@
 // If you want to abstract this callback for dependency injection, depend on
 // AuthorizationCodeHandler or AuthClient instead of *Client.
 //
+// # Logout Handler
+//
+// Register HandleLogout to clear local cookies and proactively revoke the
+// refresh token from the consent server:
+//
+//	http.HandleFunc("/logout", authClient.HandleLogout())
+//
+// The logout handler validates CSRF using the `csrf` query parameter against
+// the refresh token secret in cookies. The handler supports both GET and POST
+// routes; POST is preferred for state-changing operations.
+//
 // # CSRF Protection
 //
 // For state-changing operations, use CSRF protection with refresh tokens:
@@ -103,17 +114,18 @@
 //
 // # Error Handling
 //
-// The package defines several error types for different failure modes:
+// The package defines several error types for different failure modes.
+// Errors may wrap additional validation context, so use errors.Is:
 //
 //	accessToken, err := authClient.VerifyAuthorization(w, r)
-//	switch err {
-//	case client.ErrTokenAbsent:
+//	switch {
+//	case errors.Is(err, client.ErrTokenAbsent):
 //	    // No token cookie present - user needs to log in
-//	case client.ErrTokenInvalid:
+//	case errors.Is(err, client.ErrTokenInvalid):
 //	    // Token is malformed, expired (and refresh failed), or has wrong signature
-//	case client.ErrCSRFInvalid:
+//	case errors.Is(err, client.ErrCSRFInvalid):
 //	    // CSRF secret doesn't match (only from VerifyAuthorizationCheckCSRF)
-//	case client.ErrNetworkTokenRefresh:
+//	case errors.Is(err, client.ErrNetworkTokenRefresh):
 //	    // Network error communicating with consent server during refresh
 //	}
 //

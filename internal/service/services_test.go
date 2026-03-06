@@ -52,6 +52,21 @@ func TestCreateService_InvalidName(t *testing.T) {
 	}
 }
 
+func TestCreateService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	err := env.Service.CreateService(
+		service.InternalServiceName,
+		"Consent",
+		"consent.test",
+		"https://consent.test/auth/callback",
+	)
+	if !errors.Is(err, service.ErrServiceProtected) {
+		t.Fatalf("expected ErrServiceProtected, got %v", err)
+	}
+}
+
 func TestGetServiceByName_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -132,6 +147,17 @@ func TestUpdateService_InvalidRedirect(t *testing.T) {
 	}
 }
 
+func TestUpdateService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	display := "Renamed"
+	err := env.Service.UpdateService(service.InternalServiceName, service.UpdateServiceRequest{Display: &display})
+	if !errors.Is(err, service.ErrServiceProtected) {
+		t.Fatalf("expected ErrServiceProtected, got %v", err)
+	}
+}
+
 func TestDeleteService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -158,6 +184,16 @@ func TestDeleteService_NotFound(t *testing.T) {
 	}
 }
 
+func TestDeleteService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	err := env.Service.DeleteService(service.InternalServiceName)
+	if !errors.Is(err, service.ErrServiceProtected) {
+		t.Fatalf("expected ErrServiceProtected, got %v", err)
+	}
+}
+
 func TestListServices_Empty(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -166,8 +202,11 @@ func TestListServices_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListServices failed: %v", err)
 	}
-	if len(services) != 0 {
-		t.Fatalf("expected 0 services, got %d", len(services))
+	if len(services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(services))
+	}
+	if services[0].Name != service.InternalServiceName {
+		t.Fatalf("expected internal service first, got %s", services[0].Name)
 	}
 }
 
@@ -181,10 +220,13 @@ func TestListServices_Multiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListServices failed: %v", err)
 	}
-	if len(services) != 2 {
-		t.Fatalf("expected 2 services, got %d", len(services))
+	if len(services) != 3 {
+		t.Fatalf("expected 3 services, got %d", len(services))
 	}
-	if services[0].Name != "svc-a" {
-		t.Errorf("expected svc-a first, got %s", services[0].Name)
+	if services[0].Name != service.InternalServiceName {
+		t.Errorf("expected internal service first, got %s", services[0].Name)
+	}
+	if services[1].Name != "svc-a" {
+		t.Errorf("expected svc-a second, got %s", services[1].Name)
 	}
 }

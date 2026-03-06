@@ -15,7 +15,9 @@ var (
 	ErrHandleExists       = errors.New("handle already exists")
 	ErrInvalidHandle      = errors.New("invalid handle")
 	ErrServiceExists      = errors.New("service already exists")
+	ErrServiceProtected   = errors.New("service is protected")
 	ErrInvalidService     = errors.New("invalid service")
+	ErrInvalidUrl         = errors.New("invalid URL")
 	ErrInvalidRedirect    = errors.New("invalid redirect URL")
 )
 
@@ -32,6 +34,8 @@ func httpStatusFromError(err error) int {
 	case errors.Is(err, ErrHandleExists),
 		errors.Is(err, ErrServiceExists):
 		return http.StatusConflict
+	case errors.Is(err, ErrServiceProtected):
+		return http.StatusForbidden
 	case errors.Is(err, ErrInvalidRedirect),
 		errors.Is(err, ErrInvalidService):
 		return http.StatusBadRequest

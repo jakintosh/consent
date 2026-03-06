@@ -14,6 +14,7 @@ type Store interface {
 	GetRefreshTokenOwner(jwt string) (handle string, err error)
 
 	InsertService(name, display, audience, redirect string) error
+	UpsertSystemServices(services []ServiceDefinition) error
 	GetService(name string) (ServiceDefinition, error)
 	UpdateService(name, display, audience, redirect string) error
 	DeleteService(name string) (deleted bool, err error)

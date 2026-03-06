@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
@@ -53,6 +55,35 @@ func resolveOption(
 	}
 
 	return defaultValue
+}
+
+func resolveFlag(
+	i *args.Input,
+	flagName string,
+	envVarName string,
+) bool {
+	if i.GetFlag(flagName) {
+		return true
+	}
+
+	envValue := strings.TrimSpace(os.Getenv(envVarName))
+	if envValue == "" {
+		return false
+	}
+
+	enabled, err := strconv.ParseBool(envValue)
+	if err == nil {
+		return enabled
+	}
+
+	switch strings.ToLower(envValue) {
+	case "yes", "on", "y":
+		return true
+	case "no", "off", "n":
+		return false
+	default:
+		return false
+	}
 }
 
 func loadCredential(

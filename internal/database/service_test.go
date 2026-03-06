@@ -33,6 +33,81 @@ func TestInsertService_DuplicateName(t *testing.T) {
 	}
 }
 
+func TestUpsertSystemServices_Empty(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.UpsertSystemServices(nil)
+	if err != nil {
+		t.Fatalf("UpsertSystemServices failed: %v", err)
+	}
+}
+
+func TestUpsertSystemServices_Insert(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.UpsertSystemServices([]service.ServiceDefinition{
+		{
+			Name:     "consent",
+			Display:  "Consent",
+			Audience: "consent.test",
+			Redirect: "https://consent.test/auth/callback",
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpsertSystemServices failed: %v", err)
+	}
+
+	record, err := store.GetService("consent")
+	if err != nil {
+		t.Fatalf("GetService failed: %v", err)
+	}
+	if record.Display != "Consent" {
+		t.Fatalf("Display = %s, want Consent", record.Display)
+	}
+}
+
+func TestUpsertSystemServices_MixedBatch(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	if err := store.InsertService("svc-a", "Old", "old-aud", "https://old.test/callback"); err != nil {
+		t.Fatalf("InsertService failed: %v", err)
+	}
+
+	err := store.UpsertSystemServices([]service.ServiceDefinition{
+		{
+			Name:     "svc-a",
+			Display:  "Service A",
+			Audience: "aud-a",
+			Redirect: "https://svc-a.test/callback",
+		},
+		{
+			Name:     "consent",
+			Display:  "Consent",
+			Audience: "consent.test",
+			Redirect: "https://consent.test/auth/callback",
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpsertSystemServices failed: %v", err)
+	}
+
+	record, err := store.GetService("svc-a")
+	if err != nil {
+		t.Fatalf("GetService failed: %v", err)
+	}
+	if record.Display != "Service A" {
+		t.Fatalf("Display = %s, want Service A", record.Display)
+	}
+
+	_, err = store.GetService("consent")
+	if err != nil {
+		t.Fatalf("GetService consent failed: %v", err)
+	}
+}
+
 func TestGetService_Exists(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)

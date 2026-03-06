@@ -18,6 +18,35 @@ type ServiceDefinition struct {
 	Redirect string `json:"redirect"`
 }
 
+const (
+	InternalServiceName    = "consent"
+	internalServiceDisplay = "Consent"
+)
+
+func BuildInternalServiceDefinition(publicUrl string) (
+	ServiceDefinition,
+	error,
+) {
+	baseUrl, err := parseFullURL(publicUrl)
+	if err != nil {
+		return ServiceDefinition{}, err
+	}
+
+	redirectPath := strings.TrimRight(baseUrl.Path, "/") + "/auth/callback"
+	redirectURL := &url.URL{
+		Scheme: baseUrl.Scheme,
+		Host:   baseUrl.Host,
+		Path:   redirectPath,
+	}
+
+	return ServiceDefinition{
+		Name:     InternalServiceName,
+		Display:  internalServiceDisplay,
+		Audience: baseUrl.Host,
+		Redirect: redirectURL.String(),
+	}, nil
+}
+
 type UpdateServiceRequest struct {
 	Display  *string `json:"display,omitempty"`
 	Audience *string `json:"audience,omitempty"`
@@ -34,13 +63,16 @@ func (s *Service) CreateService(
 	if name == "" {
 		return ErrInvalidService
 	}
+	if name == InternalServiceName {
+		return ErrServiceProtected
+	}
 
 	if strings.TrimSpace(display) == "" || strings.TrimSpace(audience) == "" || strings.TrimSpace(redirect) == "" {
 		return ErrInvalidService
 	}
 
-	if _, err := parseRedirectURL(redirect); err != nil {
-		return err
+	if _, err := parseFullURL(redirect); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 
 	err := s.store.InsertService(name, display, audience, redirect)
@@ -84,6 +116,9 @@ func (s *Service) UpdateService(
 	if name == "" {
 		return ErrInvalidService
 	}
+	if name == InternalServiceName {
+		return ErrServiceProtected
+	}
 
 	// Fetch current record to merge with partial updates
 	current, err := s.store.GetService(name)
@@ -113,8 +148,8 @@ func (s *Service) UpdateService(
 		return ErrInvalidService
 	}
 
-	if _, err := parseRedirectURL(redirect); err != nil {
-		return err
+	if _, err := parseFullURL(redirect); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 
 	err = s.store.UpdateService(name, display, audience, redirect)
@@ -134,6 +169,9 @@ func (s *Service) DeleteService(
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ErrInvalidService
+	}
+	if name == InternalServiceName {
+		return ErrServiceProtected
 	}
 
 	deleted, err := s.store.DeleteService(name)
@@ -252,16 +290,16 @@ func (s *Service) handleListServices(
 	wire.WriteData(w, http.StatusOK, services)
 }
 
-func parseRedirectURL(redirect string) (
+func parseFullURL(redirect string) (
 	*url.URL,
 	error,
 ) {
 	parsed, err := url.Parse(redirect)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidRedirect, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, ErrInvalidRedirect
+		return nil, ErrInvalidUrl
 	}
 	return parsed, nil
 }

@@ -14,7 +14,7 @@ The **client library** provides server-side functionality for backend applicatio
 
 The authorization process mirrors OAuth's security model while simplifying implementation. When users access a protected service, they're redirected to the authentication server with a service identifier. After successful authentication via web form or JSON API, the server issues a short-lived refresh token (10 seconds) as an authorization code.
 
-The user is then redirected back to the service with this code, which the client application backend automatically exchanges for long-lived access and refresh tokens through the `/api/refresh` endpoint. This maintains OAuth's security benefits—the authorization code prevents long-lived token exposure in browser history—while streamlining the developer experience.
+The user is then redirected back to the service with this code, which the client application backend automatically exchanges for long-lived access and refresh tokens through the `/api/v1/refresh` endpoint. This maintains OAuth's security benefits—the authorization code prevents long-lived token exposure in browser history—while streamlining the developer experience.
 
 ## Key Design Decisions
 

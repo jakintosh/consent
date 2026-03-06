@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -98,6 +99,18 @@ func TestAPICreateService_MissingRedirect(t *testing.T) {
 	result.ExpectError(t)
 }
 
+func TestAPICreateService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"consent","display":"Consent","audience":"consent.test","redirect":"https://consent.test/auth/callback"}`
+	result := wire.TestPost[any](env.Router, "/services", body, jsonHeader, authHeader)
+
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
 func TestAPIGetService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
@@ -166,6 +179,18 @@ func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
 	result.ExpectError(t)
 }
 
+func TestAPIUpdateService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"display":"Consent 2"}`
+	result := wire.TestPut[any](env.Router, "/services/"+service.InternalServiceName, body, jsonHeader, authHeader)
+
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
 func TestAPIDeleteService_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
@@ -191,6 +216,17 @@ func TestAPIDeleteService_NotFound(t *testing.T) {
 	result.ExpectError(t)
 }
 
+func TestAPIDeleteService_ProtectedName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestDelete[any](env.Router, "/services/"+service.InternalServiceName, authHeader)
+
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
 func TestAPIListServices_Seeded(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
@@ -198,11 +234,14 @@ func TestAPIListServices_Seeded(t *testing.T) {
 
 	result := wire.TestGet[[]map[string]string](env.Router, "/services", authHeader)
 	response := result.ExpectOK(t)
-	if len(response) != 1 {
-		t.Fatalf("expected 1 service (seeded), got %d", len(response))
+	if len(response) != 2 {
+		t.Fatalf("expected 2 services (system + seeded), got %d", len(response))
 	}
-	if response[0]["name"] != "test-service" {
-		t.Fatalf("expected seeded test-service, got %s", response[0]["name"])
+	if response[0]["name"] != service.InternalServiceName {
+		t.Fatalf("expected internal service first, got %s", response[0]["name"])
+	}
+	if response[1]["name"] != "test-service" {
+		t.Fatalf("expected seeded test-service second, got %s", response[1]["name"])
 	}
 }
 
@@ -215,10 +254,13 @@ func TestAPIListServices_Multiple(t *testing.T) {
 
 	result := wire.TestGet[[]map[string]string](env.Router, "/services", authHeader)
 	response := result.ExpectOK(t)
-	if len(response) != 3 {
-		t.Fatalf("expected 3 services, got %d", len(response))
+	if len(response) != 4 {
+		t.Fatalf("expected 4 services, got %d", len(response))
 	}
-	if response[0]["name"] != "svc-a" {
-		t.Errorf("expected svc-a first, got %s", response[0]["name"])
+	if response[0]["name"] != service.InternalServiceName {
+		t.Errorf("expected internal service first, got %s", response[0]["name"])
+	}
+	if response[1]["name"] != "svc-a" {
+		t.Errorf("expected svc-a second, got %s", response[1]["name"])
 	}
 }

@@ -27,6 +27,45 @@ func (s *SQLStore) InsertService(
 	return nil
 }
 
+func (s *SQLStore) UpsertSystemServices(
+	services []service.ServiceDefinition,
+) error {
+	if len(services) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("couldn't begin system service upsert transaction: %v", err)
+	}
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO service (name, display, audience, redirect)
+		VALUES (?1, ?2, ?3, ?4)
+		ON CONFLICT(name) DO UPDATE SET
+			display=?2,
+			audience=?3,
+			redirect=?4;`)
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("couldn't prepare system service upsert statement: %v", err)
+	}
+	defer stmt.Close()
+
+	for _, service := range services {
+		if _, err := stmt.Exec(service.Name, service.Display, service.Audience, service.Redirect); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("couldn't upsert system service %q: %v", service.Name, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("couldn't commit system service upserts: %v", err)
+	}
+
+	return nil
+}
+
 func (s *SQLStore) GetService(
 	name string,
 ) (

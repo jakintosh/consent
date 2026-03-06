@@ -2,6 +2,7 @@ package testing
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -67,16 +68,16 @@ func (tv *TestVerifier) VerifyAuthorization(
 		return accessToken, nil
 	}
 	if !errorIsRefreshable(err) {
-		return nil, client.ErrTokenInvalid
+		return nil, fmt.Errorf("%w: %v", client.ErrTokenInvalid, err)
 	}
 
 	// If in refreshable state, validate refresh token
 	refreshToken, err := tv.validateRefreshToken(r)
 	if err != nil {
 		if errors.Is(err, client.ErrTokenAbsent) {
-			return nil, client.ErrTokenAbsent
+			return nil, err
 		}
-		return nil, client.ErrTokenInvalid
+		return nil, err
 	}
 
 	// Refresh the tokens locally (no network call)
@@ -98,19 +99,33 @@ func (tv *TestVerifier) VerifyAuthorizationGetCSRF(
 	string,
 	error,
 ) {
-	accessToken, err := tv.VerifyAuthorization(w, r)
+	// Validate refresh token first so we can return the current CSRF secret.
+	refreshToken, err := tv.validateRefreshToken(r)
 	if err != nil {
-		return accessToken, "", err
+		if errors.Is(err, client.ErrTokenAbsent) {
+			return nil, "", err
+		}
+		return nil, "", err
 	}
 
-	// If authorized, validate refresh token and extract CSRF secret
-	refreshToken, err := tv.validateRefreshToken(r)
+	// Validate access token.
+	accessToken, err := tv.validateAccessToken(r)
+	if accessToken != nil {
+		return accessToken, refreshToken.Secret(), nil
+	}
+	if !errorIsRefreshable(err) {
+		return nil, "", fmt.Errorf("%w: %v", client.ErrTokenInvalid, err)
+	}
+
+	// Refresh the tokens locally.
+	accessToken, refreshToken, err = tv.refreshTokens(refreshToken)
 	if err != nil {
 		return nil, "", err
 	}
-	csrfSecret := refreshToken.Secret()
 
-	return accessToken, csrfSecret, nil
+	setTokenCookies(w, accessToken, refreshToken)
+
+	return accessToken, refreshToken.Secret(), nil
 }
 
 // VerifyAuthorizationCheckCSRF implements client.Verifier.
@@ -126,7 +141,7 @@ func (tv *TestVerifier) VerifyAuthorizationCheckCSRF(
 	// Validate refresh token first (before checking access token)
 	refreshToken, err := tv.validateRefreshToken(r)
 	if err != nil {
-		return nil, "", client.ErrTokenInvalid
+		return nil, "", err
 	}
 
 	currentCSRFSecret := refreshToken.Secret()
@@ -140,7 +155,7 @@ func (tv *TestVerifier) VerifyAuthorizationCheckCSRF(
 		return accessToken, currentCSRFSecret, nil
 	}
 	if !errorIsRefreshable(err) {
-		return nil, "", client.ErrTokenInvalid
+		return nil, "", fmt.Errorf("%w: %v", client.ErrTokenInvalid, err)
 	}
 
 	// Refresh the tokens locally
@@ -209,7 +224,7 @@ func (tv *TestVerifier) validateRefreshToken(
 
 	token := new(tokens.RefreshToken)
 	if err := token.Decode(cookie.Value, tv.env.Validator); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", client.ErrTokenInvalid, err)
 	}
 	return token, nil
 }

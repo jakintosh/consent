@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
@@ -48,6 +48,7 @@ var (
 //
 // Create a Client using Init, then use its methods to protect your HTTP handlers.
 type Client struct {
+	apiClient      *wire.Client
 	logLevel       LogLevel
 	authUrl        string
 	tokenValidator TokenValidator
@@ -65,6 +66,9 @@ func Init(
 	authUrl string,
 ) *Client {
 	return &Client{
+		apiClient: &wire.Client{
+			BaseURL: authUrl,
+		},
 		logLevel:       LogLevelDefault,
 		authUrl:        authUrl,
 		tokenValidator: validator,
@@ -88,6 +92,7 @@ auth server as the redirect link, and it works out of the box.
 */
 func (c *Client) HandleAuthorizationCode() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		// extract 'auth_code' refresh token
 		queries := r.URL.Query()
 		code := queries.Get("auth_code")
@@ -110,6 +115,40 @@ func (c *Client) HandleAuthorizationCode() http.HandlerFunc {
 	}
 }
 
+// HandleLogout returns a handler that revokes the current refresh token,
+// clears auth cookies, and redirects to "/".
+//
+// The request must include a CSRF token in the `csrf` query parameter that
+// matches the refresh token secret. The handler is method-agnostic and may be
+// registered for GET, POST, or both.
+func (c *Client) HandleLogout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		// check refresh token
+		refreshToken, err := validateRefreshToken(r, c.tokenValidator)
+		if err != nil {
+			// note missing token
+			c.log(LogLevelDebug, "handle logout: invalid refresh token: %v\n", err)
+		} else {
+			// if present, validate CSRF and revoke
+			csrfSecret := r.URL.Query().Get("csrf")
+			if csrfSecret == "" || refreshToken.Secret() != csrfSecret {
+				// if csrf fails, do not clear or revoke—invalid logout request
+				http.Error(w, "CSRF validation failed", http.StatusForbidden)
+				return
+			}
+
+			if err := revokeRefreshToken(c.apiClient, refreshToken); err != nil {
+				c.log(LogLevelError, "handle logout: failed to revoke refresh token (%v)\n", err)
+			}
+		}
+
+		// always clear cookies and redirect
+		c.ClearTokenCookies(w)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+}
+
 /*
 VerifyAuthorization allows a client to pass in an http.Request and determine
 whether or not the request is authorized, and if so, return the access token.
@@ -119,7 +158,10 @@ server to refresh the tokens.
 func (c *Client) VerifyAuthorization(
 	w http.ResponseWriter,
 	r *http.Request,
-) (*AccessToken, error) {
+) (
+	*AccessToken,
+	error,
+) {
 
 	// validate access token in the request
 	accessToken, err := validateAccessToken(r, c.tokenValidator)
@@ -128,18 +170,14 @@ func (c *Client) VerifyAuthorization(
 	}
 	if !errorIsRefreshable(err) {
 		c.log(LogLevelDebug, "failed to validate access token: %v\n", err)
-		return nil, ErrTokenInvalid
+		return nil, fmt.Errorf("%w: %v", ErrTokenInvalid, err)
 	}
 
 	// if in refreshable state, validate refresh token
 	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
-		if errors.Is(err, ErrTokenAbsent) {
-			return nil, ErrTokenAbsent
-		} else {
-			c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
-			return nil, ErrTokenInvalid
-		}
+		c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
+		return nil, err
 	}
 
 	// refresh the tokens
@@ -150,7 +188,7 @@ func (c *Client) VerifyAuthorization(
 	}
 	c.SetTokenCookies(w, accessToken, refreshToken)
 
-	return accessToken, err
+	return accessToken, nil
 }
 
 // VerifyAuthorizationGetCSRF verifies authorization and returns the CSRF secret
@@ -168,22 +206,32 @@ func (c *Client) VerifyAuthorizationGetCSRF(
 	string,
 	error,
 ) {
-
-	// standard request verification
-	accessToken, err := c.VerifyAuthorization(w, r)
-	if err != nil {
-		return accessToken, "", err
-	}
-
-	// if authorized success, validate refresh token and extract csrf secret
+	// validate refresh token from request
 	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
 		c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
 		return nil, "", err
 	}
-	csrfSecret := refreshToken.Secret()
 
-	return accessToken, csrfSecret, nil
+	// validate access token in the request
+	accessToken, err := validateAccessToken(r, c.tokenValidator)
+	if accessToken != nil {
+		return accessToken, refreshToken.Secret(), nil
+	}
+	if !errorIsRefreshable(err) {
+		return nil, "", fmt.Errorf("%w: %v", ErrTokenInvalid, err)
+	}
+
+	// refresh the tokens
+	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
+	if !ok {
+		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
+		return nil, "", ErrNetworkTokenRefresh
+	}
+
+	c.SetTokenCookies(w, accessToken, refreshToken)
+
+	return accessToken, refreshToken.Secret(), nil
 }
 
 /*
@@ -206,7 +254,7 @@ func (c *Client) VerifyAuthorizationCheckCSRF(
 	refreshToken, err := validateRefreshToken(r, c.tokenValidator)
 	if err != nil {
 		c.log(LogLevelDebug, "failed to validate refresh token: %v\n", err)
-		return nil, "", ErrTokenInvalid
+		return nil, "", err
 	}
 
 	currentCSRFSecret := refreshToken.Secret()
@@ -220,7 +268,7 @@ func (c *Client) VerifyAuthorizationCheckCSRF(
 		return accessToken, currentCSRFSecret, nil
 	}
 	if !errorIsRefreshable(err) {
-		return nil, "", ErrTokenInvalid
+		return nil, "", fmt.Errorf("%w: %v", ErrTokenInvalid, err)
 	}
 
 	// refresh the tokens
@@ -250,37 +298,31 @@ func (c *Client) RefreshTokens(
 	*RefreshToken,
 	bool,
 ) {
-
-	// construct a POST request to the /api/refresh route
-	url := fmt.Sprintf("%s/api/refresh", c.authUrl)
-	body := bytes.NewBuffer(fmt.Appendf(nil, `{ "refreshToken" : "%s" }`, refreshTokenStr))
-	c.log(LogLevelDebug, "POST { refresh_token } => %s\n", url)
-	apiResponse, err := http.Post(url, "application/json", body)
+	body, err := json.Marshal(service.RefreshRequest{RefreshToken: refreshTokenStr})
 	if err != nil {
-		c.log(LogLevelError, "failed to post refresh: %v\n", err)
+		c.log(LogLevelError, "failed to encode refresh payload: %v\n", err)
 		return nil, nil, false
 	}
 
-	// decode api response
-	if apiResponse.StatusCode != http.StatusOK {
-		c.log(LogLevelDebug, "POST %s returned %s\n", url, apiResponse.Status)
+	response := service.RefreshResponse{}
+	c.log(LogLevelDebug, "POST { refresh_token } => %s/api/v1/refresh\n", c.authUrl)
+	if err := c.apiClient.Post("/api/v1/refresh", body, &response); err != nil {
+		c.log(LogLevelDebug, "POST %s/api/v1/refresh failed: %v\n", c.authUrl, err)
 		return nil, nil, false
 	}
-	defer apiResponse.Body.Close()
-	refreshResponse := new(service.RefreshResponse)
-	if err := json.NewDecoder(apiResponse.Body).Decode(refreshResponse); err != nil {
-		c.log(LogLevelError, "failed to decode api response: %v\n", err)
+	if response.AccessToken == "" || response.RefreshToken == "" {
+		c.log(LogLevelError, "refresh endpoint returned empty tokens\n")
 		return nil, nil, false
 	}
 
 	// decode tokens from response
 	accessToken := new(AccessToken)
-	if err := accessToken.Decode(refreshResponse.AccessToken, c.tokenValidator); err != nil {
+	if err := accessToken.Decode(response.AccessToken, c.tokenValidator); err != nil {
 		c.log(LogLevelError, "failed to decode access token: %v\n", err)
 		return nil, nil, false
 	}
 	refreshToken := new(RefreshToken)
-	if err := refreshToken.Decode(refreshResponse.RefreshToken, c.tokenValidator); err != nil {
+	if err := refreshToken.Decode(response.RefreshToken, c.tokenValidator); err != nil {
 		c.log(LogLevelError, "failed to decode refresh token: %v\n", err)
 		return nil, nil, false
 	}
@@ -292,7 +334,11 @@ func (c *Client) RefreshTokens(
 // for security. Cookie expiration is set to match the token lifetimes.
 //
 // Call this after successful login or token refresh to store tokens in the client's browser.
-func (c *Client) SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken, refreshToken *RefreshToken) {
+func (c *Client) SetTokenCookies(
+	w http.ResponseWriter,
+	accessToken *AccessToken,
+	refreshToken *RefreshToken,
+) {
 	now := time.Now()
 	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
 	refreshMaxAge := refreshToken.Expiration().Sub(now).Seconds()
@@ -324,7 +370,9 @@ func (c *Client) SetTokenCookies(w http.ResponseWriter, accessToken *AccessToken
 
 // ClearTokenCookies removes the access and refresh token cookies by setting
 // their MaxAge to -1. Call this during logout to clear the user's session.
-func (c *Client) ClearTokenCookies(w http.ResponseWriter) {
+func (c *Client) ClearTokenCookies(
+	w http.ResponseWriter,
+) {
 	accessTokenCookie := &http.Cookie{
 		Name:   "accessToken",
 		Path:   "/",
@@ -349,6 +397,27 @@ func getCookie(r *http.Request, cookieName string) *http.Cookie {
 	return nil
 }
 
+func revokeRefreshToken(
+	client *wire.Client,
+	refreshToken *RefreshToken,
+) error {
+	body, err := json.Marshal(
+		service.LogoutRequest{
+			RefreshToken: refreshToken.Encoded(),
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to encode logout payload: %v\n", err)
+	}
+
+	err = client.Post("/api/v1/logout", body, nil)
+	if err != nil {
+		return fmt.Errorf("POST /api/v1/logout failed: %v\n", err)
+	}
+
+	return nil
+}
+
 func validateAccessToken(r *http.Request, validator TokenValidator) (*AccessToken, error) {
 	cookie := getCookie(r, "accessToken")
 	if cookie == nil {
@@ -358,7 +427,7 @@ func validateAccessToken(r *http.Request, validator TokenValidator) (*AccessToke
 	token := new(AccessToken)
 	err := token.Decode(cookie.Value, validator)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrTokenInvalid, err)
 	}
 	return token, nil
 }
@@ -372,7 +441,7 @@ func validateRefreshToken(r *http.Request, validator TokenValidator) (*RefreshTo
 	token := new(RefreshToken)
 	err := token.Decode(cookie.Value, validator)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrTokenInvalid, err)
 	}
 	return token, nil
 }

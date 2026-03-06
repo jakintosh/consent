@@ -92,6 +92,7 @@ func SetupTestEnv(
 	serviceOpts := service.ServiceOptions{
 		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
+		PublicURL:       "https://consent.test",
 		TokenServerOpts: tkServerOpts,
 		KeysOptions: keys.Options{
 			Store:          db.KeysStore,

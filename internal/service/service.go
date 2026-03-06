@@ -5,6 +5,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -56,6 +57,7 @@ type ServiceOptions struct {
 	TokenServerOpts tokens.ServerOptions
 	PasswordMode    PasswordMode
 	KeysOptions     keys.Options
+	PublicURL       string
 }
 
 // Service coordinates authentication, registration, and token operations.
@@ -74,6 +76,10 @@ func New(
 	*Service,
 	error,
 ) {
+	if options.Store == nil {
+		return nil, errors.New("service: store required")
+	}
+
 	if options.KeysOptions.Store == nil {
 		return nil, errors.New("service: keys options store required")
 	}
@@ -84,6 +90,18 @@ func New(
 	}
 
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
+
+	internalService, err := BuildInternalServiceDefinition(options.PublicURL)
+	if err != nil {
+		return nil, fmt.Errorf("service: failed to build internal service: %w", err)
+	}
+
+	systemServices := []ServiceDefinition{internalService}
+	err = options.Store.UpsertSystemServices(systemServices)
+	if err != nil {
+		return nil, fmt.Errorf("service: failed to initialize system services: %v", err)
+	}
+
 	return &Service{
 		passwordMode:   options.PasswordMode,
 		store:          options.Store,

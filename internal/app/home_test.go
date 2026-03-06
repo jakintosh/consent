@@ -1,0 +1,82 @@
+package app
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"git.sr.ht/~jakintosh/consent/internal/service"
+	consenttesting "git.sr.ht/~jakintosh/consent/pkg/testing"
+)
+
+func TestHome_Unauthenticated(t *testing.T) {
+	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+
+	appServer, err := New(AppOptions{
+		Service: &service.Service{},
+		Auth: AuthConfig{
+			Verifier:  tv,
+			LoginURL:  "/login?service=consent",
+			LogoutURL: "/logout",
+			Routes:    map[string]http.HandlerFunc{},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+
+	appServer.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Log in to Consent") {
+		t.Fatalf("expected login prompt in home page")
+	}
+	if !strings.Contains(body, "/login?service=consent") {
+		t.Fatalf("expected login URL in home page")
+	}
+}
+
+func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
+	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+
+	appServer, err := New(AppOptions{
+		Service: &service.Service{},
+		Auth: AuthConfig{
+			Verifier:  tv,
+			LoginURL:  "/login?service=consent",
+			LogoutURL: "/logout",
+			Routes:    map[string]http.HandlerFunc{},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/", "alice")
+	if err != nil {
+		t.Fatalf("AuthenticatedRequest failed: %v", err)
+	}
+	rr := httptest.NewRecorder()
+
+	appServer.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Welcome alice") {
+		t.Fatalf("expected welcome message for authenticated user")
+	}
+	if !strings.Contains(body, "/logout?csrf=") {
+		t.Fatalf("expected csrf-backed logout URL")
+	}
+}

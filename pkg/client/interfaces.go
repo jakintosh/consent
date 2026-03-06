@@ -16,13 +16,20 @@ type AuthorizationCodeHandler interface {
 	HandleAuthorizationCode() http.HandlerFunc
 }
 
-// AuthClient exposes both authorization verification and auth code handling.
+// LogoutHandler provides the auth logout callback.
+type LogoutHandler interface {
+	HandleLogout() http.HandlerFunc
+}
+
+// AuthClient exposes auth verification and built-in auth handlers.
 type AuthClient interface {
 	Verifier
 	AuthorizationCodeHandler
+	LogoutHandler
 }
 
 // Compile-time check that *Client implements Verifier.
 var _ Verifier = (*Client)(nil)
 var _ AuthorizationCodeHandler = (*Client)(nil)
+var _ LogoutHandler = (*Client)(nil)
 var _ AuthClient = (*Client)(nil)

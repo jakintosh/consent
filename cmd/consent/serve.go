@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
@@ -12,6 +13,8 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
+	"git.sr.ht/~jakintosh/consent/pkg/client"
+	"git.sr.ht/~jakintosh/consent/pkg/testing"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
@@ -38,6 +41,16 @@ var serveCmd = &args.Command{
 			Long: "credentials-dir",
 			Type: args.OptionTypeParameter,
 			Help: "Directory containing signing_key (env: CREDENTIALS_DIRECTORY)",
+		},
+		{
+			Long: "public-url",
+			Type: args.OptionTypeParameter,
+			Help: "Public URL for consent (env: PUBLIC_URL)",
+		},
+		{
+			Long: "dev-mode",
+			Type: args.OptionTypeFlag,
+			Help: "Enable local dev auth mode (env: DEV_MODE)",
 		},
 		{
 			Short: 'v',
@@ -70,12 +83,26 @@ var serveCmd = &args.Command{
 			return fmt.Errorf("--credentials-dir or CREDENTIALS_DIRECTORY is required")
 		}
 
+		publicURL := resolveOption(i, "public-url", "PUBLIC_URL", "")
+		if publicURL == "" {
+			return fmt.Errorf("--public-url or PUBLIC_URL is required")
+		}
+
+		parsedPublicURL, err := url.Parse(publicURL)
+		if err != nil || parsedPublicURL == nil || parsedPublicURL.Scheme == "" || parsedPublicURL.Host == "" {
+			return fmt.Errorf("invalid --public-url/PUBLIC_URL: expected absolute URL with scheme and host")
+		}
+
+		devMode := resolveFlag(i, "dev-mode", "DEV_MODE")
+
 		if verbose {
 			log.Printf("Starting consent server...")
 			log.Printf("  Database: %s", dbPath)
 			log.Printf("  Issuer: %s", issuerDomain)
 			log.Printf("  Port: %s", port)
 			log.Printf("  Credentials: %s", credsDir)
+			log.Printf("  Public URL: %s", publicURL)
+			log.Printf("  Dev mode: %t", devMode)
 		}
 
 		signingKeyRaw := loadCredential("signing_key", credsDir)
@@ -98,6 +125,7 @@ var serveCmd = &args.Command{
 		svcOpts := service.ServiceOptions{
 			PasswordMode: service.PasswordModeProduction,
 			Store:        db,
+			PublicURL:    publicURL,
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   signingKey,
 				IssuerDomain: issuerDomain,
@@ -112,8 +140,39 @@ var serveCmd = &args.Command{
 			return fmt.Errorf("failed to initialize service: %w", err)
 		}
 
+		audience := parsedPublicURL.Host
+		publicBaseURL := strings.TrimRight(publicURL, "/")
+
+		var authConfig app.AuthConfig
+		if devMode {
+			tv := testing.NewTestVerifier(issuerDomain, audience)
+			authConfig = app.AuthConfig{
+				Verifier:  tv,
+				LoginURL:  "/dev/login",
+				LogoutURL: "/dev/logout",
+				Routes: map[string]http.HandlerFunc{
+					"/dev/login":  tv.HandleDevLogin(),
+					"/dev/logout": tv.HandleDevLogout(),
+				},
+			}
+		} else {
+			validator := tokens.InitClient(&signingKey.PublicKey, issuerDomain, audience)
+			consentClient := client.Init(validator, publicBaseURL)
+
+			authConfig = app.AuthConfig{
+				Verifier:  consentClient,
+				LoginURL:  publicBaseURL + "/login?service=" + service.InternalServiceName,
+				LogoutURL: "/logout",
+				Routes: map[string]http.HandlerFunc{
+					"/auth/callback": consentClient.HandleAuthorizationCode(),
+					"/logout":        consentClient.HandleLogout(),
+				},
+			}
+		}
+
 		appOpts := app.AppOptions{
 			Service: svc,
+			Auth:    authConfig,
 		}
 		appServer, err := app.New(appOpts)
 		if err != nil {
