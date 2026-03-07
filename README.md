@@ -65,6 +65,10 @@ The `pkg/` directory contains public packages for consuming projects:
 - **`pkg/tokens`**: JWT token utilities including `InitClient` for creating token validators with ECDSA public keys.
 - **`pkg/testing`**: Test utilities for consuming projects. Provides `TestVerifier` (implements `client.Verifier`) for testing authenticated routes without a real consent server, plus dev login handlers for local browser-based development.
 
+The `examples/` directory contains development-only reference applications:
+
+- **`examples/dev-client`**: A local integration playground for testing how a service integrates with consent. This example always enables client development mode and is not intended for production deployment.
+
 ## Integration Guide
 
 ### Production Integration
@@ -125,6 +129,24 @@ tv := testing.NewTestVerifier("consent.example.com", "my-app")
 
 http.HandleFunc("/dev/login", tv.HandleDevLogin())
 http.HandleFunc("/dev/logout", tv.HandleDevLogout())
+```
+
+### Local Integration Workflow
+
+For local browser testing with multiple service identities, use the orchestrated local stack target:
+
+```sh
+make local-test-run
+```
+
+`local-test-run` always starts from a clean local test root, launches consent in dev mode,
+registers a few example services, and runs matching `examples/dev-client` instances.
+Press `Ctrl-C` once to stop the entire stack.
+
+All local test state is isolated under `./data/.local/consent-localtest`, and you can remove it directly with:
+
+```sh
+make local-test-clean
 ```
 
 ## Interface Design

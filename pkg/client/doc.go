@@ -2,7 +2,7 @@
 // backend applications.
 //
 // This package implements the client side of an OAuth-style authorization flow,
-// handling token validation, automatic token refresh, and secure cookie management.
+// handling token validation, automatic token refresh, and mode-aware cookie management.
 // Backend applications use this package to protect their routes and verify user
 // identity from tokens issued by the consent server.
 //
@@ -25,6 +25,9 @@
 //
 //	// Initialize the client
 //	authClient := client.Init(validator, "https://consent.example.com")
+//
+//	// Optional: local development only (plain HTTP localhost)
+//	// authClient.EnableDevelopmentMode()
 //
 // # Protecting Routes
 //
@@ -53,7 +56,7 @@
 //	// When users complete login at the consent server, they'll be redirected
 //	// back to /auth/callback?auth_code=... and this handler will:
 //	// 1. Exchange the code for tokens
-//	// 2. Set secure cookies
+//	// 2. Set auth cookies
 //	// 3. Redirect to your home page
 //
 // If you want to abstract this callback for dependency injection, depend on
@@ -104,13 +107,17 @@
 //
 // # Token Management
 //
-// Tokens are managed automatically through secure HTTP-only cookies:
+// Tokens are managed automatically through HTTP-only cookies:
 //
 //	// Set cookies after obtaining tokens
 //	authClient.SetTokenCookies(w, accessToken, refreshToken)
 //
 //	// Clear cookies on logout
 //	authClient.ClearTokenCookies(w)
+//
+// Production mode (default) uses Secure=true cookies.
+// Development mode (EnableDevelopmentMode) uses Secure=false cookies for
+// localhost HTTP development only. Never use development mode in production.
 //
 // # Error Handling
 //
