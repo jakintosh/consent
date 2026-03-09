@@ -7,7 +7,7 @@
 {{ define "content" }}
 	<section class="home">
 	{{ if .Authenticated }}
-		<h2>Welcome {{ .User }}</h2>
+		<h2>Welcome</h2>
 		<p>You are logged in to Consent.</p>
 		<p><a href="{{ .LogoutURL }}">Log out</a></p>
 	{{ else }}

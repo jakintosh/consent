@@ -17,6 +17,7 @@ type AccessTokenClaims struct {
 	Issuer     string `json:"iss"`
 	Audience   string `json:"aud"`
 	Subject    string `json:"sub"`
+	Scopes     string `json:"scopes,omitempty"`
 }
 
 func (claims *AccessTokenClaims) validate(validator Validator) error {
@@ -57,6 +58,7 @@ type AccessToken struct {
 	expiration time.Time
 	audience   []string
 	subject    string
+	scopes     []string
 	encoded    string
 }
 
@@ -65,6 +67,7 @@ func (t *AccessToken) IssuedAt() time.Time   { return t.issuedAt }
 func (t *AccessToken) Expiration() time.Time { return t.expiration }
 func (t *AccessToken) Audience() []string    { return t.audience }
 func (t *AccessToken) Subject() string       { return t.subject }
+func (t *AccessToken) Scopes() []string      { return append([]string(nil), t.scopes...) }
 func (t *AccessToken) Encoded() string       { return t.encoded }
 
 func (token *AccessToken) Decode(encToken string, validator Validator) error {
@@ -87,6 +90,7 @@ func (token *AccessToken) intoClaims() *AccessTokenClaims {
 	claims.Expiration = token.expiration.Unix()
 	claims.Audience = strings.Join(token.audience, " ")
 	claims.Subject = token.subject
+	claims.Scopes = strings.Join(token.scopes, " ")
 	return claims
 }
 
@@ -96,5 +100,13 @@ func (token *AccessToken) fromClaims(claims *AccessTokenClaims, encToken string)
 	token.expiration = time.Unix(claims.Expiration, 0)
 	token.audience = strings.Split(claims.Audience, " ")
 	token.subject = claims.Subject
+	token.scopes = splitClaimValues(claims.Scopes)
 	token.encoded = encToken
+}
+
+func splitClaimValues(value string) []string {
+	if value == "" {
+		return nil
+	}
+	return strings.Split(value, " ")
 }

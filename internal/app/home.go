@@ -16,14 +16,13 @@ func (a *App) Home() http.HandlerFunc {
 			"LoginURL":      a.auth.LoginURL,
 		}
 
-		accessToken, csrfSecret, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
+		_, csrfSecret, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
 		if err != nil {
 			if !errors.Is(err, client.ErrTokenAbsent) {
 				logAppErr(r, fmt.Sprintf("failed to verify authorization: %v", err))
 			}
 		} else {
 			data["Authenticated"] = true
-			data["User"] = accessToken.Subject()
 			logoutURL, err := buildLogoutURL(a.auth.LogoutURL, csrfSecret)
 			if err != nil {
 				logAppErr(r, fmt.Sprintf("failed to build logout URL: %v", err))

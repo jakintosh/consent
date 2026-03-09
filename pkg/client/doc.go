@@ -41,17 +41,20 @@
 //	        return
 //	    }
 //
-//	    username := accessToken.Subject()
-//	    fmt.Fprintf(w, "Hello, %s!", username)
+//	    subject := accessToken.Subject()
+//	    fmt.Fprintf(w, "Opaque subject: %s", subject)
 //	}
 //
 // # Authorization Code Flow
 //
-// Register a handler for the OAuth authorization code callback. This is the
-// redirect URL you configure with the consent server:
+// Register a handler for the OAuth authorization code callback. Services should
+// start browser authentication at Consent's `/authorize` endpoint and configure
+// this handler as the registered redirect URL:
 //
 //	// Register the callback handler at /auth/callback
 //	http.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
+//	// Redirect users to:
+//	// https://consent.example.com/authorize?service=myapp&scope=identity&scope=profile
 //
 //	// When users complete login at the consent server, they'll be redirected
 //	// back to /auth/callback?auth_code=... and this handler will:
@@ -149,4 +152,8 @@
 //
 // In production, pass a *client.Client. In tests, use the testing package's
 // TestVerifier. See the testing package documentation for details.
+//
+// Tokens carry an opaque `sub` value plus the requested scopes for that
+// authorization event. If your application needs user-facing profile data,
+// call Consent's `/api/v1/me` resource endpoint with the access token.
 package client

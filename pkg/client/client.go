@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
@@ -121,7 +122,7 @@ func (c *Client) HandleAuthorizationCode() http.HandlerFunc {
 		}
 
 		c.SetTokenCookies(w, accessToken, refreshToken)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, callbackReturnTo(r.URL.Query().Get("return_to")), http.StatusSeeOther)
 	}
 }
 
@@ -157,6 +158,17 @@ func (c *Client) HandleLogout() http.HandlerFunc {
 		c.ClearTokenCookies(w)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
+}
+
+func callbackReturnTo(returnTo string) string {
+	if returnTo == "" {
+		return "/"
+	}
+	parsed, err := url.Parse(returnTo)
+	if err != nil || parsed == nil || parsed.IsAbs() || parsed.Host != "" || parsed.Path == "" || parsed.Path[0] != '/' {
+		return "/"
+	}
+	return parsed.String()
 }
 
 /*

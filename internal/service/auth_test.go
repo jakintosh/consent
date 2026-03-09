@@ -15,10 +15,9 @@ func TestLogin_Success(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// valid login returns redirect URL with auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -37,18 +36,17 @@ func TestLogin_RedirectURL(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login redirects to service's configured callback URL
-	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
-	if redirectURL.Host != "localhost:8080" {
-		t.Errorf("redirect host = %s, want localhost:8080", redirectURL.Host)
+	if redirectURL.Host != "consent.test" {
+		t.Errorf("redirect host = %s, want consent.test", redirectURL.Host)
 	}
-	if redirectURL.Path != "/callback" {
-		t.Errorf("redirect path = %s, want /callback", redirectURL.Path)
+	if redirectURL.Path != "/auth/callback" {
+		t.Errorf("redirect path = %s, want /auth/callback", redirectURL.Path)
 	}
 }
 
@@ -58,10 +56,9 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// wrong password returns ErrInvalidCredentials
-	_, err := env.Service.Login("alice", "wrongpassword", "test-service")
+	_, err := env.Service.Login("alice", "wrongpassword", service.InternalServiceName)
 	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -72,8 +69,7 @@ func TestLogin_UnknownUser(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	// unknown user returns ErrAccountNotFound
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
-	_, err := env.Service.Login("unknown", "password", "test-service")
+	_, err := env.Service.Login("unknown", "password", service.InternalServiceName)
 	if !errors.Is(err, service.ErrAccountNotFound) {
 		t.Errorf("expected ErrAccountNotFound, got %v", err)
 	}
@@ -85,7 +81,6 @@ func TestLogin_UnknownService(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// unknown service returns ErrServiceNotFound
 	_, err := env.Service.Login("alice", "password123", "nonexistent-service")
@@ -100,10 +95,9 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -114,8 +108,12 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Token not stored: %v", err)
 	}
-	if owner != "alice" {
-		t.Errorf("token owner = %s, want alice", owner)
+	identity, err := env.DB.GetIdentityByHandle("alice")
+	if err != nil {
+		t.Fatalf("GetIdentityByHandle failed: %v", err)
+	}
+	if owner != identity.Subject {
+		t.Errorf("token owner = %s, want %s", owner, identity.Subject)
 	}
 }
 
@@ -125,10 +123,9 @@ func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
 
 	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", "test-service")
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}

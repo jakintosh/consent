@@ -74,7 +74,7 @@ func TestClient_VerifySignature_Valid(t *testing.T) {
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue a token
-	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestClient_VerifySignature_WrongKey(t *testing.T) {
 	issuer, _ := newTestServerWithKey(t, key1, "consent.domain")
 	clientValidator := tokens.InitClient(&key2.PublicKey, "consent.domain", "my-app")
 
-	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestClient_DecodeToken_WrongAudience(t *testing.T) {
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue token with different audience
-	token, err := issuer.IssueAccessToken("user", []string{"other-app"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"other-app"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestClient_DecodeToken_WrongIssuer(t *testing.T) {
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.domain", "my-app")
 
 	// issue token with wrong issuer
-	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}

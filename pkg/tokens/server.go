@@ -34,6 +34,7 @@ func (server *Server) SignHash(hash []byte) (string, error) {
 func (server *Server) IssueRefreshToken(
 	subject string,
 	audience []string,
+	scopes []string,
 	lifetime time.Duration,
 ) (*RefreshToken, error) {
 
@@ -49,6 +50,7 @@ func (server *Server) IssueRefreshToken(
 		expiration: exp,
 		audience:   audience,
 		subject:    subject,
+		scopes:     scopes,
 		secret:     secret,
 	}
 
@@ -65,6 +67,7 @@ func (server *Server) IssueRefreshToken(
 func (server *Server) IssueAccessToken(
 	subject string,
 	audience []string,
+	scopes []string,
 	lifetime time.Duration,
 ) (*AccessToken, error) {
 
@@ -76,6 +79,7 @@ func (server *Server) IssueAccessToken(
 		expiration: exp,
 		audience:   audience,
 		subject:    subject,
+		scopes:     scopes,
 	}
 
 	claims := token.intoClaims()

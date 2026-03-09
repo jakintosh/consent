@@ -17,7 +17,7 @@ func TestHome_Unauthenticated(t *testing.T) {
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
-			LoginURL:  "/login?service=consent",
+			LoginURL:  "/login",
 			LogoutURL: "/logout",
 			Routes:    map[string]http.HandlerFunc{},
 		},
@@ -39,7 +39,7 @@ func TestHome_Unauthenticated(t *testing.T) {
 	if !strings.Contains(body, "Log in to Consent") {
 		t.Fatalf("expected login prompt in home page")
 	}
-	if !strings.Contains(body, "/login?service=consent") {
+	if !strings.Contains(body, "/login") {
 		t.Fatalf("expected login URL in home page")
 	}
 }
@@ -51,7 +51,7 @@ func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
-			LoginURL:  "/login?service=consent",
+			LoginURL:  "/login",
 			LogoutURL: "/logout",
 			Routes:    map[string]http.HandlerFunc{},
 		},
@@ -73,8 +73,8 @@ func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !strings.Contains(body, "Welcome alice") {
-		t.Fatalf("expected welcome message for authenticated user")
+	if !strings.Contains(body, "You are logged in to Consent.") {
+		t.Fatalf("expected authenticated home content")
 	}
 	if !strings.Contains(body, "/logout?csrf=") {
 		t.Fatalf("expected csrf-backed logout URL")

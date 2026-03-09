@@ -161,7 +161,7 @@ var serveCmd = &args.Command{
 
 			authConfig = app.AuthConfig{
 				Verifier:  consentClient,
-				LoginURL:  publicBaseURL + "/login?service=" + service.InternalServiceName,
+				LoginURL:  "/login",
 				LogoutURL: "/logout",
 				Routes: map[string]http.HandlerFunc{
 					"/auth/callback": consentClient.HandleAuthorizationCode(),

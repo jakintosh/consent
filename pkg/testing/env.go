@@ -14,6 +14,7 @@ type TestEnv struct {
 	Validator tokens.Validator
 	Domain    string
 	Audience  string
+	Scopes    []string
 }
 
 // NewTestEnv creates a test environment with a shared key.
@@ -32,6 +33,7 @@ func NewTestEnv(
 		Validator: validator,
 		Domain:    domain,
 		Audience:  audience,
+		Scopes:    nil,
 	}
 }
 
@@ -51,6 +53,7 @@ func NewTestEnvWithKey(
 		Validator: validator,
 		Domain:    domain,
 		Audience:  audience,
+		Scopes:    nil,
 	}
 }
 
@@ -62,7 +65,7 @@ func (env *TestEnv) IssueAccessToken(
 	*tokens.AccessToken,
 	error,
 ) {
-	return env.Issuer.IssueAccessToken(subject, []string{env.Audience}, lifetime)
+	return env.Issuer.IssueAccessToken(subject, []string{env.Audience}, env.Scopes, lifetime)
 }
 
 // IssueRefreshToken creates a valid refresh token for the test audience.
@@ -73,7 +76,7 @@ func (env *TestEnv) IssueRefreshToken(
 	*tokens.RefreshToken,
 	error,
 ) {
-	return env.Issuer.IssueRefreshToken(subject, []string{env.Audience}, lifetime)
+	return env.Issuer.IssueRefreshToken(subject, []string{env.Audience}, env.Scopes, lifetime)
 }
 
 // IssueAccessTokenWithAudience creates an access token with custom audiences.
@@ -85,7 +88,7 @@ func (env *TestEnv) IssueAccessTokenWithAudience(
 	*tokens.AccessToken,
 	error,
 ) {
-	return env.Issuer.IssueAccessToken(subject, audience, lifetime)
+	return env.Issuer.IssueAccessToken(subject, audience, env.Scopes, lifetime)
 }
 
 // IssueRefreshTokenWithAudience creates a refresh token with custom audiences.
@@ -97,7 +100,7 @@ func (env *TestEnv) IssueRefreshTokenWithAudience(
 	*tokens.RefreshToken,
 	error,
 ) {
-	return env.Issuer.IssueRefreshToken(subject, audience, lifetime)
+	return env.Issuer.IssueRefreshToken(subject, audience, env.Scopes, lifetime)
 }
 
 // SetTokenCookies sets HTTP-only cookies for the access and refresh tokens.

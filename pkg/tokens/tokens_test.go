@@ -84,7 +84,7 @@ func TestRefreshToken_RoundTrip(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
-	original, err := issuer.IssueRefreshToken("user123", []string{"aud1"}, time.Hour)
+	original, err := issuer.IssueRefreshToken("user123", []string{"aud1"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestAccessToken_RoundTrip(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
-	original, err := issuer.IssueAccessToken("user123", []string{"aud1"}, time.Hour)
+	original, err := issuer.IssueAccessToken("user123", []string{"aud1"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestToken_CrossValidation(t *testing.T) {
 	issuer, _ := newTestServerWithKey(t, key, "consent.server")
 	clientValidator := tokens.InitClient(&key.PublicKey, "consent.server", "my-app")
 
-	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}

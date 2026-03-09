@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -116,7 +117,7 @@ var root = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", homeHandler(authClient, cfg))
-		mux.HandleFunc("/api/example", exampleHandler(authClient))
+		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg))
 		mux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
 
 		if verbose {
@@ -218,7 +219,7 @@ func validatePort(port string) error {
 }
 
 func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
-	loginURL := fmt.Sprintf("%s/login?service=%s", cfg.AuthURL, url.QueryEscape(cfg.Service))
+	loginURL := fmt.Sprintf("%s/authorize?service=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Service))
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		accessToken, csrf, err := c.VerifyAuthorizationGetCSRF(w, r)
@@ -236,7 +237,7 @@ func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
 	}
 }
 
-func exampleHandler(c client.Verifier) http.HandlerFunc {
+func exampleHandler(c client.Verifier, cfg config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		csrf := r.URL.Query().Get("csrf")
 		accessToken, csrf, err := c.VerifyAuthorizationCheckCSRF(w, r, csrf)
@@ -245,11 +246,49 @@ func exampleHandler(c client.Verifier) http.HandlerFunc {
 		}
 
 		if accessToken != nil {
-			w.Write(fmt.Appendf(nil, exampleAuth, accessToken.Subject(), csrf))
+			handle := fetchProfileHandle(r, cfg.AuthURL, accessToken.Encoded())
+			w.Write(fmt.Appendf(nil, exampleAuth, handle, csrf))
 		} else {
 			w.Write([]byte(exampleUnauth))
 		}
 	}
+}
+
+func fetchProfileHandle(r *http.Request, authURL string, accessToken string) string {
+	request, err := http.NewRequest(http.MethodGet, authURL+"/api/v1/me", nil)
+	if err != nil {
+		log.Printf("failed to create /api/v1/me request: %v", err)
+		return ""
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		log.Printf("failed to call /api/v1/me: %v", err)
+		return ""
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		log.Printf("/api/v1/me returned status %d", response.StatusCode)
+		return ""
+	}
+
+	var body struct {
+		Data struct {
+			Profile *struct {
+				Handle string `json:"handle"`
+			} `json:"profile"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		log.Printf("failed to decode /api/v1/me response: %v", err)
+		return ""
+	}
+	if body.Data.Profile == nil {
+		return ""
+	}
+	return body.Data.Profile.Handle
 }
 
 func decodePublicKey(bytes []byte) (*ecdsa.PublicKey, error) {
@@ -283,10 +322,11 @@ const homeUnauth string = `<!DOCTYPE html>
 const exampleAuth string = `<!DOCTYPE html>
 <html>
 <body>
-<p>Secret logged in page for %s!</p>
-<form>
-	<input hidden value="%s"/>
-</form>
+	<p>Authenticated through Consent.</p>
+	<p>Profile handle: %s</p>
+	<form>
+		<input hidden value="%s"/>
+	</form>
 </body>
 </html>`
 

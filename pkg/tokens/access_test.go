@@ -13,7 +13,7 @@ func TestAccessToken_Decode_Valid(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue a valid token
-	original, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
+	original, err := issuer.IssueAccessToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestAccessToken_Decode_Expired(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token that's already expired
-	original, err := issuer.IssueAccessToken("user", []string{"aud"}, -time.Hour)
+	original, err := issuer.IssueAccessToken("user", []string{"aud"}, nil, -time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestAccessToken_Decode_WrongIssuer(t *testing.T) {
 	issuer, _ := newTestServer(t, "wrong.domain")
 	_, validator := newTestServer(t, "correct.domain")
 
-	original, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
+	original, err := issuer.IssueAccessToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestAccessToken_Fields(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with specific values
-	token, err := issuer.IssueAccessToken("user123", []string{"aud1", "aud2"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user123", []string{"aud1", "aud2"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}

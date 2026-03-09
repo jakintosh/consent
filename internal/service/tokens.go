@@ -45,6 +45,7 @@ func (s *Service) RefreshTokens(
 	accessToken, err := s.tokenIssuer.IssueAccessToken(
 		token.Subject(),
 		token.Audience(),
+		token.Scopes(),
 		time.Minute*30,
 	)
 	if err != nil {
@@ -54,6 +55,7 @@ func (s *Service) RefreshTokens(
 	newRefreshToken, err := s.tokenIssuer.IssueRefreshToken(
 		token.Subject(),
 		token.Audience(),
+		token.Scopes(),
 		time.Hour*72,
 	)
 	if err != nil {

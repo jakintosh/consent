@@ -8,15 +8,21 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
+func insertIdentity(t *testing.T, store interface {
+	InsertIdentity(string, string, []byte) error
+}, handle string, secret []byte) {
+	t.Helper()
+	if err := store.InsertIdentity("subject-"+handle, handle, secret); err != nil {
+		t.Fatalf("InsertIdentity failed: %v", err)
+	}
+}
+
 func TestInsertIdentity_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
 	// inserting a new identity succeeds
-	err := store.InsertIdentity("alice", []byte("hashed-password"))
-	if err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
-	}
+	insertIdentity(t, store, "alice", []byte("hashed-password"))
 }
 
 func TestInsertIdentity_DuplicateHandle(t *testing.T) {
@@ -24,12 +30,10 @@ func TestInsertIdentity_DuplicateHandle(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// first insert succeeds
-	if err := store.InsertIdentity("alice", []byte("password1")); err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
-	}
+	insertIdentity(t, store, "alice", []byte("password1"))
 
 	// second insert with same handle fails
-	err := store.InsertIdentity("alice", []byte("password2"))
+	err := store.InsertIdentity("subject-alice-2", "alice", []byte("password2"))
 	if err == nil {
 		t.Fatal("expected error for duplicate handle")
 	}
@@ -40,15 +44,9 @@ func TestInsertIdentity_MultipleUsers(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// multiple unique users can be inserted
-	if err := store.InsertIdentity("alice", []byte("password-a")); err != nil {
-		t.Fatalf("InsertIdentity alice failed: %v", err)
-	}
-	if err := store.InsertIdentity("bob", []byte("password-b")); err != nil {
-		t.Fatalf("InsertIdentity bob failed: %v", err)
-	}
-	if err := store.InsertIdentity("charlie", []byte("password-c")); err != nil {
-		t.Fatalf("InsertIdentity charlie failed: %v", err)
-	}
+	insertIdentity(t, store, "alice", []byte("password-a"))
+	insertIdentity(t, store, "bob", []byte("password-b"))
+	insertIdentity(t, store, "charlie", []byte("password-c"))
 }
 
 func TestGetSecret_ExistingUser(t *testing.T) {
@@ -59,9 +57,7 @@ func TestGetSecret_ExistingUser(t *testing.T) {
 	expected := []byte("my-secret-hash")
 
 	// first insert identity
-	if err := store.InsertIdentity("bob", expected); err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
-	}
+	insertIdentity(t, store, "bob", expected)
 
 	// retrieving secret for existing user returns correct value
 	secret, err := store.GetSecret("bob")
@@ -89,12 +85,8 @@ func TestGetSecret_CorrectUser(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// setup two users
-	if err := store.InsertIdentity("alice", []byte("alice-secret")); err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
-	}
-	if err := store.InsertIdentity("bob", []byte("bob-secret")); err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
-	}
+	insertIdentity(t, store, "alice", []byte("alice-secret"))
+	insertIdentity(t, store, "bob", []byte("bob-secret"))
 
 	// each user's secret is retrieved correctly
 	secret, err := store.GetSecret("alice")
@@ -119,7 +111,7 @@ func TestInsertIdentity_EmptyHandle(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// empty handle is allowed by schema
-	err := store.InsertIdentity("", []byte("password"))
+	err := store.InsertIdentity("subject-empty", "", []byte("password"))
 	if err != nil {
 		t.Fatalf("InsertIdentity with empty handle failed: %v", err)
 	}
@@ -131,9 +123,7 @@ func TestInsertIdentity_BinarySecret(t *testing.T) {
 
 	// binary data is stored and retrieved correctly
 	binarySecret := []byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd}
-	if err := store.InsertIdentity("binary-user", binarySecret); err != nil {
-		t.Fatalf("InsertIdentity with binary secret failed: %v", err)
-	}
+	insertIdentity(t, store, "binary-user", binarySecret)
 
 	secret, err := store.GetSecret("binary-user")
 	if err != nil {

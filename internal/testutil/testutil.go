@@ -169,7 +169,18 @@ func (env *TestEnv) IssueTestRefreshToken(
 	audience []string,
 ) *tokens.RefreshToken {
 	t.Helper()
-	token, err := env.TokenIssuer.IssueRefreshToken(subject, audience, time.Hour)
+	return env.IssueTestRefreshTokenWithScopes(t, subject, audience, nil)
+}
+
+func (env *TestEnv) IssueTestRefreshTokenWithScopes(
+	t *testing.T,
+	subject string,
+	audience []string,
+	scopes []string,
+) *tokens.RefreshToken {
+	t.Helper()
+	subject = env.resolveSubject(t, subject)
+	token, err := env.TokenIssuer.IssueRefreshToken(subject, audience, scopes, time.Hour)
 	if err != nil {
 		t.Fatalf("failed to issue test refresh token: %v", err)
 	}
@@ -183,21 +194,41 @@ func (env *TestEnv) IssueTestAccessToken(
 	audience []string,
 ) *tokens.AccessToken {
 	t.Helper()
-	token, err := env.TokenIssuer.IssueAccessToken(subject, audience, 30*time.Minute)
+	return env.IssueTestAccessTokenWithScopes(t, subject, audience, nil)
+}
+
+func (env *TestEnv) IssueTestAccessTokenWithScopes(
+	t *testing.T,
+	subject string,
+	audience []string,
+	scopes []string,
+) *tokens.AccessToken {
+	t.Helper()
+	subject = env.resolveSubject(t, subject)
+	token, err := env.TokenIssuer.IssueAccessToken(subject, audience, scopes, 30*time.Minute)
 	if err != nil {
 		t.Fatalf("failed to issue test access token: %v", err)
 	}
 	return token
 }
 
+func (env *TestEnv) resolveSubject(t *testing.T, subject string) string {
+	t.Helper()
+	identity, err := env.DB.GetIdentityByHandle(subject)
+	if err == nil {
+		return identity.Subject
+	}
+	return subject
+}
+
 // StoreTestRefreshToken issues and stores a refresh token in the database
 func (env *TestEnv) StoreTestRefreshToken(
 	t *testing.T,
-	handle string,
+	subject string,
 	audience []string,
 ) *tokens.RefreshToken {
 	t.Helper()
-	token := env.IssueTestRefreshToken(t, handle, audience)
+	token := env.IssueTestRefreshToken(t, subject, audience)
 	if err := env.DB.InsertRefreshToken(token); err != nil {
 		t.Fatalf("failed to store test refresh token: %v", err)
 	}

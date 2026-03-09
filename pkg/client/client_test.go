@@ -209,7 +209,7 @@ func setupLogoutTestClient(
 		IssuerDomain: "consent.test",
 	})
 
-	refreshToken, err := issuer.IssueRefreshToken("alice", []string{"app.test"}, time.Hour)
+	refreshToken, err := issuer.IssueRefreshToken("alice", []string{"app.test"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}

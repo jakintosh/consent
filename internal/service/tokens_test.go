@@ -95,8 +95,12 @@ func TestRefreshTokens_StoresNewToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new token not stored: %v", err)
 	}
-	if owner != "alice" {
-		t.Errorf("new token owner = %s, want alice", owner)
+	identity, err := env.DB.GetIdentityByHandle("alice")
+	if err != nil {
+		t.Fatalf("GetIdentityByHandle failed: %v", err)
+	}
+	if owner != identity.Subject {
+		t.Errorf("new token owner = %s, want %s", owner, identity.Subject)
 	}
 }
 

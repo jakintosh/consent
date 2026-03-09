@@ -34,7 +34,7 @@
 		<h2>Log In</h2>
 		<div>
 			<p>
-				Use your Pollinator Network ID to log in to <span class="mono">{{.Display}}</span>.
+				Use your Pollinator Network ID to log in to Consent.
 			</p>
 		</div>
 		<fieldset class="border focus">
@@ -46,8 +46,9 @@
 		<input type="password" name="secret" required />
 		</fieldset>
 		<div class="border focus submit">
-			<input type="text" name="service" value="{{.Name}}" hidden required />
-			<button type="submit">Authenticate</button>
+			<input type="text" name="service" value="consent" hidden required />
+			<input type="text" name="return_to" value="{{.ReturnTo}}" hidden />
+			<button type="submit">Log In</button>
 		</div>
 	</form>
 {{ end }}

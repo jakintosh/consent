@@ -12,7 +12,7 @@ func TestServer_IssueRefreshToken(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issuing refresh token succeeds with correct fields
-	token, err := issuer.IssueRefreshToken("subject", []string{"aud"}, time.Hour)
+	token, err := issuer.IssueRefreshToken("subject", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestServer_IssueAccessToken(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issuing access token succeeds with correct fields
-	token, err := issuer.IssueAccessToken("subject", []string{"aud"}, 30*time.Minute)
+	token, err := issuer.IssueAccessToken("subject", []string{"aud"}, nil, 30*time.Minute)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestServer_TokenExpiration(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with 1 hour lifetime
-	token, err := issuer.IssueAccessToken("user", []string{"aud"}, time.Hour)
+	token, err := issuer.IssueAccessToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestServer_MultipleAudiences(t *testing.T) {
 
 	// issue token with multiple audiences
 	audiences := []string{"app1", "app2", "app3"}
-	token, err := issuer.IssueAccessToken("user", audiences, time.Hour)
+	token, err := issuer.IssueAccessToken("user", audiences, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAccessToken failed: %v", err)
 	}

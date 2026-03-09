@@ -117,6 +117,7 @@ func (s *Service) Router() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /register", s.handleRegister)
+	mux.HandleFunc("GET /me", s.handleMe)
 
 	auth := s.keys.WithAuth
 	mux.HandleFunc("GET /services", auth(s.handleListServices))

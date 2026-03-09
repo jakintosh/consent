@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -22,7 +23,7 @@ func TestAPILogin_JSON_Success(t *testing.T) {
 	body := `{
 		"handle": "alice",
 		"secret": "password123",
-		"service": "test-service"
+		"service": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
@@ -46,7 +47,7 @@ func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 	body := `{
 		"handle": "alice",
 		"secret": "password123",
-		"service": "test-service"
+		"service": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
@@ -54,11 +55,11 @@ func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 	if location == "" {
 		t.Fatal("expected Location header in redirect")
 	}
-	if !strings.Contains(location, "localhost:8080") {
+	if !strings.Contains(location, "consent.test") {
 		t.Errorf("redirect should be to service URL, got: %s", location)
 	}
-	if !strings.Contains(location, "/callback") {
-		t.Errorf("redirect should include callback path, got: %s", location)
+	if !strings.Contains(location, "/auth/callback") {
+		t.Errorf("redirect should include auth callback path, got: %s", location)
 	}
 }
 
@@ -83,7 +84,7 @@ func TestAPILogin_InvalidCredentials(t *testing.T) {
 	body := `{
 		"handle": "alice",
 		"secret": "wrongpassword",
-		"service": "test-service"
+		"service": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
@@ -98,7 +99,7 @@ func TestAPILogin_UnknownUser(t *testing.T) {
 	body := `{
 		"handle": "unknown",
 		"secret": "password",
-		"service": "test-service"
+		"service": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
@@ -121,6 +122,11 @@ func TestAPILogin_UnknownService(t *testing.T) {
 	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
+
+	_, err := env.Service.GetServiceByName(service.InternalServiceName)
+	if err != nil {
+		t.Fatalf("expected internal service to exist: %v", err)
+	}
 }
 
 func TestAPILogin_InvalidJSON(t *testing.T) {

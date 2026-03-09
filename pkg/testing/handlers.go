@@ -19,7 +19,11 @@ func (tv *TestVerifier) HandleDevLogin() http.HandlerFunc {
 		}
 
 		setTokenCookies(w, accessToken, refreshToken)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		returnTo := r.URL.Query().Get("return_to")
+		if returnTo == "" {
+			returnTo = "/"
+		}
+		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 	}
 }
 

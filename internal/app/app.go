@@ -80,6 +80,8 @@ func (a *App) Router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.Home())
 	mux.HandleFunc("/login", a.Login())
+	mux.HandleFunc("GET /authorize", a.Authorize())
+	mux.HandleFunc("POST /authorize", a.AuthorizeSubmit())
 	for pattern, handler := range a.auth.Routes {
 		mux.HandleFunc(pattern, handler)
 	}

@@ -22,12 +22,17 @@ func (s *Service) Register(
 		return ErrInvalidHandle
 	}
 
+	subject, err := generateSubject()
+	if err != nil {
+		return fmt.Errorf("%w: failed to generate account subject: %v", ErrInternal, err)
+	}
+
 	hashPass, err := bcrypt.GenerateFromPassword([]byte(password), s.passwordMode.Cost())
 	if err != nil {
 		return fmt.Errorf("%w: failed to hash password: %v", ErrInternal, err)
 	}
 
-	err = s.store.InsertIdentity(handle, hashPass)
+	err = s.store.InsertIdentity(subject, handle, hashPass)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return ErrHandleExists

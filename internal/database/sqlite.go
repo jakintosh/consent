@@ -48,8 +48,9 @@ func initSchema(db *sql.DB) error {
 	if err := initTable(db, "identity", `
 		CREATE TABLE IF NOT EXISTS identity (
 			id          INTEGER PRIMARY KEY,
-			handle      TEXT UNIQUE,
-			secret      BLOB
+			subject     TEXT UNIQUE NOT NULL,
+			handle      TEXT UNIQUE NOT NULL,
+			secret      BLOB NOT NULL
 		);`,
 	); err != nil {
 		return err
@@ -73,6 +74,21 @@ func initSchema(db *sql.DB) error {
 			display   TEXT NOT NULL,
 			audience  TEXT NOT NULL,
 			redirect  TEXT NOT NULL
+		);`,
+	); err != nil {
+		return err
+	}
+
+	if err := initTable(db, "grant", `
+		CREATE TABLE IF NOT EXISTS "grant" (
+			id         INTEGER PRIMARY KEY,
+			owner      INTEGER NOT NULL,
+			service    TEXT NOT NULL,
+			scope_name TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE,
+			FOREIGN KEY (service) REFERENCES service (name) ON DELETE CASCADE,
+			UNIQUE (owner, service, scope_name)
 		);`,
 	); err != nil {
 		return err

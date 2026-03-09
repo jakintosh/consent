@@ -1,0 +1,38 @@
+{{ define "style" }}
+		.authorize { max-width: 640px; margin: 2em auto; }
+		.authorize h2 { color: #7521b0; margin-block-end: 0.25em; }
+		.authorize p { margin: 0.5em 0; }
+		.authorize ul { padding-left: 1.25em; }
+		.authorize li { margin: 0.75em 0; }
+		.authorize .name { color: #7521b0; font-family: monospace; }
+		.authorize .actions { display: flex; gap: 0.75em; margin-top: 1.5em; }
+		.authorize button { border: 1pt solid #7521b0; background: white; color: #7521b0; padding: 0.75em 1.25em; cursor: pointer; }
+		.authorize button.primary { background: #7521b0; color: white; }
+{{ end }}
+{{ define "content" }}
+	<section class="authorize">
+		<h2>Authorize {{ .ServiceDisplay }}</h2>
+		<p><span class="name">{{ .ServiceDisplay }}</span> is requesting access to your Consent account.</p>
+		<ul>
+		{{ range .Scopes }}
+			<li>
+				<strong>{{ .Label }}</strong><br />
+				<span>{{ .Description }}</span>
+			</li>
+		{{ end }}
+		</ul>
+		<form method="POST" action="/authorize">
+			<input type="hidden" name="service" value="{{ .ServiceName }}" />
+			{{ range .Scopes }}
+			<input type="hidden" name="scope" value="{{ .Name }}" />
+			{{ end }}
+			<input type="hidden" name="state" value="{{ .State }}" />
+			<input type="hidden" name="csrf" value="{{ .CSRF }}" />
+			<div class="actions">
+				<button type="submit" class="primary" name="action" value="approve">Approve</button>
+				<button type="submit" name="action" value="deny">Deny</button>
+			</div>
+		</form>
+	</section>
+{{ end }}
+{{- template "base.html" . -}}

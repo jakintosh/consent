@@ -132,8 +132,12 @@ func TestGetRefreshTokenOwner_Exists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner failed: %v", err)
 	}
-	if owner != "alice" {
-		t.Errorf("owner = %s, want alice", owner)
+	identity, err := store.GetIdentityByHandle("alice")
+	if err != nil {
+		t.Fatalf("GetIdentityByHandle failed: %v", err)
+	}
+	if owner != identity.Subject {
+		t.Errorf("owner = %s, want %s", owner, identity.Subject)
 	}
 }
 
@@ -198,15 +202,23 @@ func TestRefreshToken_MultipleUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner alice failed: %v", err)
 	}
-	if aliceOwner != "alice" {
-		t.Errorf("alice owner = %s, want alice", aliceOwner)
+	aliceIdentity, err := store.GetIdentityByHandle("alice")
+	if err != nil {
+		t.Fatalf("GetIdentityByHandle alice failed: %v", err)
+	}
+	if aliceOwner != aliceIdentity.Subject {
+		t.Errorf("alice owner = %s, want %s", aliceOwner, aliceIdentity.Subject)
 	}
 
 	bobOwner, err := store.GetRefreshTokenOwner(bobToken.Encoded())
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner bob failed: %v", err)
 	}
-	if bobOwner != "bob" {
-		t.Errorf("bob owner = %s, want bob", bobOwner)
+	bobIdentity, err := store.GetIdentityByHandle("bob")
+	if err != nil {
+		t.Fatalf("GetIdentityByHandle bob failed: %v", err)
+	}
+	if bobOwner != bobIdentity.Subject {
+		t.Errorf("bob owner = %s, want %s", bobOwner, bobIdentity.Subject)
 	}
 }

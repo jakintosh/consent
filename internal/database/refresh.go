@@ -14,7 +14,7 @@ func (s *SQLStore) InsertRefreshToken(
 		INSERT INTO refresh (owner, jwt, expiration)
 		SELECT i.id, ?1, ?2
 		FROM identity i
-		WHERE i.handle=?3;`,
+		WHERE i.subject=?3;`,
 		token.Encoded(),
 		token.Expiration().Unix(),
 		token.Subject(),
@@ -32,19 +32,19 @@ func (s *SQLStore) GetRefreshTokenOwner(
 	error,
 ) {
 	row := s.db.QueryRow(`
-		SELECT i.handle
+		SELECT i.subject
 		FROM refresh r
 		JOIN identity i ON r.owner = i.id
 		WHERE r.jwt=?1;`,
 		jwt,
 	)
 
-	var handle string
-	err := row.Scan(&handle)
+	var subject string
+	err := row.Scan(&subject)
 	if err != nil {
 		return "", fmt.Errorf("couldn't scan refresh handle: %v", err)
 	}
-	return handle, nil
+	return subject, nil
 }
 
 func (s *SQLStore) DeleteRefreshToken(

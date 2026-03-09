@@ -25,9 +25,10 @@
 //
 //	// Issue an access token valid for 1 hour
 //	accessToken, err := issuer.IssueAccessToken(
-//	    "alice",                    // subject (username)
+//	    "opaque-subject",            // stable opaque subject
 //	    []string{"app.example.com"}, // audience
-//	    time.Hour,                  // lifetime
+//	    []string{"identity"},        // scopes
+//	    time.Hour,                    // lifetime
 //	)
 //	if err != nil {
 //	    log.Fatal(err)
@@ -35,8 +36,9 @@
 //
 //	// Issue a refresh token valid for 30 days
 //	refreshToken, err := issuer.IssueRefreshToken(
-//	    "alice",
+//	    "opaque-subject",
 //	    []string{"app.example.com"},
+//	    []string{"identity"},
 //	    30*24*time.Hour,
 //	)
 //
@@ -63,7 +65,7 @@
 //	}
 //
 //	// Token is valid - use the claims
-//	username := token.Subject()
+//	subject := token.Subject()
 //	expiration := token.Expiration()
 //
 // # Error Handling
@@ -87,7 +89,7 @@
 // Refresh tokens include a CSRF secret that can be used to protect
 // token refresh endpoints:
 //
-//	refreshToken, _ := issuer.IssueRefreshToken("alice", audiences, lifetime)
+//	refreshToken, _ := issuer.IssueRefreshToken("opaque-subject", audiences, []string{"identity"}, lifetime)
 //	csrfSecret := refreshToken.Secret()
 //
 //	// Client must provide this secret when refreshing

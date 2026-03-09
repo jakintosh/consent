@@ -22,7 +22,7 @@ func TestNewSQLiteStore_CreatesSchema(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// schema is created - insert and retrieve works
-	err := store.InsertIdentity("test-user", []byte("secret-hash"))
+	err := store.InsertIdentity("subject-test-user", "test-user", []byte("secret-hash"))
 	if err != nil {
 		t.Fatalf("schema not created - InsertIdentity failed: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/keys"
+	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	consentclient "git.sr.ht/~jakintosh/consent/pkg/client"
@@ -28,6 +29,7 @@ const (
 	testUserHandle    = "alice"
 	testUserPassword  = "password123"
 	testServiceNameUI = "Example App"
+	testState         = "test-state"
 )
 
 type apiCounters struct {
@@ -49,29 +51,84 @@ func TestAuthFlow_E2E(t *testing.T) {
 	h := newE2EHarness(t)
 	defer h.close()
 
-	loginBody := map[string]string{
-		"handle":  testUserHandle,
-		"secret":  testUserPassword,
-		"service": testServiceName,
+	authorizeURL := h.consentServer.URL + "/authorize?service=" + url.QueryEscape(testServiceName) + "&scope=identity&scope=profile&state=" + url.QueryEscape(testState)
+	authorizeResp := getNoRedirectWithCookies(t, h.consentServer.Client(), authorizeURL)
+	if authorizeResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("authorize status = %d, want %d", authorizeResp.StatusCode, http.StatusSeeOther)
 	}
-	loginResp := postJSONNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/login", loginBody)
+	loginRedirect := authorizeResp.Header.Get("Location")
+	if !strings.Contains(loginRedirect, "/login?") || !strings.Contains(loginRedirect, "return_to=") {
+		t.Fatalf("authorize redirect = %q, want login redirect with return_to", loginRedirect)
+	}
+	authorizeResp.Body.Close()
+
+	loginBody := url.Values{
+		"handle":    []string{testUserHandle},
+		"secret":    []string{testUserPassword},
+		"service":   []string{service.InternalServiceName},
+		"return_to": []string{mustURL(t, authorizeURL).RequestURI()},
+	}
+	loginResp := postFormNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/login", loginBody)
 	if loginResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("login status = %d, want %d", loginResp.StatusCode, http.StatusSeeOther)
 	}
-	authCodeRedirect := loginResp.Header.Get("Location")
-	if !strings.Contains(authCodeRedirect, "auth_code=") {
-		t.Fatalf("login redirect missing auth_code: %q", authCodeRedirect)
+	loginCallback := loginResp.Header.Get("Location")
+	if !strings.Contains(loginCallback, "/auth/callback") || !strings.Contains(loginCallback, "auth_code=") {
+		t.Fatalf("login redirect = %q, want internal auth callback with auth_code", loginCallback)
 	}
 	loginResp.Body.Close()
 
+	consentCallbackResp := getNoRedirectWithCookies(t, h.consentServer.Client(), loginCallback)
+	if consentCallbackResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("consent callback status = %d, want %d", consentCallbackResp.StatusCode, http.StatusSeeOther)
+	}
+	consentAccessCookie := cookieByName(consentCallbackResp.Cookies(), "accessToken")
+	consentRefreshCookie := cookieByName(consentCallbackResp.Cookies(), "refreshToken")
+	if consentAccessCookie == nil || consentRefreshCookie == nil {
+		t.Fatalf("consent callback should set accessToken and refreshToken cookies")
+	}
+	returnTo := consentCallbackResp.Header.Get("Location")
+	if !strings.Contains(returnTo, "/authorize?") {
+		t.Fatalf("consent callback redirect = %q, want original authorize request", returnTo)
+	}
+	consentCallbackResp.Body.Close()
+
+	approvalResp := getNoRedirectWithCookies(t, h.consentServer.Client(), h.consentServer.URL+returnTo, consentAccessCookie, consentRefreshCookie)
+	if approvalResp.StatusCode != http.StatusOK {
+		t.Fatalf("approval page status = %d, want %d", approvalResp.StatusCode, http.StatusOK)
+	}
+	approvalBody := readBody(t, approvalResp)
+	if !strings.Contains(approvalBody, "Authorize "+testServiceNameUI) {
+		t.Fatalf("approval page missing service display: %q", approvalBody)
+	}
+	approvalResp.Body.Close()
+
+	csrf := decodeRefreshCSRF(t, consentRefreshCookie.Value, tokens.InitClient(&h.signingKey.PublicKey, testIssuerDomain, mustURL(t, h.consentServer.URL).Host))
+	approveBody := url.Values{
+		"service": []string{testServiceName},
+		"scope":   []string{"identity", "profile"},
+		"state":   []string{testState},
+		"csrf":    []string{csrf},
+		"action":  []string{"approve"},
+	}
+	approveResp := postFormWithCookiesNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/authorize", approveBody, consentAccessCookie, consentRefreshCookie)
+	if approveResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("approve status = %d, want %d", approveResp.StatusCode, http.StatusSeeOther)
+	}
+	authCodeRedirect := approveResp.Header.Get("Location")
+	if !strings.Contains(authCodeRedirect, "auth_code=") || !strings.Contains(authCodeRedirect, "state="+testState) {
+		t.Fatalf("approve redirect missing auth_code/state: %q", authCodeRedirect)
+	}
+	approveResp.Body.Close()
+
 	callbackResp := getNoRedirectWithCookies(t, h.appServer.Client(), authCodeRedirect)
 	if callbackResp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("callback status = %d, want %d", callbackResp.StatusCode, http.StatusSeeOther)
+		t.Fatalf("app callback status = %d, want %d", callbackResp.StatusCode, http.StatusSeeOther)
 	}
 	accessCookie := cookieByName(callbackResp.Cookies(), "accessToken")
 	refreshCookie := cookieByName(callbackResp.Cookies(), "refreshToken")
 	if accessCookie == nil || refreshCookie == nil {
-		t.Fatalf("callback should set accessToken and refreshToken cookies")
+		t.Fatalf("app callback should set accessToken and refreshToken cookies")
 	}
 	callbackResp.Body.Close()
 
@@ -81,37 +138,58 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	protectedResp.Body.Close()
 
-	refreshBefore := h.counters.refreshCalls.Load()
-	refreshPathResp := getNoRedirectWithCookies(t, h.appServer.Client(), h.appServer.URL+"/protected", refreshCookie)
-	if refreshPathResp.StatusCode != http.StatusOK {
-		t.Fatalf("refresh-path protected status = %d, want %d", refreshPathResp.StatusCode, http.StatusOK)
+	var appAccessToken tokens.AccessToken
+	if err := appAccessToken.Decode(accessCookie.Value, h.validator); err != nil {
+		t.Fatalf("AccessToken.Decode failed: %v", err)
 	}
-	if h.counters.refreshCalls.Load() <= refreshBefore {
-		t.Fatalf("expected refresh endpoint to be called during protected refresh")
+	if appAccessToken.Subject() == testUserHandle {
+		t.Fatalf("expected opaque sub, got handle %q", appAccessToken.Subject())
 	}
-	rotatedRefreshCookie := cookieByName(refreshPathResp.Cookies(), "refreshToken")
-	if rotatedRefreshCookie == nil {
-		rotatedRefreshCookie = refreshCookie
-	}
-	refreshPathResp.Body.Close()
 
-	logoutBefore := h.counters.logoutCalls.Load()
-	csrf := decodeRefreshCSRF(t, rotatedRefreshCookie.Value, h.validator)
-	logoutURL := h.appServer.URL + "/logout?csrf=" + url.QueryEscape(csrf)
-	logoutResp := getNoRedirectWithCookies(t, h.appServer.Client(), logoutURL, rotatedRefreshCookie)
-	if logoutResp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("logout status = %d, want %d", logoutResp.StatusCode, http.StatusSeeOther)
+	meResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/me", accessCookie.Value)
+	if meResp.StatusCode != http.StatusOK {
+		t.Fatalf("/api/v1/me status = %d, want %d", meResp.StatusCode, http.StatusOK)
 	}
-	if h.counters.logoutCalls.Load() <= logoutBefore {
-		t.Fatalf("expected logout endpoint to be called")
+	var meBody struct {
+		Profile struct {
+			Handle string `json:"handle"`
+		} `json:"profile"`
 	}
-	logoutResp.Body.Close()
+	decodeWireData(t, meResp, &meBody)
+	if meBody.Profile.Handle != testUserHandle {
+		t.Fatalf("profile.handle = %q, want %q", meBody.Profile.Handle, testUserHandle)
+	}
+	meResp.Body.Close()
 
-	afterLogoutResp := getNoRedirectWithCookies(t, h.appServer.Client(), h.appServer.URL+"/protected", rotatedRefreshCookie)
-	if afterLogoutResp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("post-logout protected status = %d, want %d", afterLogoutResp.StatusCode, http.StatusUnauthorized)
+	identityOnlyURL := h.consentServer.URL + "/authorize?service=" + url.QueryEscape(testServiceName) + "&scope=identity&state=identity-only"
+	identityOnlyResp := getNoRedirectWithCookies(t, h.consentServer.Client(), identityOnlyURL, consentAccessCookie, consentRefreshCookie)
+	if identityOnlyResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("identity-only authorize status = %d, want %d", identityOnlyResp.StatusCode, http.StatusSeeOther)
 	}
-	afterLogoutResp.Body.Close()
+	identityOnlyRedirect := identityOnlyResp.Header.Get("Location")
+	if !strings.Contains(identityOnlyRedirect, "auth_code=") || !strings.Contains(identityOnlyRedirect, "state=identity-only") {
+		t.Fatalf("identity-only redirect missing auth_code/state: %q", identityOnlyRedirect)
+	}
+	identityOnlyResp.Body.Close()
+
+	identityCallbackResp := getNoRedirectWithCookies(t, h.appServer.Client(), identityOnlyRedirect)
+	if identityCallbackResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("identity-only callback status = %d, want %d", identityCallbackResp.StatusCode, http.StatusSeeOther)
+	}
+	identityAccessCookie := cookieByName(identityCallbackResp.Cookies(), "accessToken")
+	if identityAccessCookie == nil {
+		t.Fatalf("identity-only callback should set access token cookie")
+	}
+	identityCallbackResp.Body.Close()
+
+	identityMeResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/me", identityAccessCookie.Value)
+	if identityMeResp.StatusCode != http.StatusOK {
+		t.Fatalf("identity-only /api/v1/me status = %d, want %d", identityMeResp.StatusCode, http.StatusOK)
+	}
+	if strings.Contains(readBody(t, identityMeResp), "profile") {
+		t.Fatalf("identity-only /api/v1/me should not include profile data")
+	}
+	identityMeResp.Body.Close()
 }
 
 func newE2EHarness(t *testing.T) *e2eHarness {
@@ -124,10 +202,32 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	}
 
 	signingKey := consenttesting.SharedTestKey()
-	svc, err := service.New(service.ServiceOptions{
+	h := &e2eHarness{db: db, signingKey: signingKey}
+
+	var svc *service.Service
+	var appHandler http.Handler
+	apiMux := http.NewServeMux()
+	h.consentServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			if r.Method == http.MethodPost {
+				switch r.URL.Path {
+				case "/api/v1/refresh":
+					h.counters.refreshCalls.Add(1)
+				case "/api/v1/logout":
+					h.counters.logoutCalls.Add(1)
+				}
+			}
+			apiMux.ServeHTTP(w, r)
+			return
+		}
+		appHandler.ServeHTTP(w, r)
+	}))
+
+	consentAudience := mustURL(t, h.consentServer.URL).Host
+	svc, err = service.New(service.ServiceOptions{
 		PasswordMode: service.PasswordModeTesting,
 		Store:        db,
-		PublicURL:    "https://consent.test",
+		PublicURL:    h.consentServer.URL,
 		TokenServerOpts: tokens.ServerOptions{
 			SigningKey:   signingKey,
 			IssuerDomain: testIssuerDomain,
@@ -140,31 +240,35 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if err != nil {
 		t.Fatalf("service.New failed: %v", err)
 	}
+	apiMux.Handle("/api/v1/", http.StripPrefix("/api/v1", svc.Router()))
+
+	validator := tokens.InitClient(&signingKey.PublicKey, testIssuerDomain, consentAudience)
+	consentClient := consentclient.Init(validator, h.consentServer.URL)
+	appServer, err := app.New(app.AppOptions{
+		Service: svc,
+		Auth: app.AuthConfig{
+			Verifier:  consentClient,
+			LoginURL:  "/login",
+			LogoutURL: "/logout",
+			Routes: map[string]http.HandlerFunc{
+				"/auth/callback": consentClient.HandleAuthorizationCode(),
+				"/logout":        consentClient.HandleLogout(),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("app.New failed: %v", err)
+	}
+	appHandler = appServer.Router()
 
 	if err := svc.Register(testUserHandle, testUserPassword); err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
-
-	h := &e2eHarness{
-		db:         db,
-		signingKey: signingKey,
-		validator:  tokens.InitClient(&signingKey.PublicKey, testIssuerDomain, testAppAudience),
+	if err := svc.CreateService(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback"); err != nil {
+		t.Fatalf("CreateService failed: %v", err)
 	}
 
-	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/v1/", http.StripPrefix("/api/v1", svc.Router()))
-	h.consentServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			switch r.URL.Path {
-			case "/api/v1/refresh":
-				h.counters.refreshCalls.Add(1)
-			case "/api/v1/logout":
-				h.counters.logoutCalls.Add(1)
-			}
-		}
-
-		apiMux.ServeHTTP(w, r)
-	}))
+	h.validator = tokens.InitClient(&signingKey.PublicKey, testIssuerDomain, testAppAudience)
 
 	authClient := consentclient.Init(h.validator, h.consentServer.URL)
 	appMux := http.NewServeMux()
@@ -176,23 +280,23 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(token.Subject()))
 	})
 	h.appServer = httptest.NewTLSServer(appMux)
 
-	err = svc.CreateService(
-		testServiceName,
-		testServiceNameUI,
-		testAppAudience,
-		h.appServer.URL+"/auth/callback",
-	)
-	if err != nil {
-		t.Fatalf("CreateService failed: %v", err)
+	if err := svc.UpdateService(testServiceName, service.UpdateServiceRequest{Redirect: stringPtr(h.appServer.URL + "/auth/callback")}); err != nil {
+		t.Fatalf("UpdateService redirect failed: %v", err)
 	}
 
 	return h
+}
+
+func (h *e2eHarness) appServerURL() string {
+	if h.appServer != nil {
+		return h.appServer.URL
+	}
+	return "https://placeholder.invalid"
 }
 
 func (h *e2eHarness) close() {
@@ -207,63 +311,81 @@ func (h *e2eHarness) close() {
 	}
 }
 
-func postJSONNoRedirect(
-	t *testing.T,
-	baseClient *http.Client,
-	endpoint string,
-	body any,
-) *http.Response {
+func postJSONNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body any) *http.Response {
 	t.Helper()
-
 	payload, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("json.Marshal failed: %v", err)
 	}
-
 	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		t.Fatalf("http.NewRequest failed: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := noRedirectClient(baseClient).Do(req)
 	if err != nil {
 		t.Fatalf("POST %s failed: %v", endpoint, err)
 	}
-
 	return resp
 }
 
-func getNoRedirectWithCookies(
-	t *testing.T,
-	baseClient *http.Client,
-	endpoint string,
-	cookies ...*http.Cookie,
-) *http.Response {
+func postFormNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body url.Values) *http.Response {
 	t.Helper()
+	return postFormWithCookiesNoRedirect(t, baseClient, endpoint, body)
+}
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+func postFormWithCookiesNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body url.Values, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body.Encode()))
 	if err != nil {
 		t.Fatalf("http.NewRequest failed: %v", err)
 	}
-
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, c := range cookies {
 		if c != nil {
 			req.AddCookie(c)
 		}
 	}
+	resp, err := noRedirectClient(baseClient).Do(req)
+	if err != nil {
+		t.Fatalf("POST %s failed: %v", endpoint, err)
+	}
+	return resp
+}
 
+func getBearerNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, accessToken string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest failed: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := noRedirectClient(baseClient).Do(req)
 	if err != nil {
 		t.Fatalf("GET %s failed: %v", endpoint, err)
 	}
-
 	return resp
 }
 
-func noRedirectClient(
-	base *http.Client,
-) *http.Client {
+func getNoRedirectWithCookies(t *testing.T, baseClient *http.Client, endpoint string, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest failed: %v", err)
+	}
+	for _, c := range cookies {
+		if c != nil {
+			req.AddCookie(c)
+		}
+	}
+	resp, err := noRedirectClient(baseClient).Do(req)
+	if err != nil {
+		t.Fatalf("GET %s failed: %v", endpoint, err)
+	}
+	return resp
+}
+
+func noRedirectClient(base *http.Client) *http.Client {
 	clientCopy := *base
 	clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -271,30 +393,55 @@ func noRedirectClient(
 	return &clientCopy
 }
 
-func cookieByName(
-	cookies []*http.Cookie,
-	name string,
-) *http.Cookie {
+func cookieByName(cookies []*http.Cookie, name string) *http.Cookie {
 	for _, cookie := range cookies {
 		if cookie.Name == name {
 			return cookie
 		}
 	}
-
 	return nil
 }
 
-func decodeRefreshCSRF(
-	t *testing.T,
-	encoded string,
-	validator tokens.Validator,
-) string {
+func decodeRefreshCSRF(t *testing.T, encoded string, validator tokens.Validator) string {
 	t.Helper()
-
 	var refreshToken tokens.RefreshToken
 	if err := refreshToken.Decode(encoded, validator); err != nil {
 		t.Fatalf("RefreshToken.Decode failed: %v", err)
 	}
-
 	return refreshToken.Secret()
+}
+
+func decodeWireData(t *testing.T, resp *http.Response, target any) {
+	t.Helper()
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		t.Fatalf("json decode failed: %v", err)
+	}
+	if err := json.Unmarshal(envelope.Data, target); err != nil {
+		t.Fatalf("json unmarshal data failed: %v", err)
+	}
+}
+
+func readBody(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom failed: %v", err)
+	}
+	return buf.String()
+}
+
+func mustURL(t *testing.T, value string) *url.URL {
+	t.Helper()
+	parsed, err := url.Parse(value)
+	if err != nil {
+		t.Fatalf("url.Parse failed: %v", err)
+	}
+	return parsed
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

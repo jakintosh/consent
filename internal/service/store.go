@@ -4,14 +4,24 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
+type IdentityRecord struct {
+	Subject string
+	Handle  string
+	Secret  []byte
+}
+
 // Store handles persistence of identity data, refresh tokens, and services.
 type Store interface {
-	InsertIdentity(handle string, secret []byte) error
-	GetSecret(handle string) ([]byte, error)
+	InsertIdentity(subject, handle string, secret []byte) error
+	GetIdentityByHandle(handle string) (IdentityRecord, error)
+	GetIdentityBySubject(subject string) (IdentityRecord, error)
 
 	InsertRefreshToken(token *tokens.RefreshToken) error
 	DeleteRefreshToken(jwt string) (deleted bool, err error)
-	GetRefreshTokenOwner(jwt string) (handle string, err error)
+	GetRefreshTokenOwner(jwt string) (subject string, err error)
+
+	ListGrantedScopeNames(subject, service string) ([]string, error)
+	InsertGrants(subject, service string, scopes []string) error
 
 	InsertService(name, display, audience, redirect string) error
 	UpsertSystemServices(services []ServiceDefinition) error

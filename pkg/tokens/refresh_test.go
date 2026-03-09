@@ -13,7 +13,7 @@ func TestRefreshToken_Decode_Valid(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue a valid token
-	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestRefreshToken_Decode_Expired(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token that's already expired
-	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, -time.Hour)
+	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, -time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestRefreshToken_HasSecret(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue refresh token
-	token, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	token, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -74,12 +74,12 @@ func TestRefreshToken_UniqueSecrets(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue two tokens
-	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
 
-	token2, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	token2, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -95,12 +95,12 @@ func TestRefreshToken_UniqueEncodings(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue two tokens
-	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	token1, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
 
-	token2, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	token2, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestRefreshToken_Fields(t *testing.T) {
 	issuer, _ := newTestServer(t, "test.domain")
 
 	// issue token with specific values
-	token, err := issuer.IssueRefreshToken("user123", []string{"aud1", "aud2"}, time.Hour)
+	token, err := issuer.IssueRefreshToken("user123", []string{"aud1", "aud2"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestRefreshToken_SecretPreservedAfterDecode(t *testing.T) {
 	issuer, validator := newTestServer(t, "test.domain")
 
 	// issue token
-	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, time.Hour)
+	original, err := issuer.IssueRefreshToken("user", []string{"aud"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}

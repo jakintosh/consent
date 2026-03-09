@@ -179,13 +179,14 @@ func (tv *TestVerifier) refreshTokens(
 ) {
 	subject := oldRefresh.Subject()
 	audience := oldRefresh.Audience()
+	scopes := oldRefresh.Scopes()
 
-	accessToken, err := tv.env.Issuer.IssueAccessToken(subject, audience, defaultAccessTokenLifetime)
+	accessToken, err := tv.env.Issuer.IssueAccessToken(subject, audience, scopes, defaultAccessTokenLifetime)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	refreshToken, err := tv.env.Issuer.IssueRefreshToken(subject, audience, defaultRefreshTokenLifetime)
+	refreshToken, err := tv.env.Issuer.IssueRefreshToken(subject, audience, scopes, defaultRefreshTokenLifetime)
 	if err != nil {
 		return nil, nil, err
 	}

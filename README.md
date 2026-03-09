@@ -8,11 +8,11 @@ The system consists of three main components: an authentication server, a client
 
 The **client library** provides server-side functionality for backend applications, including automatic authorization code handling, token validation with automatic refresh, and built-in CSRF protection. This library runs entirely on the application backend—browsers never see cryptographic operations, only cookies and redirects.
 
-**Data persistence** uses SQLite with two core tables: `identity` for user credentials with bcrypt-hashed passwords, and `refresh` for tracking active refresh tokens. This simple schema supports the essential authentication operations without unnecessary complexity.
+**Data persistence** uses SQLite tables for `identity`, durable per-user per-service `grant` records, and active `refresh` tokens. This keeps Consent small while separating Consent login from third-party authorization.
 
 ## Authentication Flow
 
-The authorization process mirrors OAuth's security model while simplifying implementation. When users access a protected service, they're redirected to the authentication server with a service identifier. After successful authentication via web form or JSON API, the server issues a short-lived refresh token (10 seconds) as an authorization code.
+The authorization process mirrors OAuth's security model while simplifying implementation. When users access a protected service, they're redirected to Consent's `/authorize` endpoint with a service identifier and one or more scopes. Consent first ensures the user has its own Consent session, then reuses or records durable grants before issuing a short-lived refresh token (10 seconds) as an authorization code.
 
 The user is then redirected back to the service with this code, which the client application backend automatically exchanges for long-lived access and refresh tokens through the `/api/v1/refresh` endpoint. This maintains OAuth's security benefits—the authorization code prevents long-lived token exposure in browser history—while streamlining the developer experience.
 
@@ -37,7 +37,7 @@ The user is then redirected back to the service with this code, which the client
 ## Security Model
 
 Consent maintains OAuth's proven security approach:
-- No credentials traverse the browser directly
+- Third-party services never receive user credentials directly
 - Tokens have limited lifetimes with automatic refresh
 - ECDSA signatures prevent token tampering
 - Authorization codes are short-lived (10 seconds) to minimize exposure window
@@ -90,7 +90,8 @@ func protectedHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Unauthorized", http.StatusUnauthorized)
         return
     }
-    // Use accessToken.Subject() for user identity
+    // Use accessToken.Subject() as a stable opaque user key
+    // Call Consent's /api/v1/me endpoint for scoped profile data
 }
 
 // Handle authorization code callback

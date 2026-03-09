@@ -56,8 +56,8 @@ func ErrTokenNotIssued() error { return errTokenNotIssued }
 // This interface is implemented by Server, which has access to the signing key.
 type Issuer interface {
 	SignHash([]byte) (string, error)
-	IssueRefreshToken(string, []string, time.Duration) (*RefreshToken, error)
-	IssueAccessToken(string, []string, time.Duration) (*AccessToken, error)
+	IssueRefreshToken(string, []string, []string, time.Duration) (*RefreshToken, error)
+	IssueAccessToken(string, []string, []string, time.Duration) (*AccessToken, error)
 }
 
 // Validator can validate tokens by verifying signatures with a public key.

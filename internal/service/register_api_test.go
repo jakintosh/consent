@@ -69,7 +69,7 @@ func TestAPIRegister_ThenLogin(t *testing.T) {
 	loginBody := `{
 		"handle": "newuser",
 		"secret": "mypassword",
-		"service": "test-service"
+		"service": "consent"
 	}`
 	loginResult := wire.TestPost[any](env.Router, "/login", loginBody, jsonHeader)
 	loginResult.ExpectStatus(t, http.StatusSeeOther)
