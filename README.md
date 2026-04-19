@@ -193,12 +193,14 @@ Run a full local mock deployment with one real consent server login flow and thr
 make mock-deployment
 ```
 
-This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server to seed a demo user and register three mock services through the API, and then starts:
+This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server with `--insecure-cookies` to seed a demo user and register three mock services through the API, and then starts:
 
 - `http://localhost:9000` for the consent server
 - `http://mock1.localhost:9001`
 - `http://mock2.localhost:9002`
 - `http://mock3.localhost:9003`
+
+The mock deployment keeps the real login flow enabled while relaxing auth cookie security for local HTTP so Safari and other stricter browsers will store them on localhost.
 
 The default demo credentials are:
 

@@ -10,8 +10,9 @@ import (
 )
 
 var configCmd = &args.Command{
-	Name: "config",
-	Help: "Manage consent configuration",
+	Name:    "config",
+	Help:    "Manage consent configuration",
+	Options: runtimeOptions,
 	Subcommands: []*args.Command{
 		configInitCmd,
 		configShowCmd,
@@ -21,13 +22,13 @@ var configCmd = &args.Command{
 var configInitCmd = &args.Command{
 	Name: "init",
 	Help: "Generate baseline config, secrets, and directories",
-	Options: append([]args.Option{
+	Options: []args.Option{
 		{
 			Long: "force",
 			Type: args.OptionTypeFlag,
 			Help: "overwrite existing generated files",
 		},
-	}, runtimeOptions...),
+	},
 	Handler: func(i *args.Input) error {
 		overrides, err := resolveOverrides(i)
 		if err != nil {
@@ -58,13 +59,13 @@ var configInitCmd = &args.Command{
 var configShowCmd = &args.Command{
 	Name: "show",
 	Help: "Show authored or resolved config",
-	Options: append([]args.Option{
+	Options: []args.Option{
 		{
 			Long: "resolved",
 			Type: args.OptionTypeFlag,
 			Help: "show resolved runtime config",
 		},
-	}, runtimeOptions...),
+	},
 	Handler: func(i *args.Input) error {
 
 		resolved := i.GetFlag("resolved")

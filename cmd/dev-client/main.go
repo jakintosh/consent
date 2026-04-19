@@ -125,7 +125,7 @@ var root = &args.Command{
 		}
 		tkValidator := tokens.InitClient(opts)
 		authClient := client.Init(tkValidator, cfg.AuthURL)
-		authClient.EnableDevelopmentMode()
+		authClient.EnableInsecureCookies()
 		if verbose {
 			authClient.SetLogLevel(client.LogLevelDebug)
 		}

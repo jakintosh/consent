@@ -28,7 +28,7 @@
 //	authClient := client.Init(validator, "https://consent.example.com")
 //
 //	// Optional: local development only (plain HTTP localhost)
-//	// authClient.EnableDevelopmentMode()
+//	// authClient.EnableInsecureCookies()
 //
 // # Protecting Routes
 //
@@ -119,9 +119,9 @@
 //	// Clear cookies on logout
 //	authClient.ClearTokenCookies(w)
 //
-// Production mode (default) uses Secure=true cookies.
-// Development mode (EnableDevelopmentMode) uses Secure=false cookies for
-// localhost HTTP development only. Never use development mode in production.
+// By default, cookies use Secure=true.
+// EnableInsecureCookies uses Secure=false cookies for localhost HTTP
+// development only. Never use insecure cookies in production.
 //
 // # Error Handling
 //

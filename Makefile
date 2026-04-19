@@ -85,6 +85,7 @@ mock-deployment-init: build
 		$(CONSENT_BIN) serve \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--data-dir "$(MOCK_DATA_DIR)" \
+			--insecure-cookies \
 			>"$(MOCK_LOG_DIR)/consent-init.log" 2>&1 & \
 		server_pid=$$!; \
 		trap 'kill $$server_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
@@ -140,6 +141,7 @@ mock-deployment: mock-deployment-init
 		$(CONSENT_BIN) serve \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--data-dir "$(MOCK_DATA_DIR)" \
+			--insecure-cookies \
 			--verbose \
 			>"$(MOCK_LOG_DIR)/consent.log" 2>&1 & \
 		consent_pid=$$!; \

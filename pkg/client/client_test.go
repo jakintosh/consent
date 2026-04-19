@@ -166,6 +166,27 @@ func TestSetTokenCookies_UsesLaxSameSite(t *testing.T) {
 	assertCookieSameSiteLax(t, rr.Result().Cookies())
 }
 
+func TestSetTokenCookies_DefaultsToSecure(t *testing.T) {
+	c := testClient(t)
+	accessToken, refreshToken := issueTestTokens(t, "alice", "app.test")
+	rr := httptest.NewRecorder()
+
+	c.SetTokenCookies(rr, accessToken, refreshToken)
+
+	assertCookieSecure(t, rr.Result().Cookies(), true)
+}
+
+func TestSetTokenCookies_InsecureCookiesDisablesSecure(t *testing.T) {
+	c := testClient(t)
+	c.EnableInsecureCookies()
+	accessToken, refreshToken := issueTestTokens(t, "alice", "app.test")
+	rr := httptest.NewRecorder()
+
+	c.SetTokenCookies(rr, accessToken, refreshToken)
+
+	assertCookieSecure(t, rr.Result().Cookies(), false)
+}
+
 func TestClearTokenCookies_UsesLaxSameSite(t *testing.T) {
 	c := testClient(t)
 	rr := httptest.NewRecorder()
@@ -173,6 +194,25 @@ func TestClearTokenCookies_UsesLaxSameSite(t *testing.T) {
 	c.ClearTokenCookies(rr)
 
 	assertCookieSameSiteLax(t, rr.Result().Cookies())
+}
+
+func TestClearTokenCookies_DefaultsToSecure(t *testing.T) {
+	c := testClient(t)
+	rr := httptest.NewRecorder()
+
+	c.ClearTokenCookies(rr)
+
+	assertCookieSecure(t, rr.Result().Cookies(), true)
+}
+
+func TestClearTokenCookies_InsecureCookiesDisablesSecure(t *testing.T) {
+	c := testClient(t)
+	c.EnableInsecureCookies()
+	rr := httptest.NewRecorder()
+
+	c.ClearTokenCookies(rr)
+
+	assertCookieSecure(t, rr.Result().Cookies(), false)
 }
 
 var (
@@ -272,6 +312,19 @@ func assertCookieSameSiteLax(t *testing.T, cookies []*http.Cookie) {
 		case "accessToken", "refreshToken":
 			if cookie.SameSite != http.SameSiteLaxMode {
 				t.Fatalf("cookie %q SameSite = %v, want %v", cookie.Name, cookie.SameSite, http.SameSiteLaxMode)
+			}
+		}
+	}
+}
+
+func assertCookieSecure(t *testing.T, cookies []*http.Cookie, want bool) {
+	t.Helper()
+
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case "accessToken", "refreshToken":
+			if cookie.Secure != want {
+				t.Fatalf("cookie %q Secure = %t, want %t", cookie.Name, cookie.Secure, want)
 			}
 		}
 	}

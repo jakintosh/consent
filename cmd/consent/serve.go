@@ -17,11 +17,19 @@ import (
 )
 
 var serveCmd = &args.Command{
-	Name:    "serve",
-	Help:    "Run the OAuth authorization server",
-	Options: runtimeOptions,
+	Name: "serve",
+	Help: "Run the OAuth authorization server",
+	Options: append(
+		runtimeOptions,
+		args.Option{
+			Long: "insecure-cookies",
+			Type: args.OptionTypeFlag,
+			Help: "emit Secure=false auth cookies",
+		},
+	),
 	Handler: func(i *args.Input) error {
 		verbose := i.GetFlag("verbose")
+		insecureCookies := i.GetFlag("insecure-cookies")
 		cfgDir := i.GetParameterOr("config-dir", DEFAULT_CFG_DIR)
 		dataDir := i.GetParameterOr("data-dir", DEFAULT_DATA_DIR)
 
@@ -51,6 +59,7 @@ var serveCmd = &args.Command{
 			log.Printf("  Issuer: %s", runtime.Server.IssuerDomain)
 			log.Printf("  Listen: %s", runtime.Server.ListenAddress)
 			log.Printf("  Dev mode: %t", runtime.Server.DevMode)
+			log.Printf("  Insecure cookies: %t", insecureCookies)
 		}
 
 		dbOpts := database.Options{
@@ -96,6 +105,9 @@ var serveCmd = &args.Command{
 			}
 			tkValidator := tokens.InitClient(opts)
 			consentClient := client.Init(tkValidator, runtime.Server.PublicBaseURL)
+			if insecureCookies {
+				consentClient.EnableInsecureCookies()
+			}
 
 			authConfig = app.AuthConfig{
 				Verifier:  consentClient,

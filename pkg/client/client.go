@@ -50,7 +50,7 @@ var (
 // Create a Client using Init, then use its methods to protect your HTTP handlers.
 type Client struct {
 	apiClient       *wire.Client
-	developmentMode bool
+	insecureCookies bool
 	logLevel        LogLevel
 	authUrl         string
 	tokenValidator  TokenValidator
@@ -71,7 +71,7 @@ func Init(
 		apiClient: &wire.Client{
 			BaseURL: authUrl,
 		},
-		developmentMode: false,
+		insecureCookies: false,
 		logLevel:        LogLevelDefault,
 		authUrl:         authUrl,
 		tokenValidator:  validator,
@@ -88,12 +88,15 @@ func (c *Client) SetLogLevel(logLevel LogLevel) {
 	c.logLevel = logLevel
 }
 
-// EnableDevelopmentMode configures this client for local development only.
+// EnableInsecureCookies configures this client to emit Secure=false cookies.
 //
-// In development mode, token cookies are emitted with Secure=false so browsers
-// accept them over plain HTTP on localhost. Never enable this in production.
-func (c *Client) EnableDevelopmentMode() {
-	c.developmentMode = true
+// This is intended for local HTTP environments such as localhost testing.
+// Never enable this in production.
+func (c *Client) EnableInsecureCookies() {
+	if !c.insecureCookies {
+		fmt.Println("WARNING: Cookies have been set to INSECURE. Do not use in production.")
+	}
+	c.insecureCookies = true
 }
 
 /*
@@ -353,9 +356,9 @@ func (c *Client) RefreshTokens(
 
 // SetTokenCookies sets HTTP-only cookies for the access and refresh tokens.
 //
-// In production mode (default), cookies are configured with
+// By default, cookies are configured with
 // SameSite=Lax, Secure=true, and HttpOnly=true.
-// In development mode (EnableDevelopmentMode), cookies are configured with
+// When EnableInsecureCookies is set, cookies are configured with
 // SameSite=Lax, Secure=false, and HttpOnly=true to support local HTTP.
 //
 // Call this after successful login or token refresh to store tokens in the client's browser.
@@ -367,7 +370,7 @@ func (c *Client) SetTokenCookies(
 	now := time.Now()
 	accessMaxAge := accessToken.Expiration().Sub(now).Seconds()
 	refreshMaxAge := refreshToken.Expiration().Sub(now).Seconds()
-	secureCookie := !c.developmentMode
+	secureCookie := !c.insecureCookies
 
 	accessTokenCookie := &http.Cookie{
 		Name:     "accessToken",
@@ -399,7 +402,7 @@ func (c *Client) SetTokenCookies(
 func (c *Client) ClearTokenCookies(
 	w http.ResponseWriter,
 ) {
-	secureCookie := !c.developmentMode
+	secureCookie := !c.insecureCookies
 
 	accessTokenCookie := &http.Cookie{
 		Name:     "accessToken",
