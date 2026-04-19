@@ -241,6 +241,20 @@ func validateStructure(tokenStr string) (
 	return
 }
 
+func validateIssuedAudiences(
+	audience []string,
+) error {
+	if len(audience) == 0 {
+		return fmt.Errorf("audience required")
+	}
+	for _, value := range audience {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("audience values cannot be blank")
+		}
+	}
+	return nil
+}
+
 func verifyHeader(header *JWTHeader) error {
 	switch header.Type {
 	case "JWT":

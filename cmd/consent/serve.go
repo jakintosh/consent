@@ -56,7 +56,7 @@ var serveCmd = &args.Command{
 			log.Printf("  Data dir: %s", runtime.Paths.DataDir)
 			log.Printf("  Database: %s", runtime.Paths.DatabaseFile)
 			log.Printf("  Public URL: %s", runtime.Server.PublicURL)
-			log.Printf("  Issuer: %s", runtime.Server.IssuerDomain)
+			log.Printf("  Authority: %s", runtime.Server.AuthorityDomain)
 			log.Printf("  Listen: %s", runtime.Server.ListenAddress)
 			log.Printf("  Dev mode: %t", runtime.Server.DevMode)
 			log.Printf("  Insecure cookies: %t", insecureCookies)
@@ -77,7 +77,12 @@ var serveCmd = &args.Command{
 			KeysStore:    db.KeysStore,
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   runtime.Secrets.SigningKey,
-				IssuerDomain: runtime.Server.IssuerDomain,
+				IssuerDomain: runtime.Server.AuthorityDomain,
+			},
+			ResourceTokenClientOpts: tokens.ClientOptions{
+				VerificationKey: &runtime.Secrets.SigningKey.PublicKey,
+				IssuerDomain:    runtime.Server.AuthorityDomain,
+				ValidAudience:   runtime.Server.AuthorityDomain,
 			},
 		}
 		svc, err := service.New(svcOpts)
@@ -87,7 +92,7 @@ var serveCmd = &args.Command{
 
 		var authConfig app.AuthConfig
 		if runtime.Server.DevMode {
-			tv := testing.NewTestVerifier(runtime.Server.IssuerDomain, runtime.Server.PublicHost)
+			tv := testing.NewTestVerifier(runtime.Server.AuthorityDomain, runtime.Server.PublicHost)
 			authConfig = app.AuthConfig{
 				Verifier:  tv,
 				LoginURL:  "/dev/login",
@@ -100,7 +105,7 @@ var serveCmd = &args.Command{
 		} else {
 			opts := tokens.ClientOptions{
 				VerificationKey: &runtime.Secrets.SigningKey.PublicKey,
-				IssuerDomain:    runtime.Server.IssuerDomain,
+				IssuerDomain:    runtime.Server.AuthorityDomain,
 				ValidAudience:   runtime.Server.PublicHost,
 			}
 			tkValidator := tokens.InitClient(opts)

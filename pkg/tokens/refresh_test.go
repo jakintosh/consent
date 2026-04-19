@@ -53,6 +53,32 @@ func TestRefreshToken_Decode_Expired(t *testing.T) {
 	}
 }
 
+func TestRefreshToken_Issue_EmptyAudience(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	_, err := issuer.IssueRefreshToken("user", nil, nil, time.Hour)
+	if err == nil {
+		t.Fatal("expected error for empty audience")
+	}
+	if !strings.Contains(err.Error(), "audience") {
+		t.Fatalf("expected audience error, got %v", err)
+	}
+}
+
+func TestRefreshToken_Issue_BlankAudienceEntry(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	_, err := issuer.IssueRefreshToken("user", []string{"aud", ""}, nil, time.Hour)
+	if err == nil {
+		t.Fatal("expected error for blank audience entry")
+	}
+	if !strings.Contains(err.Error(), "audience") {
+		t.Fatalf("expected audience error, got %v", err)
+	}
+}
+
 func TestRefreshToken_HasSecret(t *testing.T) {
 	t.Parallel()
 	issuer, _ := newTestServer(t, "test.domain")

@@ -42,5 +42,16 @@ func (client *Client) ValidateDomain(issuerDomain string) bool {
 
 func (client *Client) ValidateAudiences(audience string) bool {
 	audiences := strings.Split(audience, " ")
-	return slices.Contains(audiences, client.validAudience)
+
+	// ensure audiences are legal
+	if err := validateIssuedAudiences(audiences); err != nil {
+		return false
+	}
+
+	// must contain the valid audience
+	if !slices.Contains(audiences, client.validAudience) {
+		return false
+	}
+
+	return true
 }

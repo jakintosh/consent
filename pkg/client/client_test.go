@@ -215,6 +215,71 @@ func TestClearTokenCookies_InsecureCookiesDisablesSecure(t *testing.T) {
 	assertCookieSecure(t, rr.Result().Cookies(), false)
 }
 
+func TestFetchMe_SendsBearerTokenAndDecodesResponse(t *testing.T) {
+	wantToken := "access.token.value"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/me" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.Header.Get("Authorization") != "Bearer "+wantToken {
+			t.Fatalf("authorization = %q, want %q", r.Header.Get("Authorization"), "Bearer "+wantToken)
+		}
+		if err := json.NewEncoder(w).Encode(struct {
+			Data MeResponse `json:"data"`
+		}{
+			Data: MeResponse{Profile: &MeProfile{Handle: "alice"}},
+		}); err != nil {
+			t.Fatalf("Encode failed: %v", err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	c := Init(nil, server.URL)
+	response, err := c.FetchMe(wantToken)
+	if err != nil {
+		t.Fatalf("FetchMe failed: %v", err)
+	}
+	if response.Profile == nil || response.Profile.Handle != "alice" {
+		t.Fatalf("profile = %#v, want alice", response.Profile)
+	}
+}
+
+func TestFetchMe_StatusError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+
+	c := Init(nil, server.URL)
+	_, err := c.FetchMe("access.token.value")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "status 403") {
+		t.Fatalf("expected status error, got %v", err)
+	}
+}
+
+func TestFetchMe_DecodeError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("not-json"))
+	}))
+	t.Cleanup(server.Close)
+
+	c := Init(nil, server.URL)
+	_, err := c.FetchMe("access.token.value")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to decode") {
+		t.Fatalf("expected decode error, got %v", err)
+	}
+}
+
 var (
 	logoutCalled bool
 	revokedToken string

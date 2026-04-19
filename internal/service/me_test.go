@@ -3,18 +3,21 @@ package service_test
 import (
 	"bytes"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
+const consentAudience = "test.consent.local"
+
 func TestMe_IdentityOnly(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
 	result := testutil.Get(env.Router, "/me", &struct {
 		Data service.MeResponse `json:"data"`
 	}{}, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
@@ -32,7 +35,7 @@ func TestMe_ProfileScope(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity", "profile"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity", "profile"})
 	var response struct {
 		Data service.MeResponse `json:"data"`
 	}
@@ -48,7 +51,32 @@ func TestMe_RequiresIdentityScope(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"profile"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"profile"})
 	result := testutil.Get(env.Router, "/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusForbidden, result)
+}
+
+func TestMe_RequiresBearerHeader(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	env.RegisterTestUser(t, "alice", "password")
+
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token.Encoded()})
+	rr := httptest.NewRecorder()
+	env.Router.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d. Body: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+}
+
+func TestMe_RequiresConsentAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	env.RegisterTestUser(t, "alice", "password")
+
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity"})
+	result := testutil.Get(env.Router, "/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
+	testutil.ExpectStatus(t, http.StatusBadRequest, result)
 }

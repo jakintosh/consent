@@ -53,10 +53,11 @@ func (m PasswordMode) Cost() int {
 
 // Options configures Service initialization.
 type Options struct {
-	Store           Store
-	KeysStore       keys.Store
-	TokenServerOpts tokens.ServerOptions
-	PasswordMode    PasswordMode
+	Store                   Store
+	KeysStore               keys.Store
+	TokenServerOpts         tokens.ServerOptions
+	ResourceTokenClientOpts tokens.ClientOptions
+	PasswordMode            PasswordMode
 }
 
 // InitOptions configures bootstrap initialization for service state.
@@ -70,11 +71,13 @@ type InitOptions struct {
 // Service coordinates authentication, registration, and token operations.
 // It depends on a Store interface and delegates to it for persistence.
 type Service struct {
-	store          Store
-	passwordMode   PasswordMode
-	tokenIssuer    tokens.Issuer
-	tokenValidator tokens.Validator
-	keys           *keys.Service
+	store                  Store
+	passwordMode           PasswordMode
+	tokenIssuer            tokens.Issuer
+	tokenValidator         tokens.Validator
+	resourceTokenValidator tokens.Validator
+	consentAPIAudience     string
+	keys                   *keys.Service
 }
 
 func New(
@@ -97,13 +100,16 @@ func New(
 	}
 
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
+	resourceValidator := tokens.InitClient(options.ResourceTokenClientOpts)
 
 	return &Service{
-		passwordMode:   options.PasswordMode,
-		store:          options.Store,
-		keys:           keysSvc,
-		tokenIssuer:    issuer,
-		tokenValidator: validator,
+		passwordMode:           options.PasswordMode,
+		store:                  options.Store,
+		keys:                   keysSvc,
+		tokenIssuer:            issuer,
+		tokenValidator:         validator,
+		resourceTokenValidator: resourceValidator,
+		consentAPIAudience:     options.ResourceTokenClientOpts.ValidAudience,
 	}, nil
 }
 
@@ -123,11 +129,12 @@ func Init(
 
 func (s *Service) Router() http.Handler {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /me", s.handleMe)
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("POST /refresh", s.handleRefresh)
 	mux.HandleFunc("POST /register", s.handleRegister)
-	mux.HandleFunc("GET /me", s.handleMe)
 
 	mux.HandleFunc("GET /services", s.keys.WithAuthFunc(s.handleListServices, &PermissionRead))
 	mux.HandleFunc("POST /services", s.keys.WithAuthFunc(s.handleCreateService, &PermissionWrite))

@@ -1,6 +1,7 @@
 package tokens_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,58 @@ func TestServer_IssueAccessToken(t *testing.T) {
 	}
 	if token.Issuer() != "test.domain" {
 		t.Errorf("Issuer = %s, want test.domain", token.Issuer())
+	}
+}
+
+func TestServer_IssueAccessToken_InvalidAudience(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	tests := []struct {
+		name     string
+		audience []string
+	}{
+		{name: "empty", audience: nil},
+		{name: "blank", audience: []string{"aud", ""}},
+		{name: "whitespace", audience: []string{"   "}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := issuer.IssueAccessToken("subject", tt.audience, nil, time.Hour)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), "audience") {
+				t.Fatalf("expected audience error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestServer_IssueRefreshToken_InvalidAudience(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	tests := []struct {
+		name     string
+		audience []string
+	}{
+		{name: "empty", audience: nil},
+		{name: "blank", audience: []string{"aud", ""}},
+		{name: "whitespace", audience: []string{"   "}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := issuer.IssueRefreshToken("subject", tt.audience, nil, time.Hour)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), "audience") {
+				t.Fatalf("expected audience error, got %v", err)
+			}
+		})
 	}
 }
 

@@ -103,6 +103,32 @@ func TestAccessToken_Decode_Malformed(t *testing.T) {
 	}
 }
 
+func TestAccessToken_Issue_EmptyAudience(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	_, err := issuer.IssueAccessToken("user", nil, nil, time.Hour)
+	if err == nil {
+		t.Fatal("expected error for empty audience")
+	}
+	if !strings.Contains(err.Error(), "audience") {
+		t.Fatalf("expected audience error, got %v", err)
+	}
+}
+
+func TestAccessToken_Issue_BlankAudienceEntry(t *testing.T) {
+	t.Parallel()
+	issuer, _ := newTestServer(t, "test.domain")
+
+	_, err := issuer.IssueAccessToken("user", []string{"aud", ""}, nil, time.Hour)
+	if err == nil {
+		t.Fatal("expected error for blank audience entry")
+	}
+	if !strings.Contains(err.Error(), "audience") {
+		t.Fatalf("expected audience error, got %v", err)
+	}
+}
+
 func TestAccessToken_Fields(t *testing.T) {
 	t.Parallel()
 	issuer, _ := newTestServer(t, "test.domain")

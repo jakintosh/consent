@@ -45,7 +45,7 @@ func TestLoad_StrictUnknownField(t *testing.T) {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
 
-	payload := []byte("server:\n  publicURL: http://localhost:9001\n  issuerDomain: localhost\n  port: 9001\n  devMode: true\n  extra: nope\n")
+	payload := []byte("server:\n  publicURL: http://localhost:9001\n  authorityDomain: localhost\n  port: 9001\n  devMode: true\n  extra: nope\n")
 	if err := os.WriteFile(paths.ConfigFile, payload, 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
@@ -71,10 +71,10 @@ func TestResolve_UsesOverridesAndSecretEnv(t *testing.T) {
 
 	if err := config.Save(paths, config.Config{
 		Server: config.ServerConfig{
-			PublicURL:    "http://example.test:9001",
-			IssuerDomain: "issuer-from-file",
-			Port:         9001,
-			DevMode:      false,
+			PublicURL:       "http://example.test:9001",
+			AuthorityDomain: "issuer-from-file",
+			Port:            9001,
+			DevMode:         false,
 		},
 	}); err != nil {
 		t.Fatalf("Save failed: %v", err)

@@ -8,7 +8,7 @@ import (
 
 // RefreshTokenClaims is a struct that represents the claims section of a JWT for the refresh token.
 // It sits between the JSON representation in the token and the [RefreshToken] Go struct.
-// It can be validated against module level _issuerDomain, _validAudience, and current time.
+// It is validated against the provided Validator and current time.
 // It implements the `validate()` function as part of the [claims] interface.
 type RefreshTokenClaims struct {
 	Expiration int64  `json:"exp"`

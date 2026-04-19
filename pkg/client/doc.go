@@ -2,9 +2,10 @@
 // backend applications.
 //
 // This package implements the client side of an OAuth-style authorization flow,
-// handling token validation, automatic token refresh, and mode-aware cookie management.
-// Backend applications use this package to protect their routes and verify user
-// identity from tokens issued by the consent server.
+// handling token validation, automatic token refresh, mode-aware cookie
+// management, and scoped calls back to Consent's resource API. Backend
+// applications use this package to protect their routes and verify user
+// identity from tokens issued by the Consent server.
 //
 // # Quick Start
 //
@@ -154,7 +155,20 @@
 // In production, pass a *client.Client. In tests, use the testing package's
 // TestVerifier. See the testing package documentation for details.
 //
+// # Scoped User Info
+//
 // Tokens carry an opaque `sub` value plus the requested scopes for that
 // authorization event. If your application needs user-facing profile data,
-// call Consent's `/api/v1/me` resource endpoint with the access token.
+// call Consent's `/api/v1/me` resource endpoint with the scoped access token:
+//
+//	me, err := authClient.FetchMe(accessToken.Encoded())
+//	if err != nil {
+//	    return err
+//	}
+//	if me.Profile != nil {
+//	    fmt.Println(me.Profile.Handle)
+//	}
+//
+// `/api/v1/me` is a bearer-token resource endpoint. It does not use cookie
+// fallback; callers must present the access token explicitly.
 package client

@@ -47,7 +47,7 @@ init: build
 		--config-dir "$(LOCAL_CONFIG_DIR)" \
 		--data-dir "$(LOCAL_DATA_DIR)" \
 		--public-url "$(LOCAL_BASE_URL)" \
-		--issuer-domain "$(LOCAL_ISSUER)" \
+		--authority-domain "$(LOCAL_ISSUER)" \
 		--port "$(LOCAL_PORT)" \
 		--dev-mode
 	$(CONSENT_BIN) init \
@@ -72,7 +72,7 @@ mock-deployment-init: build
 		--config-dir "$(MOCK_CONFIG_DIR)" \
 		--data-dir "$(MOCK_DATA_DIR)" \
 		--public-url "$(MOCK_CONSENT_URL)" \
-		--issuer-domain "$(MOCK_ISSUER)" \
+		--authority-domain "$(MOCK_ISSUER)" \
 		--port "$(MOCK_CONSENT_PORT)"
 	$(CONSENT_BIN) init \
 		--config-dir "$(MOCK_CONFIG_DIR)" \
@@ -155,7 +155,7 @@ mock-deployment: mock-deployment-init
 		done; \
 		$(DEV_CLIENT_BIN) \
 			--auth-url "$(MOCK_CONSENT_URL)" \
-			--issuer-domain "$(MOCK_ISSUER)" \
+			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_1_PORT)" \
 			--service "$(MOCK_CLIENT_1_SERVICE)" \
 			--audience "$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
@@ -165,7 +165,7 @@ mock-deployment: mock-deployment-init
 		client1_pid=$$!; \
 		$(DEV_CLIENT_BIN) \
 			--auth-url "$(MOCK_CONSENT_URL)" \
-			--issuer-domain "$(MOCK_ISSUER)" \
+			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_2_PORT)" \
 			--service "$(MOCK_CLIENT_2_SERVICE)" \
 			--audience "$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
@@ -175,7 +175,7 @@ mock-deployment: mock-deployment-init
 		client2_pid=$$!; \
 		$(DEV_CLIENT_BIN) \
 			--auth-url "$(MOCK_CONSENT_URL)" \
-			--issuer-domain "$(MOCK_ISSUER)" \
+			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_3_PORT)" \
 			--service "$(MOCK_CLIENT_3_SERVICE)" \
 			--audience "$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \

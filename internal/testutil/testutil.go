@@ -107,6 +107,11 @@ func SetupTestEnv(
 		Store:           db,
 		KeysStore:       db.KeysStore,
 		TokenServerOpts: tkServerOpts,
+		ResourceTokenClientOpts: tokens.ClientOptions{
+			VerificationKey: &getSharedSigningKey().PublicKey,
+			IssuerDomain:    "test.consent.local",
+			ValidAudience:   "test.consent.local",
+		},
 	}
 	svc, err := service.New(serviceOpts)
 	if err != nil {

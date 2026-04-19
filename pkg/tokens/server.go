@@ -19,7 +19,12 @@ type Server struct {
 //
 // Issuer interface
 
-func (server *Server) SignHash(hash []byte) (string, error) {
+func (server *Server) SignHash(
+	hash []byte,
+) (
+	string,
+	error,
+) {
 	r, s, err := ecdsa.Sign(rand.Reader, server.signingKey, hash[:])
 	if err != nil {
 		return "", fmt.Errorf("failed to sign message: %v", err)
@@ -36,7 +41,13 @@ func (server *Server) IssueRefreshToken(
 	audience []string,
 	scopes []string,
 	lifetime time.Duration,
-) (*RefreshToken, error) {
+) (
+	*RefreshToken,
+	error,
+) {
+	if err := validateIssuedAudiences(audience); err != nil {
+		return nil, fmt.Errorf("invalid refresh token audience: %v", err)
+	}
 
 	now := time.Now()
 	exp := now.Add(lifetime)
@@ -69,7 +80,13 @@ func (server *Server) IssueAccessToken(
 	audience []string,
 	scopes []string,
 	lifetime time.Duration,
-) (*AccessToken, error) {
+) (
+	*AccessToken,
+	error,
+) {
+	if err := validateIssuedAudiences(audience); err != nil {
+		return nil, fmt.Errorf("invalid access token audience: %v", err)
+	}
 
 	now := time.Now()
 	exp := now.Add(lifetime)
@@ -107,6 +124,7 @@ func (server *Server) VerifySignature(
 		server.verificationKey,
 	)
 }
+
 func (server *Server) ShouldValidateAudience() bool {
 	return false
 }
@@ -114,6 +132,7 @@ func (server *Server) ShouldValidateAudience() bool {
 func (server *Server) ValidateDomain(issuerDomain string) bool {
 	return issuerDomain == server.issuerDomain
 }
+
 func (server *Server) ValidateAudiences(audience string) bool {
 	return false
 }

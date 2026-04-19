@@ -1,4 +1,4 @@
-// Package tokens provides JWT token issuing and validation for the consent
+// Package tokens provides JWT token issuing and validation for the Consent
 // identity server.
 //
 // This package implements ES256 (ECDSA with SHA-256) signed JSON Web Tokens
@@ -14,7 +14,7 @@
 //
 // # Server Usage (Issuing Tokens)
 //
-// The consent auth server uses InitServer to create an issuer that can
+// The Consent auth server uses InitServer to create an issuer that can
 // generate new tokens:
 //
 //	// Initialize with your ECDSA private key
@@ -48,7 +48,7 @@
 // # Client Usage (Validating Tokens)
 //
 // Backend applications use InitClient to validate tokens issued by the
-// consent server:
+// Consent server:
 //
 //	// Initialize with the consent server's public key
 //	clientOpts := tokens.ClientOptions{
@@ -58,7 +58,7 @@
 //	}
 //	validator := tokens.InitClient(clientOpts)
 //
-//	// Validate an access token from a cookie or header
+//	// Validate an access token presented to your application
 //	token := &tokens.AccessToken{}
 //	if err := token.Decode(tokenString, validator); err != nil {
 //	    // Token is invalid, expired, or has wrong issuer/audience
@@ -68,6 +68,10 @@
 //	// Token is valid - use the claims
 //	subject := token.Subject()
 //	expiration := token.Expiration()
+//
+// Issuers must provide at least one non-blank audience value when creating
+// access or refresh tokens. Audience matching is only enforced by validators
+// created with InitClient.
 //
 // # Error Handling
 //

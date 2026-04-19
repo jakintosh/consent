@@ -43,6 +43,14 @@ var (
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
+type MeResponse struct {
+	Profile *MeProfile `json:"profile,omitempty"`
+}
+
+type MeProfile struct {
+	Handle string `json:"handle"`
+}
+
 // Client manages authorization for a backend application integrating with
 // the consent identity server. It handles token validation, automatic refresh,
 // and cookie management.
@@ -425,6 +433,38 @@ func (c *Client) ClearTokenCookies(
 	http.SetCookie(w, refreshTokenCookie)
 
 	c.log(LogLevelDebug, "cleared token cookies\n")
+}
+
+func (c *Client) FetchMe(
+	accessToken string,
+) (
+	*MeResponse,
+	error,
+) {
+	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/me", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create /api/v1/me request: %v", err)
+	}
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call /api/v1/me: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("/api/v1/me returned status %d", response.StatusCode)
+	}
+
+	var body struct {
+		Data MeResponse `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("failed to decode /api/v1/me response: %v", err)
+	}
+
+	return &body.Data, nil
 }
 
 func getCookie(r *http.Request, cookieName string) *http.Cookie {

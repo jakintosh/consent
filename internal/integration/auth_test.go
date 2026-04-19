@@ -249,6 +249,11 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 			SigningKey:   signingKey,
 			IssuerDomain: testIssuerDomain,
 		},
+		ResourceTokenClientOpts: tokens.ClientOptions{
+			VerificationKey: &signingKey.PublicKey,
+			IssuerDomain:    testIssuerDomain,
+			ValidAudience:   testIssuerDomain,
+		},
 	})
 	if err != nil {
 		t.Fatalf("service.New failed: %v", err)

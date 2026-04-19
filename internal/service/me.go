@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
@@ -17,14 +18,22 @@ type MeProfile struct {
 	Handle string `json:"handle"`
 }
 
-func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
-	accessToken, err := s.accessTokenFromRequest(r)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
+func (s *Service) handleMe(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	encodedToken, ok := bearerToken(r.Header.Get("Authorization"))
+	if !ok {
+		wire.WriteError(w, httpStatusFromError(ErrTokenInvalid), ErrTokenInvalid.Error())
 		return
 	}
 
-	if !hasScope(accessToken.Scopes(), ScopeIdentity) {
+	accessToken := new(tokens.AccessToken)
+	if err := accessToken.Decode(encodedToken, s.resourceTokenValidator); err != nil {
+		wire.WriteError(w, httpStatusFromError(ErrTokenInvalid), fmt.Sprintf("%v: couldn't decode access token: %v", ErrTokenInvalid, err))
+	}
+
+	if !slices.Contains(accessToken.Scopes(), ScopeIdentity) {
 		wire.WriteError(w, httpStatusFromError(ErrInsufficientScope), ErrInsufficientScope.Error())
 		return
 	}
@@ -36,62 +45,29 @@ func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := MeResponse{}
-	if hasScope(accessToken.Scopes(), ScopeProfile) {
+	if slices.Contains(accessToken.Scopes(), ScopeProfile) {
 		response.Profile = &MeProfile{Handle: identity.Handle}
 	}
 
 	wire.WriteData(w, http.StatusOK, response)
 }
 
-func (s *Service) accessTokenFromRequest(r *http.Request) (*tokens.AccessToken, error) {
-	encodedToken := bearerToken(r.Header.Get("Authorization"))
-	if encodedToken == "" {
-		cookie, err := r.Cookie("accessToken")
-		if err != nil {
-			return nil, ErrTokenInvalid
-		}
-		encodedToken = cookie.Value
-	}
-
-	token := new(tokens.AccessToken)
-	if err := token.Decode(encodedToken, s.tokenValidator); err != nil {
-		return nil, fmt.Errorf("%w: couldn't decode access token: %v", ErrTokenInvalid, err)
-	}
-	if !validAudience(token.Audience()) {
-		return nil, ErrTokenInvalid
-	}
-
-	return token, nil
-}
-
-func bearerToken(header string) string {
+func bearerToken(
+	header string,
+) (
+	string,
+	bool,
+) {
 	if header == "" {
-		return ""
+		return "", false
 	}
 	parts := strings.SplitN(header, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return ""
+		return "", false
 	}
-	return strings.TrimSpace(parts[1])
-}
-
-func validAudience(audiences []string) bool {
-	if len(audiences) == 0 {
-		return false
+	encodedToken := strings.TrimSpace(parts[1])
+	if encodedToken == "" {
+		return "", false
 	}
-	for _, audience := range audiences {
-		if strings.TrimSpace(audience) == "" {
-			return false
-		}
-	}
-	return true
-}
-
-func hasScope(scopes []string, want string) bool {
-	for _, scope := range scopes {
-		if scope == want {
-			return true
-		}
-	}
-	return false
+	return encodedToken, true
 }

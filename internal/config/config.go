@@ -25,10 +25,10 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	PublicURL    string `yaml:"publicURL"`
-	IssuerDomain string `yaml:"issuerDomain"`
-	Port         int    `yaml:"port"`
-	DevMode      bool   `yaml:"devMode"`
+	PublicURL       string `yaml:"publicURL"`
+	AuthorityDomain string `yaml:"authorityDomain"`
+	Port            int    `yaml:"port"`
+	DevMode         bool   `yaml:"devMode"`
 }
 
 type Roots struct {
@@ -48,19 +48,19 @@ type Paths struct {
 }
 
 type Overrides struct {
-	PublicURL    *string
-	IssuerDomain *string
-	Port         *int
-	DevMode      *bool
+	PublicURL       *string
+	AuthorityDomain *string
+	Port            *int
+	DevMode         *bool
 }
 
 func Default() Config {
 	return Config{
 		Server: ServerConfig{
-			PublicURL:    "http://localhost:9001",
-			IssuerDomain: "localhost",
-			Port:         9001,
-			DevMode:      false,
+			PublicURL:       "http://localhost:9001",
+			AuthorityDomain: "localhost",
+			Port:            9001,
+			DevMode:         false,
 		},
 	}
 }
@@ -163,7 +163,7 @@ func Save(
 
 func (c *Config) Normalize() {
 	c.Server.PublicURL = strings.TrimSpace(c.Server.PublicURL)
-	c.Server.IssuerDomain = strings.TrimSpace(c.Server.IssuerDomain)
+	c.Server.AuthorityDomain = strings.TrimSpace(c.Server.AuthorityDomain)
 }
 
 func (c Config) Validate() error {
@@ -175,8 +175,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("config: %w", err)
 	}
 
-	if strings.TrimSpace(c.Server.IssuerDomain) == "" {
-		return fmt.Errorf("config: server.issuerDomain is required")
+	if strings.TrimSpace(c.Server.AuthorityDomain) == "" {
+		return fmt.Errorf("config: server.authorityDomain is required")
 	}
 
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
@@ -194,8 +194,8 @@ func (c Config) WithOverrides(
 	if overrides.PublicURL != nil {
 		resolved.Server.PublicURL = *overrides.PublicURL
 	}
-	if overrides.IssuerDomain != nil {
-		resolved.Server.IssuerDomain = *overrides.IssuerDomain
+	if overrides.AuthorityDomain != nil {
+		resolved.Server.AuthorityDomain = *overrides.AuthorityDomain
 	}
 	if overrides.Port != nil {
 		resolved.Server.Port = *overrides.Port

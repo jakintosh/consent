@@ -36,7 +36,7 @@ type RuntimeServer struct {
 	PublicBaseURL   string
 	PublicHost      string
 	ParsedPublicURL *url.URL
-	IssuerDomain    string
+	AuthorityDomain string
 	Port            int
 	ListenAddress   string
 	DevMode         bool
@@ -63,13 +63,13 @@ type View struct {
 }
 
 type ViewServer struct {
-	PublicURL     string `yaml:"publicURL" json:"publicURL"`
-	PublicBaseURL string `yaml:"publicBaseURL" json:"publicBaseURL"`
-	PublicHost    string `yaml:"publicHost" json:"publicHost"`
-	IssuerDomain  string `yaml:"issuerDomain" json:"issuerDomain"`
-	Port          int    `yaml:"port" json:"port"`
-	ListenAddress string `yaml:"listenAddress" json:"listenAddress"`
-	DevMode       bool   `yaml:"devMode" json:"devMode"`
+	PublicURL       string `yaml:"publicURL" json:"publicURL"`
+	PublicBaseURL   string `yaml:"publicBaseURL" json:"publicBaseURL"`
+	PublicHost      string `yaml:"publicHost" json:"publicHost"`
+	AuthorityDomain string `yaml:"authorityDomain" json:"authorityDomain"`
+	Port            int    `yaml:"port" json:"port"`
+	ListenAddress   string `yaml:"listenAddress" json:"listenAddress"`
+	DevMode         bool   `yaml:"devMode" json:"devMode"`
 }
 
 type ViewSecrets struct {
@@ -148,7 +148,7 @@ func Resolve(opts ResolveOptions) (Runtime, error) {
 			PublicBaseURL:   strings.TrimRight(publicURL, "/"),
 			PublicHost:      parsedURL.Host,
 			ParsedPublicURL: parsedURL,
-			IssuerDomain:    cfg.Server.IssuerDomain,
+			AuthorityDomain: cfg.Server.AuthorityDomain,
 			Port:            cfg.Server.Port,
 			ListenAddress:   fmt.Sprintf(":%d", cfg.Server.Port),
 			DevMode:         cfg.Server.DevMode,
@@ -171,13 +171,13 @@ func (r Runtime) View() View {
 		Config: r.Config,
 		Paths:  r.Paths,
 		Server: ViewServer{
-			PublicURL:     r.Server.PublicURL,
-			PublicBaseURL: r.Server.PublicBaseURL,
-			PublicHost:    r.Server.PublicHost,
-			IssuerDomain:  r.Server.IssuerDomain,
-			Port:          r.Server.Port,
-			ListenAddress: r.Server.ListenAddress,
-			DevMode:       r.Server.DevMode,
+			PublicURL:       r.Server.PublicURL,
+			PublicBaseURL:   r.Server.PublicBaseURL,
+			PublicHost:      r.Server.PublicHost,
+			AuthorityDomain: r.Server.AuthorityDomain,
+			Port:            r.Server.Port,
+			ListenAddress:   r.Server.ListenAddress,
+			DevMode:         r.Server.DevMode,
 		},
 		Secrets: ViewSecrets{
 			SigningKeySet:      r.Secrets.SigningKey != nil,

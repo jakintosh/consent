@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -21,17 +20,17 @@ import (
 )
 
 const (
-	defaultAuthURL      = "http://localhost:9001"
-	defaultIssuerDomain = "localhost"
-	defaultPort         = "10000"
-	defaultServiceName  = "example@localhost"
-	defaultConfigDir    = "./config"
+	defaultAuthURL         = "http://localhost:9001"
+	defaultAuthorityDomain = "localhost"
+	defaultPort            = 10000
+	defaultServiceName     = "example@localhost"
+	defaultConfigDir       = "./config"
 )
 
 type config struct {
 	AuthURL             string
-	IssuerDomain        string
-	Port                string
+	AuthorityDomain     string
+	Port                int
 	Service             string
 	Audience            string
 	VerificationKeyPath string
@@ -60,9 +59,9 @@ var root = &args.Command{
 			Help: "Consent server URL (default: http://localhost:9001)",
 		},
 		{
-			Long: "issuer-domain",
+			Long: "authority-domain",
 			Type: args.OptionTypeParameter,
-			Help: "JWT issuer domain (default: localhost)",
+			Help: "Consent authority domain (default: localhost)",
 		},
 		{
 			Long: "port",
@@ -101,11 +100,11 @@ var root = &args.Command{
 		if verbose {
 			log.Println("Starting development OAuth client...")
 			log.Printf("  Auth URL: %s", cfg.AuthURL)
-			log.Printf("  Issuer domain: %s", cfg.IssuerDomain)
+			log.Printf("  Authority domain: %s", cfg.AuthorityDomain)
 			log.Printf("  Service: %s", cfg.Service)
 			log.Printf("  Audience: %s", cfg.Audience)
 			log.Printf("  Verification key: %s", cfg.VerificationKeyPath)
-			log.Printf("  Port: %s", cfg.Port)
+			log.Printf("  Port: %d", cfg.Port)
 		}
 
 		verificationKeyBytes, err := os.ReadFile(cfg.VerificationKeyPath)
@@ -120,7 +119,7 @@ var root = &args.Command{
 
 		opts := tokens.ClientOptions{
 			VerificationKey: verificationKey,
-			IssuerDomain:    cfg.IssuerDomain,
+			IssuerDomain:    cfg.AuthorityDomain,
 			ValidAudience:   cfg.Audience,
 		}
 		tkValidator := tokens.InitClient(opts)
@@ -132,15 +131,15 @@ var root = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", homeHandler(authClient, cfg))
-		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg))
+		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg.Service))
 		mux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
 		mux.HandleFunc("/logout", authClient.HandleLogout())
 
 		if verbose {
-			log.Printf("Listening on :%s", cfg.Port)
+			log.Printf("Listening on :%d", cfg.Port)
 		}
 
-		if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
+		if err := http.ListenAndServe(":"+strconv.Itoa(cfg.Port), mux); err != nil {
 			return fmt.Errorf("server error: %w", err)
 		}
 
@@ -152,34 +151,39 @@ func main() {
 	root.Parse()
 }
 
-func parseConfig(i *args.Input) (config, error) {
-	authURL := optionOrDefault(i, "auth-url", defaultAuthURL)
+func parseConfig(
+	i *args.Input,
+) (
+	config,
+	error,
+) {
+	authURL := i.GetParameterOr("auth-url", defaultAuthURL)
 	authURL, err := normalizeAuthURL(authURL)
 	if err != nil {
 		return config{}, err
 	}
 
-	issuerDomain := optionOrDefault(i, "issuer-domain", defaultIssuerDomain)
-	if strings.TrimSpace(issuerDomain) == "" {
-		return config{}, fmt.Errorf("--issuer-domain cannot be empty")
+	authorityDomain := i.GetParameterOr("authority-domain", defaultAuthorityDomain)
+	if strings.TrimSpace(authorityDomain) == "" {
+		return config{}, fmt.Errorf("--authority-domain cannot be empty")
 	}
 
-	port := optionOrDefault(i, "port", defaultPort)
-	if err := validatePort(port); err != nil {
-		return config{}, err
+	port := i.GetIntParameterOr("port", defaultPort)
+	if port < 1 || port > 65535 {
+		return config{}, fmt.Errorf("invalid --port %q: out of range", port)
 	}
 
-	serviceName := optionOrDefault(i, "service", defaultServiceName)
+	serviceName := i.GetParameterOr("service", defaultServiceName)
 	if strings.TrimSpace(serviceName) == "" {
 		return config{}, fmt.Errorf("--service cannot be empty")
 	}
 
-	audience := optionOrDefault(i, "audience", fmt.Sprintf("localhost:%s", port))
+	audience := i.GetParameterOr("audience", fmt.Sprintf("localhost:%d", port))
 	if strings.TrimSpace(audience) == "" {
 		return config{}, fmt.Errorf("--audience cannot be empty")
 	}
 
-	configDir := optionOrDefault(i, "config-dir", defaultConfigDir)
+	configDir := i.GetParameterOr("config-dir", defaultConfigDir)
 	if strings.TrimSpace(configDir) == "" {
 		return config{}, fmt.Errorf("--config-dir cannot be empty")
 	}
@@ -190,27 +194,19 @@ func parseConfig(i *args.Input) (config, error) {
 	}
 
 	defaultVerificationKeyPath := consentconfig.BuildPaths(roots).VerificationKeyFile
-	verificationKeyPath := optionOrDefault(i, "verification-key", defaultVerificationKeyPath)
+	verificationKeyPath := i.GetParameterOr("verification-key", defaultVerificationKeyPath)
 	if strings.TrimSpace(verificationKeyPath) == "" {
 		return config{}, fmt.Errorf("--verification-key cannot be empty")
 	}
 
 	return config{
 		AuthURL:             authURL,
-		IssuerDomain:        issuerDomain,
+		AuthorityDomain:     authorityDomain,
 		Port:                port,
 		Service:             serviceName,
 		Audience:            audience,
 		VerificationKeyPath: verificationKeyPath,
 	}, nil
-}
-
-func optionOrDefault(i *args.Input, optionName string, defaultValue string) string {
-	if param := i.GetParameter(optionName); param != nil {
-		return strings.TrimSpace(*param)
-	}
-
-	return defaultValue
 }
 
 func normalizeAuthURL(raw string) (string, error) {
@@ -227,22 +223,6 @@ func normalizeAuthURL(raw string) (string, error) {
 	}
 
 	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), nil
-}
-
-func validatePort(port string) error {
-	if strings.TrimSpace(port) == "" {
-		return fmt.Errorf("--port cannot be empty")
-	}
-
-	portNumber, err := strconv.Atoi(port)
-	if err != nil {
-		return fmt.Errorf("invalid --port %q: expected an integer", port)
-	}
-	if portNumber < 1 || portNumber > 65535 {
-		return fmt.Errorf("invalid --port %q: out of range", port)
-	}
-
-	return nil
 }
 
 func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
@@ -286,10 +266,10 @@ func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
 	}
 }
 
-func exampleHandler(c client.Verifier, cfg config) http.HandlerFunc {
+func exampleHandler(c *client.Client, serviceName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page := examplePageData{
-			Service:       cfg.Service,
+			Service:       serviceName,
 			CurrentOrigin: requestOrigin(r),
 			CurrentHost:   r.Host,
 		}
@@ -303,7 +283,7 @@ func exampleHandler(c client.Verifier, cfg config) http.HandlerFunc {
 
 		if accessToken != nil {
 			page.Authenticated = true
-			page.Handle = fetchProfileHandle(r, cfg.AuthURL, accessToken.Encoded())
+			page.Handle = fetchProfileHandle(c, accessToken.Encoded())
 			page.CSRF = csrf
 			page.Scopes = strings.Join(accessToken.Scopes(), ", ")
 			page.Subject = accessToken.Subject()
@@ -325,49 +305,35 @@ func requestOrigin(r *http.Request) string {
 	return scheme + "://" + r.Host
 }
 
-func cookiePresent(r *http.Request, name string) bool {
+func cookiePresent(
+	r *http.Request,
+	name string,
+) bool {
 	_, err := r.Cookie(name)
 	return err == nil
 }
 
-func fetchProfileHandle(r *http.Request, authURL string, accessToken string) string {
-	request, err := http.NewRequest(http.MethodGet, authURL+"/api/v1/me", nil)
-	if err != nil {
-		log.Printf("failed to create /api/v1/me request: %v", err)
-		return ""
-	}
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-
-	response, err := http.DefaultClient.Do(request)
+func fetchProfileHandle(
+	authClient *client.Client,
+	accessToken string,
+) string {
+	me, err := authClient.FetchMe(accessToken)
 	if err != nil {
 		log.Printf("failed to call /api/v1/me: %v", err)
 		return ""
 	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		log.Printf("/api/v1/me returned status %d", response.StatusCode)
+	if me.Profile == nil {
 		return ""
 	}
-
-	var body struct {
-		Data struct {
-			Profile *struct {
-				Handle string `json:"handle"`
-			} `json:"profile"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		log.Printf("failed to decode /api/v1/me response: %v", err)
-		return ""
-	}
-	if body.Data.Profile == nil {
-		return ""
-	}
-	return body.Data.Profile.Handle
+	return me.Profile.Handle
 }
 
-func decodePublicKey(bytes []byte) (*ecdsa.PublicKey, error) {
+func decodePublicKey(
+	bytes []byte,
+) (
+	*ecdsa.PublicKey,
+	error,
+) {
 	parsedKey, err := x509.ParsePKIXPublicKey(bytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ecdsa verification key from DER: %w", err)

@@ -96,7 +96,7 @@ func (s *Service) IssueAuthorizationCodeRedirect(subject, serviceName string, re
 
 	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
 		subject,
-		[]string{serviceDef.Audience},
+		[]string{serviceDef.Audience, s.consentAPIAudience},
 		requestedScopes,
 		10*time.Second,
 	)

@@ -32,9 +32,9 @@ var runtimeOptions = []args.Option{
 		Help: "server public URL",
 	},
 	{
-		Long: "issuer-domain",
+		Long: "authority-domain",
 		Type: args.OptionTypeParameter,
-		Help: "JWT issuer domain",
+		Help: "consent authority domain",
 	},
 	{
 		Long: "port",
@@ -98,9 +98,9 @@ func resolveOverrides(
 		overrides.PublicURL = &trimmed
 	}
 
-	if value := i.GetParameter("issuer-domain"); value != nil {
+	if value := i.GetParameter("authority-domain"); value != nil {
 		trimmed := strings.TrimSpace(*value)
-		overrides.IssuerDomain = &trimmed
+		overrides.AuthorityDomain = &trimmed
 	}
 
 	if value := i.GetParameter("port"); value != nil {
