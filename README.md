@@ -148,7 +148,7 @@ make run-local
 
 `make init` builds the binary, generates baseline config and secrets under `./config`, initializes mutable runtime state under `./data`, and stores a matching local operator environment with `consent env create`. The verification key is written to `./config/secrets/verification_key.der`.
 
-The generated `./config/config.yaml` looks like this for a local dev setup:
+The generated `./config/config.yaml` uses production defaults. `make init` passes `--dev-mode`, so it looks like this for a local dev setup:
 
 ```yaml
 server:
@@ -177,6 +177,39 @@ Useful config commands:
 ```sh
 consent config show --config-dir ./config
 consent config show --resolved --config-dir ./config --data-dir ./data
+```
+
+Create a local user through the API with:
+
+```sh
+consent api register alice password123 --config-dir ./config
+```
+
+### Mock Deployment
+
+Run a full local mock deployment with one real consent server login flow and three mock browser clients:
+
+```sh
+make mock-deployment
+```
+
+This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server to seed a demo user and register three mock services through the API, and then starts:
+
+- `http://localhost:9000` for the consent server
+- `http://mock1.localhost:9001`
+- `http://mock2.localhost:9002`
+- `http://mock3.localhost:9003`
+
+The default demo credentials are:
+
+```text
+alice / alice123
+```
+
+To prepare the mock environment without starting the long-running processes, use:
+
+```sh
+make mock-deployment-init
 ```
 
 ## Interface Design

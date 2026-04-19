@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -125,11 +126,15 @@ var root = &args.Command{
 		tkValidator := tokens.InitClient(opts)
 		authClient := client.Init(tkValidator, cfg.AuthURL)
 		authClient.EnableDevelopmentMode()
+		if verbose {
+			authClient.SetLogLevel(client.LogLevelDebug)
+		}
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", homeHandler(authClient, cfg))
 		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg))
 		mux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
+		mux.HandleFunc("/logout", authClient.HandleLogout())
 
 		if verbose {
 			log.Printf("Listening on :%s", cfg.Port)
@@ -244,36 +249,85 @@ func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
 	loginURL := fmt.Sprintf("%s/authorize?service=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Service))
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		page := homePageData{
+			Service:              cfg.Service,
+			Audience:             cfg.Audience,
+			AuthURL:              cfg.AuthURL,
+			CurrentOrigin:        requestOrigin(r),
+			CurrentHost:          r.Host,
+			LoginURL:             loginURL,
+			AccessCookiePresent:  cookiePresent(r, "accessToken"),
+			RefreshCookiePresent: cookiePresent(r, "refreshToken"),
+		}
+
 		accessToken, csrf, err := c.VerifyAuthorizationGetCSRF(w, r)
 		if err != nil {
 			if !errors.Is(err, client.ErrTokenAbsent) {
 				log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
+				page.AuthError = err.Error()
 			}
 		}
 
 		if accessToken != nil {
-			w.Write(fmt.Appendf(nil, homeAuth, csrf))
+			page.Authenticated = true
+			page.CSRF = csrf
+			page.Scopes = strings.Join(accessToken.Scopes(), ", ")
+			page.Subject = accessToken.Subject()
 		} else {
-			w.Write(fmt.Appendf(nil, homeUnauth, loginURL))
+			page.AuthHint = "Complete login in Consent and this page should refresh into the signed-in state."
+			if !page.AccessCookiePresent && !page.RefreshCookiePresent {
+				page.AuthHint = "No auth cookies are present yet. If you just completed login, the callback may not have stored cookies for this host."
+			}
+		}
+
+		if err := homeTemplate.Execute(w, page); err != nil {
+			log.Printf("%s: failed to render home page: %v", r.RequestURI, err)
 		}
 	}
 }
 
 func exampleHandler(c client.Verifier, cfg config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		page := examplePageData{
+			Service:       cfg.Service,
+			CurrentOrigin: requestOrigin(r),
+			CurrentHost:   r.Host,
+		}
+
 		csrf := r.URL.Query().Get("csrf")
 		accessToken, csrf, err := c.VerifyAuthorizationCheckCSRF(w, r, csrf)
 		if err != nil {
 			log.Printf("%s: failed to verify authorization: %v", r.RequestURI, err)
+			page.AuthError = err.Error()
 		}
 
 		if accessToken != nil {
-			handle := fetchProfileHandle(r, cfg.AuthURL, accessToken.Encoded())
-			w.Write(fmt.Appendf(nil, exampleAuth, handle, csrf))
+			page.Authenticated = true
+			page.Handle = fetchProfileHandle(r, cfg.AuthURL, accessToken.Encoded())
+			page.CSRF = csrf
+			page.Scopes = strings.Join(accessToken.Scopes(), ", ")
+			page.Subject = accessToken.Subject()
 		} else {
-			w.Write([]byte(exampleUnauth))
+			page.AuthHint = "This route needs a valid session and matching CSRF token from the home page."
+		}
+
+		if err := exampleTemplate.Execute(w, page); err != nil {
+			log.Printf("%s: failed to render example page: %v", r.RequestURI, err)
 		}
 	}
+}
+
+func requestOrigin(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+func cookiePresent(r *http.Request, name string) bool {
+	_, err := r.Cookie(name)
+	return err == nil
 }
 
 func fetchProfileHandle(r *http.Request, authURL string, accessToken string) string {
@@ -327,34 +381,177 @@ func decodePublicKey(bytes []byte) (*ecdsa.PublicKey, error) {
 	return ecdsaKey, nil
 }
 
-const homeAuth string = `<!DOCTYPE html>
-<html>
-<body>
-<a href="/api/example?csrf=%s">Example API Call</a>
-</body>
-</html>`
+type homePageData struct {
+	Authenticated        bool
+	Service              string
+	Audience             string
+	AuthURL              string
+	CurrentOrigin        string
+	CurrentHost          string
+	LoginURL             string
+	LogoutURL            string
+	CSRF                 string
+	Subject              string
+	Scopes               string
+	AuthHint             string
+	AuthError            string
+	AccessCookiePresent  bool
+	RefreshCookiePresent bool
+}
 
-const homeUnauth string = `<!DOCTYPE html>
-<html>
-<body>
-<a href="%s">Log In with Pollinator</a>
-</body>
-</html>`
+type examplePageData struct {
+	Authenticated bool
+	Service       string
+	CurrentOrigin string
+	CurrentHost   string
+	Handle        string
+	Subject       string
+	Scopes        string
+	CSRF          string
+	AuthHint      string
+	AuthError     string
+}
 
-const exampleAuth string = `<!DOCTYPE html>
-<html>
+var homeTemplate = template.Must(template.New("home").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Mock Client</title>
+	<style>
+		* { box-sizing: border-box; }
+		:root { color-scheme: light; font-family: sans-serif; font-size: 12pt; }
+		body { margin: 0; background: #f7f1fb; color: #22132f; }
+		header { background: #7521b0; color: #fff; padding: 1.25rem 1rem; }
+		header h1, header p { margin: 0; }
+		header p { margin-top: 0.35rem; opacity: 0.9; }
+		main { max-width: 760px; margin: 0 auto; padding: 1rem; }
+		.panel { background: #fff; border: 1px solid #e1d2ee; border-radius: 16px; padding: 1rem; margin: 1rem 0; box-shadow: 0 10px 30px rgba(117, 33, 176, 0.08); }
+		h2, h3 { margin-top: 0; color: #7521b0; }
+		p { line-height: 1.5; }
+		.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem; }
+		.button { display: inline-block; padding: 0.8rem 1rem; border-radius: 999px; text-decoration: none; font-weight: 700; }
+		.button-primary { background: #7521b0; color: #fff; }
+		.button-secondary { background: #f4ecfa; color: #7521b0; }
+		.grid { display: grid; gap: 0.75rem; }
+		@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+		dl { margin: 0; }
+		dt { font-size: 0.9rem; color: #694e80; }
+		dd { margin: 0.2rem 0 0; font-family: monospace; overflow-wrap: anywhere; }
+		.status { padding: 0.9rem 1rem; border-radius: 12px; }
+		.status-ok { background: #eef9f0; color: #235d32; }
+		.status-warn { background: #fff5e8; color: #85511c; }
+		.status-error { background: #fdecec; color: #8f2332; }
+		code { font-family: monospace; }
+	</style>
+</head>
 <body>
-	<p>Authenticated through Consent.</p>
-	<p>Profile handle: %s</p>
-	<form>
-		<input hidden value="%s"/>
-	</form>
-</body>
-</html>`
+	<header>
+		<h1>Mock Client Playground</h1>
+		<p>Development UI for checking Consent browser login and token cookies.</p>
+	</header>
+	<main>
+		<section class="panel">
+			<h2>{{if .Authenticated}}Signed In{{else}}Signed Out{{end}}</h2>
+			{{if .Authenticated}}
+				<p class="status status-ok">This host has both a valid session and a refresh token. The page verified your session server-side.</p>
+			{{else if .AuthError}}
+				<p class="status status-error">The client received cookies or tokens it could not validate: <code>{{.AuthError}}</code></p>
+			{{else}}
+				<p class="status status-warn">{{.AuthHint}}</p>
+			{{end}}
+			<div class="actions">
+				{{if .Authenticated}}
+					<a class="button button-primary" href="/api/example?csrf={{.CSRF}}">Call Example API</a>
+					<a class="button button-secondary" href="/logout?csrf={{.CSRF}}">Log Out</a>
+				{{else}}
+					<a class="button button-primary" href="{{.LoginURL}}">Log In with Pollinator</a>
+				{{end}}
+			</div>
+		</section>
 
-const exampleUnauth string = `<!DOCTYPE html>
-<html>
-<body>
-<p>You are not logged in.</p>
+		<section class="panel">
+			<h3>Service Details</h3>
+			<div class="grid">
+				<dl><dt>Service</dt><dd>{{.Service}}</dd></dl>
+				<dl><dt>Audience</dt><dd>{{.Audience}}</dd></dl>
+				<dl><dt>Consent Server</dt><dd>{{.AuthURL}}</dd></dl>
+				<dl><dt>Current Origin</dt><dd>{{.CurrentOrigin}}</dd></dl>
+				<dl><dt>Current Host</dt><dd>{{.CurrentHost}}</dd></dl>
+				{{if .Authenticated}}
+					<dl><dt>Opaque Subject</dt><dd>{{.Subject}}</dd></dl>
+					<dl><dt>Granted Scopes</dt><dd>{{.Scopes}}</dd></dl>
+				{{end}}
+			</div>
+		</section>
+
+		<section class="panel">
+			<h3>Cookie Diagnostics</h3>
+			<p>This view checks for incoming HTTP-only token cookies before it asks the shared client library to validate them.</p>
+			<div class="grid">
+				<dl><dt>accessToken cookie</dt><dd>{{if .AccessCookiePresent}}present{{else}}missing{{end}}</dd></dl>
+				<dl><dt>refreshToken cookie</dt><dd>{{if .RefreshCookiePresent}}present{{else}}missing{{end}}</dd></dl>
+			</div>
+			<p>If you complete Consent login but still return here with both cookies missing, the browser likely did not store cookies for this host.</p>
+		</section>
+
+		<section class="panel">
+			<h3>Host Notes</h3>
+			<p>Mock services are registered on specific hosts like <code>mock1.localhost:9001</code>. The callback and the page you revisit need to use the same host, or the browser will treat them as separate cookie jars.</p>
+		</section>
+	</main>
 </body>
-</html>`
+</html>`))
+
+var exampleTemplate = template.Must(template.New("example").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Mock Client API Result</title>
+	<style>
+		* { box-sizing: border-box; }
+		:root { font-family: sans-serif; font-size: 12pt; }
+		body { margin: 0; background: #f7f1fb; color: #22132f; }
+		main { max-width: 760px; margin: 0 auto; padding: 1rem; }
+		.panel { background: #fff; border: 1px solid #e1d2ee; border-radius: 16px; padding: 1rem; margin: 1rem 0; box-shadow: 0 10px 30px rgba(117, 33, 176, 0.08); }
+		h1, h2 { color: #7521b0; margin-top: 0; }
+		a { color: #7521b0; text-underline-offset: 0.2em; }
+		dl { margin: 0; }
+		dt { font-size: 0.9rem; color: #694e80; }
+		dd { margin: 0.2rem 0 0.9rem; font-family: monospace; overflow-wrap: anywhere; }
+		.status { padding: 0.9rem 1rem; border-radius: 12px; }
+		.status-ok { background: #eef9f0; color: #235d32; }
+		.status-error { background: #fdecec; color: #8f2332; }
+		.status-warn { background: #fff5e8; color: #85511c; }
+		code { font-family: monospace; }
+	</style>
+</head>
+<body>
+	<main>
+		<section class="panel">
+			<h1>Example API Result</h1>
+			{{if .Authenticated}}
+				<p class="status status-ok">Authenticated through Consent and successfully reached the example route.</p>
+			{{else if .AuthError}}
+				<p class="status status-error">Authorization failed: <code>{{.AuthError}}</code></p>
+			{{else}}
+				<p class="status status-warn">{{.AuthHint}}</p>
+			{{end}}
+			<p><a href="/">Back to Home</a>{{if .Authenticated}} | <a href="/api/example?csrf={{.CSRF}}">Repeat Request</a>{{end}}</p>
+		</section>
+		<section class="panel">
+			<h2>Details</h2>
+			<dl><dt>Service</dt><dd>{{.Service}}</dd></dl>
+			<dl><dt>Current Origin</dt><dd>{{.CurrentOrigin}}</dd></dl>
+			<dl><dt>Current Host</dt><dd>{{.CurrentHost}}</dd></dl>
+			{{if .Authenticated}}
+				<dl><dt>Profile Handle</dt><dd>{{if .Handle}}{{.Handle}}{{else}}profile scope granted but no handle was returned{{end}}</dd></dl>
+				<dl><dt>Opaque Subject</dt><dd>{{.Subject}}</dd></dl>
+				<dl><dt>Granted Scopes</dt><dd>{{.Scopes}}</dd></dl>
+				<dl><dt>Current CSRF</dt><dd>{{.CSRF}}</dd></dl>
+			{{end}}
+		</section>
+	</main>
+</body>
+</html>`))

@@ -2,6 +2,7 @@
 /config/
 /data/
 /docs/
+/mock/
 
 # Generated version files
 cmd/*/version_generated.go

@@ -11,6 +11,7 @@ var apiCmd = &args.Command{
 	Help:    "API utilities",
 	Options: wire.ClientOptions,
 	Subcommands: []*args.Command{
+		registerCmd,
 		servicesCmd,
 		keys.Command(DEFAULT_CFG_DIR, "/api/v1/admin"),
 	},

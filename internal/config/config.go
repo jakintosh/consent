@@ -60,7 +60,7 @@ func Default() Config {
 			PublicURL:    "http://localhost:9001",
 			IssuerDomain: "localhost",
 			Port:         9001,
-			DevMode:      true,
+			DevMode:      false,
 		},
 	}
 }

@@ -156,6 +156,25 @@ func TestVerifyAuthorizationCheckCSRF_MissingRefreshIsAbsent(t *testing.T) {
 	}
 }
 
+func TestSetTokenCookies_UsesLaxSameSite(t *testing.T) {
+	c := testClient(t)
+	accessToken, refreshToken := issueTestTokens(t, "alice", "app.test")
+	rr := httptest.NewRecorder()
+
+	c.SetTokenCookies(rr, accessToken, refreshToken)
+
+	assertCookieSameSiteLax(t, rr.Result().Cookies())
+}
+
+func TestClearTokenCookies_UsesLaxSameSite(t *testing.T) {
+	c := testClient(t)
+	rr := httptest.NewRecorder()
+
+	c.ClearTokenCookies(rr)
+
+	assertCookieSameSiteLax(t, rr.Result().Cookies())
+}
+
 var (
 	logoutCalled bool
 	revokedToken string
@@ -243,6 +262,44 @@ func assertCookiesCleared(t *testing.T, rr *httptest.ResponseRecorder) {
 	if !haveAccess || !haveRefresh {
 		t.Fatalf("expected both token cookies to be cleared")
 	}
+}
+
+func assertCookieSameSiteLax(t *testing.T, cookies []*http.Cookie) {
+	t.Helper()
+
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case "accessToken", "refreshToken":
+			if cookie.SameSite != http.SameSiteLaxMode {
+				t.Fatalf("cookie %q SameSite = %v, want %v", cookie.Name, cookie.SameSite, http.SameSiteLaxMode)
+			}
+		}
+	}
+}
+
+func issueTestTokens(t *testing.T, subject string, audience string) (*AccessToken, *RefreshToken) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	issuer, _ := tokens.InitServer(tokens.ServerOptions{
+		SigningKey:   key,
+		IssuerDomain: "consent.test",
+	})
+
+	accessToken, err := issuer.IssueAccessToken(subject, []string{audience}, nil, time.Hour)
+	if err != nil {
+		t.Fatalf("IssueAccessToken failed: %v", err)
+	}
+	refreshToken, err := issuer.IssueRefreshToken(subject, []string{audience}, nil, time.Hour)
+	if err != nil {
+		t.Fatalf("IssueRefreshToken failed: %v", err)
+	}
+
+	return accessToken, refreshToken
 }
 
 func testClient(t *testing.T) *Client {

@@ -354,9 +354,9 @@ func (c *Client) RefreshTokens(
 // SetTokenCookies sets HTTP-only cookies for the access and refresh tokens.
 //
 // In production mode (default), cookies are configured with
-// SameSite=Strict, Secure=true, and HttpOnly=true.
+// SameSite=Lax, Secure=true, and HttpOnly=true.
 // In development mode (EnableDevelopmentMode), cookies are configured with
-// SameSite=Strict, Secure=false, and HttpOnly=true to support local HTTP.
+// SameSite=Lax, Secure=false, and HttpOnly=true to support local HTTP.
 //
 // Call this after successful login or token refresh to store tokens in the client's browser.
 func (c *Client) SetTokenCookies(
@@ -374,7 +374,7 @@ func (c *Client) SetTokenCookies(
 		Path:     "/",
 		Value:    accessToken.Encoded(),
 		MaxAge:   int(accessMaxAge),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   secureCookie,
 		HttpOnly: true,
 	}
@@ -383,7 +383,7 @@ func (c *Client) SetTokenCookies(
 		Path:     "/",
 		Value:    refreshToken.Encoded(),
 		MaxAge:   int(refreshMaxAge),
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   secureCookie,
 		HttpOnly: true,
 	}
@@ -405,7 +405,7 @@ func (c *Client) ClearTokenCookies(
 		Name:     "accessToken",
 		Path:     "/",
 		MaxAge:   -1,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   secureCookie,
 		HttpOnly: true,
 	}
@@ -413,7 +413,7 @@ func (c *Client) ClearTokenCookies(
 		Name:     "refreshToken",
 		Path:     "/",
 		MaxAge:   -1,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Secure:   secureCookie,
 		HttpOnly: true,
 	}
