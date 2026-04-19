@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-func (s *SQLStore) ListGrantedScopeNames(subject, service string) ([]string, error) {
-	rows, err := s.db.Query(`
+func (db *DB) ListGrantedScopeNames(subject, service string) ([]string, error) {
+	rows, err := db.Conn.Query(`
 		SELECT g.scope_name
 		FROM "grant" g
 		JOIN identity i ON g.owner = i.id
@@ -35,12 +35,12 @@ func (s *SQLStore) ListGrantedScopeNames(subject, service string) ([]string, err
 	return scopes, nil
 }
 
-func (s *SQLStore) InsertGrants(subject, service string, scopes []string) error {
+func (db *DB) InsertGrants(subject, service string, scopes []string) error {
 	if len(scopes) == 0 {
 		return nil
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := db.Conn.Begin()
 	if err != nil {
 		return fmt.Errorf("couldn't begin grant insert transaction: %v", err)
 	}

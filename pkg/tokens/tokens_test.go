@@ -51,10 +51,11 @@ func newTestServerWithKey(
 	domain string,
 ) (tokens.Issuer, tokens.Validator) {
 	t.Helper()
-	return tokens.InitServer(tokens.ServerOptions{
+	opts := tokens.ServerOptions{
 		SigningKey:   key,
 		IssuerDomain: domain,
-	})
+	}
+	return tokens.InitServer(opts)
 }
 
 func TestInitServer(t *testing.T) {
@@ -73,7 +74,12 @@ func TestInitClient(t *testing.T) {
 	key := getSharedTestKey(t)
 
 	// client initialization returns validator
-	validator := tokens.InitClient(&key.PublicKey, "test.domain", "test-audience")
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &key.PublicKey,
+		IssuerDomain:    "test.domain",
+		ValidAudience:   "test-audience",
+	}
+	validator := tokens.InitClient(clientOpts)
 	if validator == nil {
 		t.Error("InitClient returned nil validator")
 	}
@@ -139,7 +145,12 @@ func TestToken_CrossValidation(t *testing.T) {
 	key := getSharedTestKey(t)
 	// issue token from server
 	issuer, _ := newTestServerWithKey(t, key, "consent.server")
-	clientValidator := tokens.InitClient(&key.PublicKey, "consent.server", "my-app")
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &key.PublicKey,
+		IssuerDomain:    "consent.server",
+		ValidAudience:   "my-app",
+	}
+	clientValidator := tokens.InitClient(clientOpts)
 
 	token, err := issuer.IssueAccessToken("user", []string{"my-app"}, nil, time.Hour)
 	if err != nil {

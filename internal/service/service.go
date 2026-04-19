@@ -5,12 +5,12 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/keys"
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -51,13 +51,20 @@ func (m PasswordMode) Cost() int {
 	}
 }
 
-// ServiceOptions configures Service initialization.
-type ServiceOptions struct {
+// Options configures Service initialization.
+type Options struct {
 	Store           Store
+	KeysStore       keys.Store
 	TokenServerOpts tokens.ServerOptions
 	PasswordMode    PasswordMode
-	KeysOptions     keys.Options
-	PublicURL       string
+}
+
+// InitOptions configures bootstrap initialization for service state.
+type InitOptions struct {
+	Store          Store
+	KeysStore      keys.Store
+	PublicURL      string
+	BootstrapToken string
 }
 
 // Service coordinates authentication, registration, and token operations.
@@ -71,7 +78,7 @@ type Service struct {
 }
 
 func New(
-	options ServiceOptions,
+	options Options,
 ) (
 	*Service,
 	error,
@@ -80,27 +87,16 @@ func New(
 		return nil, errors.New("service: store required")
 	}
 
-	if options.KeysOptions.Store == nil {
-		return nil, errors.New("service: keys options store required")
+	if options.KeysStore == nil {
+		return nil, errors.New("service: keys store required")
 	}
 
-	keysSvc, err := keys.New(options.KeysOptions)
+	keysSvc, err := NewKeysService(options.KeysStore)
 	if err != nil {
 		return nil, err
 	}
 
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
-
-	internalService, err := BuildInternalServiceDefinition(options.PublicURL)
-	if err != nil {
-		return nil, fmt.Errorf("service: failed to build internal service: %w", err)
-	}
-
-	systemServices := []ServiceDefinition{internalService}
-	err = options.Store.UpsertSystemServices(systemServices)
-	if err != nil {
-		return nil, fmt.Errorf("service: failed to initialize system services: %v", err)
-	}
 
 	return &Service{
 		passwordMode:   options.PasswordMode,
@@ -111,6 +107,20 @@ func New(
 	}, nil
 }
 
+func Init(
+	options InitOptions,
+) error {
+	if err := EnsureSystemServices(options.Store, options.PublicURL); err != nil {
+		return err
+	}
+
+	if err := InitKeys(options.KeysStore, options.BootstrapToken); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Service) Router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login", s.handleLogin)
@@ -119,14 +129,15 @@ func (s *Service) Router() http.Handler {
 	mux.HandleFunc("POST /register", s.handleRegister)
 	mux.HandleFunc("GET /me", s.handleMe)
 
-	auth := s.keys.WithAuth
-	mux.HandleFunc("GET /services", auth(s.handleListServices))
-	mux.HandleFunc("POST /services", auth(s.handleCreateService))
-	mux.HandleFunc("GET /services/{name}", auth(s.handleGetService))
-	mux.HandleFunc("PUT /services/{name}", auth(s.handleUpdateService))
-	mux.HandleFunc("DELETE /services/{name}", auth(s.handleDeleteService))
+	mux.HandleFunc("GET /services", s.keys.WithAuthFunc(s.handleListServices, &PermissionRead))
+	mux.HandleFunc("POST /services", s.keys.WithAuthFunc(s.handleCreateService, &PermissionWrite))
+	mux.HandleFunc("GET /services/{name}", s.keys.WithAuthFunc(s.handleGetService, &PermissionRead))
+	mux.HandleFunc("PUT /services/{name}", s.keys.WithAuthFunc(s.handleUpdateService, &PermissionWrite))
+	mux.HandleFunc("DELETE /services/{name}", s.keys.WithAuthFunc(s.handleDeleteService, &PermissionWrite))
 
-	s.keys.Router(mux, "", auth)
+	admin := http.NewServeMux()
+	wire.Subrouter(admin, "/keys", s.keys.WithAuth(s.keys.Handler(), &PermissionAdmin))
+	wire.Subrouter(mux, "/admin", admin)
 
 	return mux
 }

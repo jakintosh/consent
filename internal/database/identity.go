@@ -2,12 +2,12 @@ package database
 
 import "git.sr.ht/~jakintosh/consent/internal/service"
 
-func (s *SQLStore) InsertIdentity(
+func (db *DB) InsertIdentity(
 	subject string,
 	handle string,
 	secret []byte,
 ) error {
-	_, err := s.db.Exec(`
+	_, err := db.Conn.Exec(`
 		INSERT INTO identity (subject, handle, secret)
 		VALUES (?1, ?2, ?3);`,
 		subject,
@@ -17,13 +17,13 @@ func (s *SQLStore) InsertIdentity(
 	return err
 }
 
-func (s *SQLStore) GetIdentityByHandle(
+func (db *DB) GetIdentityByHandle(
 	handle string,
 ) (
 	service.IdentityRecord,
 	error,
 ) {
-	row := s.db.QueryRow(`
+	row := db.Conn.QueryRow(`
 		SELECT subject, handle, secret
 		FROM identity i
 		WHERE i.handle=?1;`,
@@ -35,13 +35,13 @@ func (s *SQLStore) GetIdentityByHandle(
 	return identity, err
 }
 
-func (s *SQLStore) GetIdentityBySubject(
+func (db *DB) GetIdentityBySubject(
 	subject string,
 ) (
 	service.IdentityRecord,
 	error,
 ) {
-	row := s.db.QueryRow(`
+	row := db.Conn.QueryRow(`
 		SELECT subject, handle, secret
 		FROM identity i
 		WHERE i.subject=?1;`,
@@ -53,13 +53,13 @@ func (s *SQLStore) GetIdentityBySubject(
 	return identity, err
 }
 
-func (s *SQLStore) GetSecret(
+func (db *DB) GetSecret(
 	handle string,
 ) (
 	[]byte,
 	error,
 ) {
-	identity, err := s.GetIdentityByHandle(handle)
+	identity, err := db.GetIdentityByHandle(handle)
 	if err != nil {
 		return nil, err
 	}

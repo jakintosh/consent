@@ -51,11 +51,12 @@
 // consent server:
 //
 //	// Initialize with the consent server's public key
-//	validator := tokens.InitClient(
-//	    publicKey,              // ECDSA public key
-//	    "consent.example.com",  // expected issuer
-//	    "app.example.com",      // your application's audience
-//	)
+//	clientOpts := tokens.ClientOptions{
+//	    VerificationKey: publicKey,             // ECDSA public key
+//	    IssuerDomain:    "consent.example.com", // expected issuer
+//	    ValidAudience:   "app.example.com",     // your application's audience
+//	}
+//	validator := tokens.InitClient(clientOpts)
 //
 //	// Validate an access token from a cookie or header
 //	token := &tokens.AccessToken{}

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -39,7 +38,7 @@ func getSharedSigningKey() *ecdsa.PrivateKey {
 
 // TestEnv provides all dependencies needed for testing
 type TestEnv struct {
-	DB             *database.SQLStore
+	DB             *database.DB
 	Service        *service.Service
 	Router         http.Handler
 	TokenIssuer    tokens.Issuer
@@ -53,9 +52,13 @@ func (env *TestEnv) APIKeyHeader(t *testing.T) wire.TestHeader {
 }
 
 // SetupTestDB creates an in-memory SQLite database with cleanup.
-func SetupTestDB(t *testing.T) *database.SQLStore {
+func SetupTestDB(t *testing.T) *database.DB {
 	t.Helper()
-	db, err := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+
+	dbOpts := database.Options{
+		Path: ":memory:",
+	}
+	db, err := database.Open(dbOpts)
 	if err != nil {
 		t.Fatalf("failed to setup test database: %v", err)
 	}
@@ -89,15 +92,21 @@ func SetupTestEnv(
 	issuer, validator := tokens.InitServer(tkServerOpts)
 
 	// create service
-	serviceOpts := service.ServiceOptions{
+	initOpts := service.InitOptions{
+		Store:          db,
+		KeysStore:      db.KeysStore,
+		PublicURL:      "https://consent.test",
+		BootstrapToken: testBootstrapAPIKey,
+	}
+	if err := service.Init(initOpts); err != nil {
+		t.Fatalf("failed to initialize service state: %v", err)
+	}
+
+	serviceOpts := service.Options{
 		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
-		PublicURL:       "https://consent.test",
+		KeysStore:       db.KeysStore,
 		TokenServerOpts: tkServerOpts,
-		KeysOptions: keys.Options{
-			Store:          db.KeysStore,
-			BootstrapToken: testBootstrapAPIKey,
-		},
 	}
 	svc, err := service.New(serviceOpts)
 	if err != nil {

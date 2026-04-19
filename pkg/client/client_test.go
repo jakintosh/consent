@@ -204,17 +204,23 @@ func setupLogoutTestClient(
 		t.Fatalf("GenerateKey failed: %v", err)
 	}
 
-	issuer, _ := tokens.InitServer(tokens.ServerOptions{
+	opts := tokens.ServerOptions{
 		SigningKey:   key,
 		IssuerDomain: "consent.test",
-	})
+	}
+	issuer, _ := tokens.InitServer(opts)
 
 	refreshToken, err := issuer.IssueRefreshToken("alice", []string{"app.test"}, nil, time.Hour)
 	if err != nil {
 		t.Fatalf("IssueRefreshToken failed: %v", err)
 	}
 
-	validator := tokens.InitClient(&key.PublicKey, "consent.test", "app.test")
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &key.PublicKey,
+		IssuerDomain:    "consent.test",
+		ValidAudience:   "app.test",
+	}
+	validator := tokens.InitClient(clientOpts)
 	return refreshToken, Init(validator, server.URL)
 }
 
@@ -247,6 +253,11 @@ func testClient(t *testing.T) *Client {
 		t.Fatalf("GenerateKey failed: %v", err)
 	}
 
-	validator := tokens.InitClient(&key.PublicKey, "consent.test", "app.test")
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &key.PublicKey,
+		IssuerDomain:    "consent.test",
+		ValidAudience:   "app.test",
+	}
+	validator := tokens.InitClient(clientOpts)
 	return Init(validator, "https://consent.test")
 }

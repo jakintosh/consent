@@ -23,11 +23,11 @@ func NewTestEnv(
 	domain string,
 	audience string,
 ) *TestEnv {
-	key := SharedTestKey()
-	issuer, validator := tokens.InitServer(tokens.ServerOptions{
-		SigningKey:   key,
+	opts := tokens.ServerOptions{
+		SigningKey:   SharedTestKey(),
 		IssuerDomain: domain,
-	})
+	}
+	issuer, validator := tokens.InitServer(opts)
 	return &TestEnv{
 		Issuer:    issuer,
 		Validator: validator,
@@ -44,10 +44,12 @@ func NewTestEnvWithKey(
 	domain string,
 	audience string,
 ) *TestEnv {
-	issuer, validator := tokens.InitServer(tokens.ServerOptions{
+	opts := tokens.ServerOptions{
 		SigningKey:   key,
 		IssuerDomain: domain,
-	})
+	}
+	issuer, validator := tokens.InitServer(opts)
+
 	return &TestEnv{
 		Issuer:    issuer,
 		Validator: validator,

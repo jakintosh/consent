@@ -47,6 +47,23 @@ func BuildInternalServiceDefinition(publicUrl string) (
 	}, nil
 }
 
+func EnsureSystemServices(store Store, publicURL string) error {
+	if store == nil {
+		return fmt.Errorf("service: store required")
+	}
+
+	internalService, err := BuildInternalServiceDefinition(publicURL)
+	if err != nil {
+		return fmt.Errorf("service: failed to build internal service: %w", err)
+	}
+
+	if err := store.UpsertSystemServices([]ServiceDefinition{internalService}); err != nil {
+		return fmt.Errorf("service: failed to initialize system services: %w", err)
+	}
+
+	return nil
+}
+
 type UpdateServiceRequest struct {
 	Display  *string `json:"display,omitempty"`
 	Audience *string `json:"audience,omitempty"`

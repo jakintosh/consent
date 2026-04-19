@@ -17,11 +17,12 @@
 //	)
 //
 //	// Get the consent server's public key and create a validator
-//	validator := tokens.InitClient(
-//	    publicKey,              // Consent server's ECDSA public key
-//	    "consent.example.com",  // Consent server domain
-//	    "myapp.example.com",    // Your app's identifier
-//	)
+//	clientOpts := tokens.ClientOptions{
+//	    VerificationKey: publicKey,             // Consent server's ECDSA public key
+//	    IssuerDomain:    "consent.example.com", // Consent server domain
+//	    ValidAudience:   "myapp.example.com",   // Your app's identifier
+//	}
+//	validator := tokens.InitClient(clientOpts)
 //
 //	// Initialize the client
 //	authClient := client.Init(validator, "https://consent.example.com")

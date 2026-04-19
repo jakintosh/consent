@@ -7,7 +7,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestNewSQLiteStore_InMemory(t *testing.T) {
+func TestOpen_InMemory(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
@@ -17,7 +17,7 @@ func TestNewSQLiteStore_InMemory(t *testing.T) {
 	}
 }
 
-func TestNewSQLiteStore_CreatesSchema(t *testing.T) {
+func TestOpen_CreatesSchema(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
@@ -36,10 +36,13 @@ func TestNewSQLiteStore_CreatesSchema(t *testing.T) {
 	}
 }
 
-func TestSQLiteStore_Close(t *testing.T) {
+func TestOpen_Close(t *testing.T) {
 	t.Parallel()
 	// Close is called explicitly to validate success without test cleanup.
-	store, err := database.NewSQLStore(database.SQLStoreOptions{Path: ":memory:"})
+	dbOpts := database.Options{
+		Path: ":memory:",
+	}
+	store, err := database.Open(dbOpts)
 	if err != nil {
 		t.Fatalf("failed to initialize store: %v", err)
 	}
@@ -47,5 +50,36 @@ func TestSQLiteStore_Close(t *testing.T) {
 	// closing store succeeds without error
 	if err := store.Close(); err != nil {
 		t.Errorf("Close() returned error: %v", err)
+	}
+}
+
+func TestOpen_ExistingDatabaseRunsMigrationsOnce(t *testing.T) {
+	t.Parallel()
+
+	path := t.TempDir() + "/consent.sqlite"
+
+	first, err := database.Open(database.Options{Path: path})
+	if err != nil {
+		t.Fatalf("first database.Open failed: %v", err)
+	}
+	if err := first.InsertIdentity("subject-alice", "alice", []byte("secret")); err != nil {
+		t.Fatalf("InsertIdentity failed: %v", err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatalf("first Close failed: %v", err)
+	}
+
+	second, err := database.Open(database.Options{Path: path})
+	if err != nil {
+		t.Fatalf("second database.Open failed: %v", err)
+	}
+	defer second.Close()
+
+	secret, err := second.GetSecret("alice")
+	if err != nil {
+		t.Fatalf("GetSecret failed: %v", err)
+	}
+	if string(secret) != "secret" {
+		t.Fatalf("secret = %q, want %q", string(secret), "secret")
 	}
 }

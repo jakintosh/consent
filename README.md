@@ -4,7 +4,7 @@
 
 ## Core Architecture
 
-The system consists of three main components: an authentication server, a client library for backend integration, and persistent storage. The **authentication server** hosts both a web interface for user login and a RESTful API for token operations. Services register themselves through JSON configuration files that define display names, audiences, and redirect URLs, enabling dynamic service discovery without server restarts. These text files are expected to be deployed through simple tools like `rsync`, and rely on the admin to make smart choices about access and deployment. `consent` watches the service directory and updates its internal service registry whenever changes are made to the directory.
+The system consists of three main components: an authentication server, a client library for backend integration, and persistent storage. The **authentication server** hosts both a web interface for user login and a RESTful API for token operations. Core server runtime configuration lives under a config directory with a generated `config.yaml`, file-backed secrets, and operator environment metadata managed through the CLI. Mutable runtime state such as SQLite data lives under a separate data directory. Service registrations themselves are API-managed records stored in SQLite.
 
 The **client library** provides server-side functionality for backend applications, including automatic authorization code handling, token validation with automatic refresh, and built-in CSRF protection. This library runs entirely on the application backend—browsers never see cryptographic operations, only cookies and redirects.
 
@@ -28,7 +28,7 @@ The user is then redirected back to the service with this code, which the client
 
 ## Operational Benefits
 
-**Simplified Deployment**: Client applications are "pre-authorized" by virtue of having the verification key. No per-client registration process is required—just distribute the key pair and configure service definitions.
+**Simplified Deployment**: Client applications are "pre-authorized" by virtue of having the verification key. No per-client registration process is required—just distribute the key pair and register service definitions through the API.
 
 **Easier Key Management**: Single key pair per Consent instance instead of managing individual client secrets. Key rotation affects all clients uniformly.
 
@@ -65,9 +65,9 @@ The `pkg/` directory contains public packages for consuming projects:
 - **`pkg/tokens`**: JWT token utilities including `InitClient` for creating token validators with ECDSA public keys.
 - **`pkg/testing`**: Test utilities for consuming projects. Provides `TestVerifier` (implements `client.Verifier`) for testing authenticated routes without a real consent server, plus dev login handlers for local browser-based development.
 
-The `examples/` directory contains development-only reference applications:
+The `cmd/` directory also includes development-focused binaries:
 
-- **`examples/dev-client`**: A local integration playground for testing how a service integrates with consent. This example always enables client development mode and is not intended for production deployment.
+- **`cmd/dev-client`**: A local integration playground for testing how a service integrates with consent. This command always enables client development mode and is not intended for real world usage.
 
 ## Integration Guide
 
@@ -80,7 +80,12 @@ import (
 )
 
 // Initialize with consent server's public key
-validator := tokens.InitClient(publicKey, "consent.example.com", "myapp.example.com")
+clientOpts := tokens.ClientOptions{
+    VerificationKey: publicKey,
+    IssuerDomain:    "consent.example.com",
+    ValidAudience:   "myapp.example.com",
+}
+validator := tokens.InitClient(clientOpts)
 authClient := client.Init(validator, "https://consent.example.com")
 
 // Protect routes
@@ -134,20 +139,44 @@ http.HandleFunc("/dev/logout", tv.HandleDevLogout())
 
 ### Local Integration Workflow
 
-For local browser testing with multiple service identities, use the orchestrated local stack target:
+Bootstrap a local consent instance with the public CLI and Makefile:
 
 ```sh
-make local-test-run
+make init
+make run-local
 ```
 
-`local-test-run` always starts from a clean local test root, launches consent in dev mode,
-registers a few example services, and runs matching `examples/dev-client` instances.
-Press `Ctrl-C` once to stop the entire stack.
+`make init` builds the binary, generates baseline config and secrets under `./config`, initializes mutable runtime state under `./data`, and stores a matching local operator environment with `consent env create`. The verification key is written to `./config/secrets/verification_key.der`.
 
-All local test state is isolated under `./data/.local/consent-localtest`, and you can remove it directly with:
+The generated `./config/config.yaml` looks like this for a local dev setup:
+
+```yaml
+server:
+  publicURL: http://localhost:9001
+  issuerDomain: localhost
+  port: 9001
+  devMode: true
+```
+
+That authored config file is only part of the runtime layout. `consent config init` also creates the signing key, verification key, bootstrap API key, and the directories used by the server.
+
+Run the local dev client against that generated config with:
 
 ```sh
-make local-test-clean
+go run ./cmd/dev-client --config-dir ./config
+```
+
+After that, start the server with:
+
+```sh
+make run-local
+```
+
+Useful config commands:
+
+```sh
+consent config show --config-dir ./config
+consent config show --resolved --config-dir ./config --data-dir ./data
 ```
 
 ## Interface Design

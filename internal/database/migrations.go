@@ -1,0 +1,91 @@
+package database
+
+import "fmt"
+
+type Migration struct {
+	Version int
+	Name    string
+	SQL     string
+}
+
+var migrations = []Migration{
+	{
+		Version: 1,
+		Name:    "create initial schema",
+		SQL: `
+			CREATE TABLE IF NOT EXISTS identity (
+				id      INTEGER PRIMARY KEY,
+				subject TEXT UNIQUE NOT NULL,
+				handle  TEXT UNIQUE NOT NULL,
+				secret  BLOB NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS refresh (
+				id         INTEGER PRIMARY KEY,
+				owner      INTEGER,
+				jwt        TEXT,
+				expiration INTEGER,
+				FOREIGN KEY (owner) REFERENCES identity (id)
+			);
+
+			CREATE TABLE IF NOT EXISTS service (
+				name     TEXT PRIMARY KEY,
+				display  TEXT NOT NULL,
+				audience TEXT NOT NULL,
+				redirect TEXT NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS "grant" (
+				id         INTEGER PRIMARY KEY,
+				owner      INTEGER NOT NULL,
+				service    TEXT NOT NULL,
+				scope_name TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE,
+				FOREIGN KEY (service) REFERENCES service (name) ON DELETE CASCADE,
+				UNIQUE (owner, service, scope_name)
+			);`,
+	},
+}
+
+func (db *DB) migrate() error {
+	current, err := db.userVersion()
+	if err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+
+	for _, migration := range migrations {
+		if migration.Version <= current {
+			continue
+		}
+
+		tx, err := db.Conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration %d %q: %w", migration.Version, migration.Name, err)
+		}
+
+		if _, err := tx.Exec(migration.SQL); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("run migration %d %q: %w", migration.Version, migration.Name, err)
+		}
+		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", migration.Version)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("set schema version %d: %w", migration.Version, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %d %q: %w", migration.Version, migration.Name, err)
+		}
+
+		current = migration.Version
+	}
+
+	return nil
+}
+
+func (db *DB) userVersion() (int, error) {
+	var version int
+	if err := db.Conn.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return 0, err
+	}
+	return version, nil
+}

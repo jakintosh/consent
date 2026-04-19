@@ -14,16 +14,17 @@ import (
 	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	consentconfig "git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/pkg/client"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
 const (
-	defaultAuthURL             = "http://localhost:9001"
-	defaultIssuerDomain        = "localhost"
-	defaultPort                = "10000"
-	defaultServiceName         = "example@localhost"
-	defaultVerificationKeyPath = "./secrets/verification_key.der"
+	defaultAuthURL      = "http://localhost:9001"
+	defaultIssuerDomain = "localhost"
+	defaultPort         = "10000"
+	defaultServiceName  = "example@localhost"
+	defaultConfigDir    = "./config"
 )
 
 type config struct {
@@ -78,9 +79,14 @@ var root = &args.Command{
 			Help: "JWT audience (default: localhost:<port>)",
 		},
 		{
+			Long: "config-dir",
+			Type: args.OptionTypeParameter,
+			Help: "Path to consent config directory (default: ./config)",
+		},
+		{
 			Long: "verification-key",
 			Type: args.OptionTypeParameter,
-			Help: "Path to verification key DER file (default: ./secrets/verification_key.der)",
+			Help: "Path to verification key DER file (default: <config-dir>/secrets/verification_key.der)",
 		},
 	},
 	Handler: func(i *args.Input) error {
@@ -111,8 +117,13 @@ var root = &args.Command{
 			return err
 		}
 
-		validator := tokens.InitClient(verificationKey, cfg.IssuerDomain, cfg.Audience)
-		authClient := client.Init(validator, cfg.AuthURL)
+		opts := tokens.ClientOptions{
+			VerificationKey: verificationKey,
+			IssuerDomain:    cfg.IssuerDomain,
+			ValidAudience:   cfg.Audience,
+		}
+		tkValidator := tokens.InitClient(opts)
+		authClient := client.Init(tkValidator, cfg.AuthURL)
 		authClient.EnableDevelopmentMode()
 
 		mux := http.NewServeMux()
@@ -163,6 +174,17 @@ func parseConfig(i *args.Input) (config, error) {
 		return config{}, fmt.Errorf("--audience cannot be empty")
 	}
 
+	configDir := optionOrDefault(i, "config-dir", defaultConfigDir)
+	if strings.TrimSpace(configDir) == "" {
+		return config{}, fmt.Errorf("--config-dir cannot be empty")
+	}
+
+	roots, err := consentconfig.ResolveRoots(configDir, "")
+	if err != nil {
+		return config{}, err
+	}
+
+	defaultVerificationKeyPath := consentconfig.BuildPaths(roots).VerificationKeyFile
 	verificationKeyPath := optionOrDefault(i, "verification-key", defaultVerificationKeyPath)
 	if strings.TrimSpace(verificationKeyPath) == "" {
 		return config{}, fmt.Errorf("--verification-key cannot be empty")

@@ -77,6 +77,13 @@ type ServerOptions struct {
 	IssuerDomain string
 }
 
+// ClientOptions configures a token validator for backend applications.
+type ClientOptions struct {
+	VerificationKey *ecdsa.PublicKey
+	IssuerDomain    string
+	ValidAudience   string
+}
+
 // InitServer creates a token issuer and validator for the consent auth server.
 // The returned Issuer can create new tokens signed with the private key.
 // The returned Validator can verify tokens but does not enforce audience checks.
@@ -103,20 +110,16 @@ func InitServer(
 // The returned Validator can verify token signatures and enforces audience matching.
 //
 // Parameters:
-//   - verificationKey: ECDSA public key from the consent server (for signature verification)
-//   - issuerDomain: Expected issuer domain (must match tokens' "iss" claim)
-//   - validAudience: Your application's identifier (must be in tokens' "aud" claim)
+//   - options: ClientOptions with verification key, issuer domain, and valid audience
 //
 // Returns a Validator that rejects tokens not intended for this application.
 func InitClient(
-	verificationKey *ecdsa.PublicKey,
-	issuerDomain string,
-	validAudience string,
+	options ClientOptions,
 ) Validator {
 	return &Client{
-		verificationKey: verificationKey,
-		issuerDomain:    issuerDomain,
-		validAudience:   validAudience,
+		verificationKey: options.VerificationKey,
+		issuerDomain:    options.IssuerDomain,
+		validAudience:   options.ValidAudience,
 	}
 }
 

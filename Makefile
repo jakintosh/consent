@@ -1,45 +1,39 @@
 BIN_NAME=consent
-PORT ?=9001
-BASE_URL ?=http://localhost:$(PORT)
-ISSUER_DOMAIN ?=localhost
 
-LOCAL_TEST_ROOT ?=./data/.local/consent-localtest
-LOCAL_TEST_PORT ?=9001
-LOCAL_TEST_BASE_URL ?=http://localhost:$(LOCAL_TEST_PORT)
-LOCAL_TEST_ISSUER ?=localhost
+LOCAL_CONFIG_DIR=./config
+LOCAL_DATA_DIR=./data
+LOCAL_BASE_URL?=http://localhost:9001
+LOCAL_ISSUER?=localhost
+LOCAL_PORT?=9001
 
-.PHONY: build test keys dev-serve dev-client local-test-run local-test-clean
+.PHONY: build init run-local test
 
 build:
 	go generate ./...
 	go build -o ./bin/$(BIN_NAME) ./cmd/$(BIN_NAME)
 
-keys:
-	mkdir -p ./secrets
-	go run ./cmd/keygen -out ./secrets
+init: build
+	mkdir -p $(LOCAL_CONFIG_DIR) $(LOCAL_DATA_DIR)
+	./bin/$(BIN_NAME) config init \
+		--config-dir "$(LOCAL_CONFIG_DIR)" \
+		--data-dir "$(LOCAL_DATA_DIR)" \
+		--public-url "$(LOCAL_BASE_URL)" \
+		--issuer-domain "$(LOCAL_ISSUER)" \
+		--port "$(LOCAL_PORT)" \
+		--dev-mode
+	./bin/$(BIN_NAME) init \
+		--config-dir "$(LOCAL_CONFIG_DIR)" \
+		--data-dir "$(LOCAL_DATA_DIR)"
+	./bin/$(BIN_NAME) env create local \
+		--config-dir "$(LOCAL_CONFIG_DIR)" \
+		--base-url "$(LOCAL_BASE_URL)" \
+		--api-key "$$(tr -d '\n' < "$(LOCAL_CONFIG_DIR)/secrets/api_key")"
+
+run-local: build
+	./bin/$(BIN_NAME) serve \
+		--config-dir "$(LOCAL_CONFIG_DIR)" \
+		--data-dir "$(LOCAL_DATA_DIR)" \
+		--verbose
 
 test: build
 	go test ./...
-
-dev-serve:
-	LOCAL_TEST_ROOT="$(LOCAL_TEST_ROOT)" \
-	LOCAL_TEST_PORT="$(PORT)" \
-	LOCAL_TEST_BASE_URL="$(BASE_URL)" \
-	LOCAL_TEST_ISSUER="$(ISSUER_DOMAIN)" \
-	./scripts/local/run-dev-consent.sh
-
-dev-client:
-	LOCAL_TEST_ROOT="$(LOCAL_TEST_ROOT)" \
-	LOCAL_TEST_BASE_URL="$(BASE_URL)" \
-	LOCAL_TEST_ISSUER="$(ISSUER_DOMAIN)" \
-	./scripts/local/run-dev-client.sh "example@localhost" "10000" "Example"
-
-local-test-run: local-test-clean
-	LOCAL_TEST_ROOT="$(LOCAL_TEST_ROOT)" \
-	LOCAL_TEST_PORT="$(LOCAL_TEST_PORT)" \
-	LOCAL_TEST_BASE_URL="$(LOCAL_TEST_BASE_URL)" \
-	LOCAL_TEST_ISSUER="$(LOCAL_TEST_ISSUER)" \
-	./scripts/local/run-local-test-stack.sh
-
-local-test-clean:
-	rm -rf "$(LOCAL_TEST_ROOT)"

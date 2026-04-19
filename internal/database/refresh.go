@@ -7,10 +7,10 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-func (s *SQLStore) InsertRefreshToken(
+func (db *DB) InsertRefreshToken(
 	token *tokens.RefreshToken,
 ) error {
-	_, err := s.db.Exec(`
+	_, err := db.Conn.Exec(`
 		INSERT INTO refresh (owner, jwt, expiration)
 		SELECT i.id, ?1, ?2
 		FROM identity i
@@ -25,13 +25,13 @@ func (s *SQLStore) InsertRefreshToken(
 	return nil
 }
 
-func (s *SQLStore) GetRefreshTokenOwner(
+func (db *DB) GetRefreshTokenOwner(
 	jwt string,
 ) (
 	string,
 	error,
 ) {
-	row := s.db.QueryRow(`
+	row := db.Conn.QueryRow(`
 		SELECT i.subject
 		FROM refresh r
 		JOIN identity i ON r.owner = i.id
@@ -47,13 +47,13 @@ func (s *SQLStore) GetRefreshTokenOwner(
 	return subject, nil
 }
 
-func (s *SQLStore) DeleteRefreshToken(
+func (db *DB) DeleteRefreshToken(
 	jwt string,
 ) (
 	bool,
 	error,
 ) {
-	result, err := s.db.Exec(`
+	result, err := db.Conn.Exec(`
 		DELETE FROM refresh
 		WHERE id IN (
 			SELECT r.id

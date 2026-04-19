@@ -1,21 +1,58 @@
 package main
 
 import (
-	"log"
-	"os"
-	"path/filepath"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/version"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 const (
-	BIN_AUTHOR      = "jakintosh"
-	DEFAULT_CFG_DIR = "~/.config/consent"
+	BIN_AUTHOR       = "jakintosh"
+	DEFAULT_CFG_DIR  = "~/.config/consent"
+	DEFAULT_DATA_DIR = "~/.local/share/consent"
 )
+
+var envsOpts = envs.CommandOptions{
+	DefaultConfigDir: DEFAULT_CFG_DIR,
+	KeyBackend: keys.EnvBackend{
+		CollectionPath: "/api/v1/admin/keys",
+	},
+}
+
+var runtimeOptions = []args.Option{
+	{
+		Long: "public-url",
+		Type: args.OptionTypeParameter,
+		Help: "server public URL",
+	},
+	{
+		Long: "issuer-domain",
+		Type: args.OptionTypeParameter,
+		Help: "JWT issuer domain",
+	},
+	{
+		Long: "port",
+		Type: args.OptionTypeParameter,
+		Help: "HTTP listen port",
+	},
+	{
+		Long: "dev-mode",
+		Type: args.OptionTypeFlag,
+		Help: "dev mode",
+	},
+	{
+		Short: 'v',
+		Long:  "verbose",
+		Type:  args.OptionTypeFlag,
+		Help:  "verbose output",
+	},
+}
 
 var root = &args.Command{
 	Name: "consent",
@@ -27,11 +64,19 @@ var root = &args.Command{
 			Long:  "help",
 		},
 	},
-	Options: envs.ConfigOptions,
+	Options: envs.ConfigOptionsAnd(
+		args.Option{
+			Long: "data-dir",
+			Type: args.OptionTypeParameter,
+			Help: "path to data directory",
+		},
+	),
 	Subcommands: []*args.Command{
-		envs.Command(DEFAULT_CFG_DIR),
-		serveCmd,
 		apiCmd,
+		configCmd,
+		initCmd,
+		serveCmd,
+		envs.Command(envsOpts),
 		version.Command(VersionInfo),
 	},
 }
@@ -40,60 +85,36 @@ func main() {
 	root.Parse()
 }
 
-func resolveOption(
+func resolveOverrides(
 	i *args.Input,
-	optionName string,
-	envVarName string,
-	defaultValue string,
-) string {
-	if param := i.GetParameter(optionName); param != nil {
-		return *param
+) (
+	config.Overrides,
+	error,
+) {
+	var overrides config.Overrides
+
+	if value := i.GetParameter("public-url"); value != nil {
+		trimmed := strings.TrimSpace(*value)
+		overrides.PublicURL = &trimmed
 	}
 
-	if envVal := os.Getenv(envVarName); envVal != "" {
-		return envVal
+	if value := i.GetParameter("issuer-domain"); value != nil {
+		trimmed := strings.TrimSpace(*value)
+		overrides.IssuerDomain = &trimmed
 	}
 
-	return defaultValue
-}
-
-func resolveFlag(
-	i *args.Input,
-	flagName string,
-	envVarName string,
-) bool {
-	if i.GetFlag(flagName) {
-		return true
+	if value := i.GetParameter("port"); value != nil {
+		port, err := strconv.Atoi(strings.TrimSpace(*value))
+		if err != nil {
+			return config.Overrides{}, fmt.Errorf("invalid --port %q: expected integer", *value)
+		}
+		overrides.Port = &port
 	}
 
-	envValue := strings.TrimSpace(os.Getenv(envVarName))
-	if envValue == "" {
-		return false
+	if i.GetFlag("dev-mode") {
+		devMode := true
+		overrides.DevMode = &devMode
 	}
 
-	enabled, err := strconv.ParseBool(envValue)
-	if err == nil {
-		return enabled
-	}
-
-	switch strings.ToLower(envValue) {
-	case "yes", "on", "y":
-		return true
-	case "no", "off", "n":
-		return false
-	default:
-		return false
-	}
-}
-
-func loadCredential(
-	name string,
-	credsDir string,
-) []byte {
-	credPath := filepath.Join(credsDir, name)
-	cred, err := os.ReadFile(credPath)
-	if err != nil {
-		log.Fatalf("failed to load required credential '%s': %v\n", name, err)
-	}
-	return cred
+	return overrides, nil
 }

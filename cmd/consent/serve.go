@@ -1,16 +1,14 @@
 package main
 
 import (
-	"crypto/x509"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
-	"git.sr.ht/~jakintosh/command-go/pkg/keys"
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/app"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/client"
@@ -19,120 +17,58 @@ import (
 )
 
 var serveCmd = &args.Command{
-	Name: "serve",
-	Help: "Run the OAuth authorization server",
-	Options: []args.Option{
-		{
-			Long: "db-path",
-			Type: args.OptionTypeParameter,
-			Help: "SQLite database path (env: DB_PATH)",
-		},
-		{
-			Long: "issuer-domain",
-			Type: args.OptionTypeParameter,
-			Help: "JWT issuer domain (env: ISSUER_DOMAIN)",
-		},
-		{
-			Long: "port",
-			Type: args.OptionTypeParameter,
-			Help: "HTTP listen port (env: PORT)",
-		},
-		{
-			Long: "credentials-dir",
-			Type: args.OptionTypeParameter,
-			Help: "Directory containing signing_key (env: CREDENTIALS_DIRECTORY)",
-		},
-		{
-			Long: "public-url",
-			Type: args.OptionTypeParameter,
-			Help: "Public URL for consent (env: PUBLIC_URL)",
-		},
-		{
-			Long: "dev-mode",
-			Type: args.OptionTypeFlag,
-			Help: "Enable local dev auth mode (env: DEV_MODE)",
-		},
-		{
-			Short: 'v',
-			Long:  "verbose",
-			Type:  args.OptionTypeFlag,
-			Help:  "Verbose output",
-		},
-	},
+	Name:    "serve",
+	Help:    "Run the OAuth authorization server",
+	Options: runtimeOptions,
 	Handler: func(i *args.Input) error {
 		verbose := i.GetFlag("verbose")
+		cfgDir := i.GetParameterOr("config-dir", DEFAULT_CFG_DIR)
+		dataDir := i.GetParameterOr("data-dir", DEFAULT_DATA_DIR)
 
-		dbPath := resolveOption(i, "db-path", "DB_PATH", "")
-		if dbPath == "" {
-			return fmt.Errorf("--db-path or DB_PATH is required")
+		overrides, err := resolveOverrides(i)
+		if err != nil {
+			return err
 		}
 
-		issuerDomain := resolveOption(i, "issuer-domain", "ISSUER_DOMAIN", "")
-		if issuerDomain == "" {
-			return fmt.Errorf("--issuer-domain or ISSUER_DOMAIN is required")
+		opts := config.ResolveOptions{
+			Overrides:              overrides,
+			ConfigDir:              cfgDir,
+			DataDir:                dataDir,
+			RequireSigningKey:      true,
+			RequireBootstrapAPIKey: false,
 		}
-
-		portStr := resolveOption(i, "port", "PORT", "")
-		if portStr == "" {
-			return fmt.Errorf("--port or PORT is required")
+		runtime, err := config.Resolve(opts)
+		if err != nil {
+			return err
 		}
-		port := fmt.Sprintf(":%s", portStr)
-
-		credsDir := resolveOption(i, "credentials-dir", "CREDENTIALS_DIRECTORY", "")
-		if credsDir == "" {
-			return fmt.Errorf("--credentials-dir or CREDENTIALS_DIRECTORY is required")
-		}
-
-		publicURL := resolveOption(i, "public-url", "PUBLIC_URL", "")
-		if publicURL == "" {
-			return fmt.Errorf("--public-url or PUBLIC_URL is required")
-		}
-
-		parsedPublicURL, err := url.Parse(publicURL)
-		if err != nil || parsedPublicURL == nil || parsedPublicURL.Scheme == "" || parsedPublicURL.Host == "" {
-			return fmt.Errorf("invalid --public-url/PUBLIC_URL: expected absolute URL with scheme and host")
-		}
-
-		devMode := resolveFlag(i, "dev-mode", "DEV_MODE")
 
 		if verbose {
-			log.Printf("Starting consent server...")
-			log.Printf("  Database: %s", dbPath)
-			log.Printf("  Issuer: %s", issuerDomain)
-			log.Printf("  Port: %s", port)
-			log.Printf("  Credentials: %s", credsDir)
-			log.Printf("  Public URL: %s", publicURL)
-			log.Printf("  Dev mode: %t", devMode)
+			log.Printf("Starting consent server")
+			log.Printf("  Config dir: %s", runtime.Paths.ConfigDir)
+			log.Printf("  Data dir: %s", runtime.Paths.DataDir)
+			log.Printf("  Database: %s", runtime.Paths.DatabaseFile)
+			log.Printf("  Public URL: %s", runtime.Server.PublicURL)
+			log.Printf("  Issuer: %s", runtime.Server.IssuerDomain)
+			log.Printf("  Listen: %s", runtime.Server.ListenAddress)
+			log.Printf("  Dev mode: %t", runtime.Server.DevMode)
 		}
 
-		signingKeyRaw := loadCredential("signing_key", credsDir)
-		signingKey, err := x509.ParseECPrivateKey(signingKeyRaw)
+		dbOpts := database.Options{
+			Path: runtime.Paths.DatabaseFile,
+		}
+		db, err := database.Open(dbOpts)
 		if err != nil {
-			return fmt.Errorf("failed to parse ecdsa signing key from signing_key: %v", err)
+			return fmt.Errorf("failed to open database: %w", err)
 		}
+		defer db.Close()
 
-		bootstrapKeyRaw := string(loadCredential("api_key", credsDir))
-		bootstrapKey := strings.TrimSpace(bootstrapKeyRaw)
-
-		dbOpts := database.SQLStoreOptions{
-			Path: dbPath,
-		}
-		db, err := database.NewSQLStore(dbOpts)
-		if err != nil {
-			return fmt.Errorf("failed to initialize database: %w", err)
-		}
-
-		svcOpts := service.ServiceOptions{
+		svcOpts := service.Options{
 			PasswordMode: service.PasswordModeProduction,
 			Store:        db,
-			PublicURL:    publicURL,
+			KeysStore:    db.KeysStore,
 			TokenServerOpts: tokens.ServerOptions{
-				SigningKey:   signingKey,
-				IssuerDomain: issuerDomain,
-			},
-			KeysOptions: keys.Options{
-				Store:          db.KeysStore,
-				BootstrapToken: bootstrapKey,
+				SigningKey:   runtime.Secrets.SigningKey,
+				IssuerDomain: runtime.Server.IssuerDomain,
 			},
 		}
 		svc, err := service.New(svcOpts)
@@ -140,12 +76,9 @@ var serveCmd = &args.Command{
 			return fmt.Errorf("failed to initialize service: %w", err)
 		}
 
-		audience := parsedPublicURL.Host
-		publicBaseURL := strings.TrimRight(publicURL, "/")
-
 		var authConfig app.AuthConfig
-		if devMode {
-			tv := testing.NewTestVerifier(issuerDomain, audience)
+		if runtime.Server.DevMode {
+			tv := testing.NewTestVerifier(runtime.Server.IssuerDomain, runtime.Server.PublicHost)
 			authConfig = app.AuthConfig{
 				Verifier:  tv,
 				LoginURL:  "/dev/login",
@@ -156,8 +89,13 @@ var serveCmd = &args.Command{
 				},
 			}
 		} else {
-			validator := tokens.InitClient(&signingKey.PublicKey, issuerDomain, audience)
-			consentClient := client.Init(validator, publicBaseURL)
+			opts := tokens.ClientOptions{
+				VerificationKey: &runtime.Secrets.SigningKey.PublicKey,
+				IssuerDomain:    runtime.Server.IssuerDomain,
+				ValidAudience:   runtime.Server.PublicHost,
+			}
+			tkValidator := tokens.InitClient(opts)
+			consentClient := client.Init(tkValidator, runtime.Server.PublicBaseURL)
 
 			authConfig = app.AuthConfig{
 				Verifier:  consentClient,
@@ -181,12 +119,12 @@ var serveCmd = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.Handle("/", appServer.Router())
-		mux.Handle("/api/v1/", http.StripPrefix("/api/v1", svc.Router()))
+		wire.Subrouter(mux, "/api/v1", svc.Router())
 
 		if verbose {
-			log.Printf("Listening on %s", port)
+			log.Printf("Listening on %s", runtime.Server.ListenAddress)
 		}
 
-		return http.ListenAndServe(port, mux)
+		return http.ListenAndServe(runtime.Server.ListenAddress, mux)
 	},
 }

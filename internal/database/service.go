@@ -7,13 +7,13 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
-func (s *SQLStore) InsertService(
+func (db *DB) InsertService(
 	name string,
 	display string,
 	audience string,
 	redirect string,
 ) error {
-	_, err := s.db.Exec(`
+	_, err := db.Conn.Exec(`
 		INSERT INTO service (name, display, audience, redirect)
 		VALUES (?1, ?2, ?3, ?4);`,
 		name,
@@ -27,14 +27,14 @@ func (s *SQLStore) InsertService(
 	return nil
 }
 
-func (s *SQLStore) UpsertSystemServices(
+func (db *DB) UpsertSystemServices(
 	services []service.ServiceDefinition,
 ) error {
 	if len(services) == 0 {
 		return nil
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := db.Conn.Begin()
 	if err != nil {
 		return fmt.Errorf("couldn't begin system service upsert transaction: %v", err)
 	}
@@ -66,13 +66,13 @@ func (s *SQLStore) UpsertSystemServices(
 	return nil
 }
 
-func (s *SQLStore) GetService(
+func (db *DB) GetService(
 	name string,
 ) (
 	service.ServiceDefinition,
 	error,
 ) {
-	row := s.db.QueryRow(`
+	row := db.Conn.QueryRow(`
 		SELECT name, display, audience, redirect
 		FROM service
 		WHERE name=?1;`,
@@ -87,13 +87,13 @@ func (s *SQLStore) GetService(
 	return record, nil
 }
 
-func (s *SQLStore) UpdateService(
+func (db *DB) UpdateService(
 	name string,
 	display string,
 	audience string,
 	redirect string,
 ) error {
-	result, err := s.db.Exec(`
+	result, err := db.Conn.Exec(`
 		UPDATE service
 		SET display=?1, audience=?2, redirect=?3
 		WHERE name=?4;`,
@@ -111,13 +111,13 @@ func (s *SQLStore) UpdateService(
 	return nil
 }
 
-func (s *SQLStore) DeleteService(
+func (db *DB) DeleteService(
 	name string,
 ) (
 	bool,
 	error,
 ) {
-	result, err := s.db.Exec(`
+	result, err := db.Conn.Exec(`
 		DELETE FROM service
 		WHERE name=?1;`,
 		name,
@@ -130,8 +130,8 @@ func (s *SQLStore) DeleteService(
 	return deleted, nil
 }
 
-func (s *SQLStore) ListServices() ([]service.ServiceDefinition, error) {
-	rows, err := s.db.Query(`
+func (db *DB) ListServices() ([]service.ServiceDefinition, error) {
+	rows, err := db.Conn.Query(`
 		SELECT name, display, audience, redirect
 		FROM service
 		ORDER BY name;`)

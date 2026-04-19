@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/keys"
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -40,7 +40,7 @@ type apiCounters struct {
 type e2eHarness struct {
 	consentServer *httptest.Server
 	appServer     *httptest.Server
-	db            *database.SQLStore
+	db            *database.DB
 
 	signingKey *ecdsa.PrivateKey
 	validator  tokens.Validator
@@ -103,7 +103,13 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	approvalResp.Body.Close()
 
-	csrf := decodeRefreshCSRF(t, consentRefreshCookie.Value, tokens.InitClient(&h.signingKey.PublicKey, testIssuerDomain, mustURL(t, h.consentServer.URL).Host))
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &h.signingKey.PublicKey,
+		IssuerDomain:    testIssuerDomain,
+		ValidAudience:   mustURL(t, h.consentServer.URL).Host,
+	}
+	tkValidator := tokens.InitClient(clientOpts)
+	csrf := decodeRefreshCSRF(t, consentRefreshCookie.Value, tkValidator)
 	approveBody := url.Values{
 		"service": []string{testServiceName},
 		"scope":   []string{"identity", "profile"},
@@ -195,10 +201,12 @@ func TestAuthFlow_E2E(t *testing.T) {
 func newE2EHarness(t *testing.T) *e2eHarness {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "consent.sqlite")
-	db, err := database.NewSQLStore(database.SQLStoreOptions{Path: dbPath})
+	dbOpts := database.Options{
+		Path: filepath.Join(t.TempDir(), "consent.sqlite"),
+	}
+	db, err := database.Open(dbOpts)
 	if err != nil {
-		t.Fatalf("NewSQLStore failed: %v", err)
+		t.Fatalf("database.Open failed: %v", err)
 	}
 
 	signingKey := consenttesting.SharedTestKey()
@@ -223,27 +231,37 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		appHandler.ServeHTTP(w, r)
 	}))
 
-	consentAudience := mustURL(t, h.consentServer.URL).Host
-	svc, err = service.New(service.ServiceOptions{
+	initOpts := service.InitOptions{
+		Store:          db,
+		KeysStore:      db.KeysStore,
+		PublicURL:      h.consentServer.URL,
+		BootstrapToken: testBootstrapKey,
+	}
+	if err := service.Init(initOpts); err != nil {
+		t.Fatalf("service.Init failed: %v", err)
+	}
+
+	svc, err = service.New(service.Options{
 		PasswordMode: service.PasswordModeTesting,
 		Store:        db,
-		PublicURL:    h.consentServer.URL,
+		KeysStore:    db.KeysStore,
 		TokenServerOpts: tokens.ServerOptions{
 			SigningKey:   signingKey,
 			IssuerDomain: testIssuerDomain,
-		},
-		KeysOptions: keys.Options{
-			Store:          db.KeysStore,
-			BootstrapToken: testBootstrapKey,
 		},
 	})
 	if err != nil {
 		t.Fatalf("service.New failed: %v", err)
 	}
-	apiMux.Handle("/api/v1/", http.StripPrefix("/api/v1", svc.Router()))
+	wire.Subrouter(apiMux, "/api/v1", svc.Router())
 
-	validator := tokens.InitClient(&signingKey.PublicKey, testIssuerDomain, consentAudience)
-	consentClient := consentclient.Init(validator, h.consentServer.URL)
+	clientOpts := tokens.ClientOptions{
+		VerificationKey: &signingKey.PublicKey,
+		IssuerDomain:    testIssuerDomain,
+		ValidAudience:   mustURL(t, h.consentServer.URL).Host,
+	}
+	tkValidator := tokens.InitClient(clientOpts)
+	consentClient := consentclient.Init(tkValidator, h.consentServer.URL)
 	appServer, err := app.New(app.AppOptions{
 		Service: svc,
 		Auth: app.AuthConfig{
@@ -268,7 +286,12 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		t.Fatalf("CreateService failed: %v", err)
 	}
 
-	h.validator = tokens.InitClient(&signingKey.PublicKey, testIssuerDomain, testAppAudience)
+	clientOpts = tokens.ClientOptions{
+		VerificationKey: &signingKey.PublicKey,
+		IssuerDomain:    testIssuerDomain,
+		ValidAudience:   testAppAudience,
+	}
+	h.validator = tokens.InitClient(clientOpts)
 
 	authClient := consentclient.Init(h.validator, h.consentServer.URL)
 	appMux := http.NewServeMux()
@@ -309,24 +332,6 @@ func (h *e2eHarness) close() {
 	if h.db != nil {
 		_ = h.db.Close()
 	}
-}
-
-func postJSONNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body any) *http.Response {
-	t.Helper()
-	payload, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("json.Marshal failed: %v", err)
-	}
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		t.Fatalf("http.NewRequest failed: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := noRedirectClient(baseClient).Do(req)
-	if err != nil {
-		t.Fatalf("POST %s failed: %v", endpoint, err)
-	}
-	return resp
 }
 
 func postFormNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body url.Values) *http.Response {
