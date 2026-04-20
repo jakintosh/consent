@@ -14,6 +14,6 @@ var apiCmd = &args.Command{
 	Subcommands: []*args.Command{
 		registerCmd,
 		servicesCmd,
-		keys.Command(config.DefaultConfigDir(), "/api/v1/admin"),
+		keys.Command(config.DefaultConfigDir(), "/api/v1/admin/keys"),
 	},
 }
