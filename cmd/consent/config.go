@@ -30,18 +30,19 @@ var configInitCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
+
+		cfgDir := i.GetParameterOr("config-dir", "")
+		dataDir := i.GetParameterOr("data-dir", "")
 		overrides, err := resolveOverrides(i)
 		if err != nil {
 			return err
 		}
 
 		opts := config.InitOptions{
-			ConfigDir: i.GetParameterOr("config-dir", DEFAULT_CFG_DIR),
-			DataDir:   i.GetParameterOr("data-dir", DEFAULT_DATA_DIR),
-			Force:     i.GetFlag("force"),
 			Overrides: overrides,
+			Force:     i.GetFlag("force"),
 		}
-		result, err := config.Init(opts)
+		result, err := config.Init(cfgDir, dataDir, opts)
 		if err != nil {
 			return err
 		}
@@ -69,8 +70,8 @@ var configShowCmd = &args.Command{
 	Handler: func(i *args.Input) error {
 
 		resolved := i.GetFlag("resolved")
-		cfgDir := i.GetParameterOr("config-dir", DEFAULT_CFG_DIR)
-		dataDir := i.GetParameterOr("data-dir", DEFAULT_DATA_DIR)
+		cfgDir := i.GetParameterOr("config-dir", "")
+		dataDir := i.GetParameterOr("data-dir", "")
 
 		var cfgYaml any
 		if resolved {
@@ -79,27 +80,19 @@ var configShowCmd = &args.Command{
 				return err
 			}
 
-			opts := config.ResolveOptions{
+			opts := config.RuntimeOptions{
 				Overrides:              overrides,
-				ConfigDir:              cfgDir,
-				DataDir:                dataDir,
 				RequireSigningKey:      false,
 				RequireBootstrapAPIKey: false,
 			}
-			runtime, err := config.Resolve(opts)
+			runtime, err := config.Resolve(cfgDir, dataDir, opts)
 			if err != nil {
 				return err
 			}
 
 			cfgYaml = runtime.View()
 		} else {
-			roots, err := config.ResolveRoots(cfgDir, dataDir)
-			if err != nil {
-				return err
-			}
-
-			paths := config.BuildPaths(roots)
-			cfg, err := config.Load(paths)
+			cfg, err := config.Load(cfgDir, dataDir)
 			if err != nil {
 				return err
 			}

@@ -75,6 +75,7 @@ func Init(
 	validator TokenValidator,
 	authUrl string,
 ) *Client {
+	// TODO: Maybe we can take in client options here, and not require the caller t ocreate a token validator externally? We almost always do the same thing outside? We should investigate
 	return &Client{
 		apiClient: &wire.Client{
 			BaseURL: authUrl,

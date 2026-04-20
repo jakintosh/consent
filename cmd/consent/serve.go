@@ -28,24 +28,22 @@ var serveCmd = &args.Command{
 		},
 	),
 	Handler: func(i *args.Input) error {
-		verbose := i.GetFlag("verbose")
+		cfgDir := i.GetParameterOr("config-dir", "")
+		dataDir := i.GetParameterOr("data-dir", "")
 		insecureCookies := i.GetFlag("insecure-cookies")
-		cfgDir := i.GetParameterOr("config-dir", DEFAULT_CFG_DIR)
-		dataDir := i.GetParameterOr("data-dir", DEFAULT_DATA_DIR)
+		verbose := i.GetFlag("verbose")
 
 		overrides, err := resolveOverrides(i)
 		if err != nil {
 			return err
 		}
 
-		opts := config.ResolveOptions{
+		opts := config.RuntimeOptions{
 			Overrides:              overrides,
-			ConfigDir:              cfgDir,
-			DataDir:                dataDir,
 			RequireSigningKey:      true,
 			RequireBootstrapAPIKey: false,
 		}
-		runtime, err := config.Resolve(opts)
+		runtime, err := config.Resolve(cfgDir, dataDir, opts)
 		if err != nil {
 			return err
 		}
@@ -92,6 +90,7 @@ var serveCmd = &args.Command{
 
 		var authConfig app.AuthConfig
 		if runtime.Server.DevMode {
+			// shim auth config for dev mode
 			tv := testing.NewTestVerifier(runtime.Server.AuthorityDomain, runtime.Server.PublicHost)
 			authConfig = app.AuthConfig{
 				Verifier:  tv,
@@ -103,6 +102,7 @@ var serveCmd = &args.Command{
 				},
 			}
 		} else {
+			// real auth config
 			opts := tokens.ClientOptions{
 				VerificationKey: &runtime.Secrets.SigningKey.PublicKey,
 				IssuerDomain:    runtime.Server.AuthorityDomain,

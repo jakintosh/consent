@@ -31,11 +31,6 @@ type ServerConfig struct {
 	DevMode         bool   `yaml:"devMode"`
 }
 
-type Roots struct {
-	ConfigDir string
-	DataDir   string
-}
-
 type Paths struct {
 	ConfigDir           string `yaml:"configDir" json:"configDir"`
 	DataDir             string `yaml:"dataDir" json:"dataDir"`
@@ -65,61 +60,34 @@ func Default() Config {
 	}
 }
 
-func ResolveRoots(
+func DefaultConfigDir() string {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return filepath.Join("~", ".config", AppName)
+	}
+	return filepath.Join(base, AppName)
+}
+
+func DefaultDataDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("~", ".local", "share", AppName)
+	}
+	return filepath.Join(home, ".local", "share", AppName)
+}
+
+func Load(
 	configDir string,
 	dataDir string,
 ) (
-	Roots,
-	error,
-) {
-	resolvedConfigDir := configDir
-	if strings.TrimSpace(resolvedConfigDir) == "" {
-		resolvedConfigDir = defaultConfigDir()
-	}
-
-	resolvedDataDir := dataDir
-	if strings.TrimSpace(resolvedDataDir) == "" {
-		resolvedDataDir = defaultDataDir()
-	}
-
-	var err error
-	resolvedConfigDir, err = expandPath(resolvedConfigDir)
-	if err != nil {
-		return Roots{}, err
-	}
-
-	resolvedDataDir, err = expandPath(resolvedDataDir)
-	if err != nil {
-		return Roots{}, err
-	}
-
-	return Roots{
-		ConfigDir: resolvedConfigDir,
-		DataDir:   resolvedDataDir,
-	}, nil
-}
-
-func BuildPaths(
-	roots Roots,
-) Paths {
-	secretsDir := filepath.Join(roots.ConfigDir, SecretsDirName)
-
-	return Paths{
-		ConfigDir:           roots.ConfigDir,
-		DataDir:             roots.DataDir,
-		ConfigFile:          filepath.Join(roots.ConfigDir, ConfigFileName),
-		SecretsDir:          secretsDir,
-		SigningKeyFile:      filepath.Join(secretsDir, SigningKeyFileName),
-		VerificationKeyFile: filepath.Join(secretsDir, VerifyKeyFileName),
-		BootstrapAPIKeyFile: filepath.Join(secretsDir, APIKeyFileName),
-		DatabaseFile:        filepath.Join(roots.DataDir, DatabaseFileName),
-	}
-}
-
-func Load(paths Paths) (
 	Config,
 	error,
 ) {
+	paths, err := resolvePaths(configDir, dataDir)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Default()
 
 	data, err := os.ReadFile(paths.ConfigFile)
@@ -145,9 +113,15 @@ func Load(paths Paths) (
 }
 
 func Save(
-	paths Paths,
+	configDir string,
+	dataDir string,
 	cfg Config,
 ) error {
+	paths, err := resolvePaths(configDir, dataDir)
+	if err != nil {
+		return err
+	}
+
 	cfg.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -159,6 +133,62 @@ func Save(
 	}
 
 	return writeFileAtomic(paths.ConfigFile, data, 0o644, true)
+}
+
+func VerificationKeyPath(
+	configDir string,
+) (
+	string,
+	error,
+) {
+	paths, err := resolvePaths(configDir, "")
+	if err != nil {
+		return "", err
+	}
+
+	return paths.VerificationKeyFile, nil
+}
+
+func resolvePaths(
+	configDir string,
+	dataDir string,
+) (
+	Paths,
+	error,
+) {
+	resolvedConfigDir := configDir
+	if strings.TrimSpace(resolvedConfigDir) == "" {
+		resolvedConfigDir = DefaultConfigDir()
+	}
+
+	resolvedDataDir := dataDir
+	if strings.TrimSpace(resolvedDataDir) == "" {
+		resolvedDataDir = DefaultDataDir()
+	}
+
+	var err error
+	resolvedConfigDir, err = expandPath(resolvedConfigDir)
+	if err != nil {
+		return Paths{}, err
+	}
+
+	resolvedDataDir, err = expandPath(resolvedDataDir)
+	if err != nil {
+		return Paths{}, err
+	}
+
+	secretsDir := filepath.Join(resolvedConfigDir, SecretsDirName)
+
+	return Paths{
+		ConfigDir:           resolvedConfigDir,
+		DataDir:             resolvedDataDir,
+		ConfigFile:          filepath.Join(resolvedConfigDir, ConfigFileName),
+		SecretsDir:          secretsDir,
+		SigningKeyFile:      filepath.Join(secretsDir, SigningKeyFileName),
+		VerificationKeyFile: filepath.Join(secretsDir, VerifyKeyFileName),
+		BootstrapAPIKeyFile: filepath.Join(secretsDir, APIKeyFileName),
+		DatabaseFile:        filepath.Join(resolvedDataDir, DatabaseFileName),
+	}, nil
 }
 
 func (c *Config) Normalize() {
@@ -206,22 +236,6 @@ func (c Config) WithOverrides(
 
 	resolved.Normalize()
 	return resolved
-}
-
-func defaultConfigDir() string {
-	base, err := os.UserConfigDir()
-	if err != nil {
-		return filepath.Join("~", ".config", AppName)
-	}
-	return filepath.Join(base, AppName)
-}
-
-func defaultDataDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join("~", ".local", "share", AppName)
-	}
-	return filepath.Join(home, ".local", "share", AppName)
 }
 
 func expandPath(

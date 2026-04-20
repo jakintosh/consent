@@ -6,6 +6,7 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
@@ -23,7 +24,7 @@ var registerCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}

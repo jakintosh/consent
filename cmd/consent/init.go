@@ -14,22 +14,20 @@ var initCmd = &args.Command{
 	Help:    "Initialize mutable runtime state from resolved config",
 	Options: runtimeOptions,
 	Handler: func(i *args.Input) error {
-		cfgDir := i.GetParameterOr("config-dir", DEFAULT_CFG_DIR)
-		dataDir := i.GetParameterOr("data-dir", DEFAULT_DATA_DIR)
+		cfgDir := i.GetParameterOr("config-dir", "")
+		dataDir := i.GetParameterOr("data-dir", "")
 
 		overrides, err := resolveOverrides(i)
 		if err != nil {
 			return err
 		}
 
-		resolveOpts := config.ResolveOptions{
+		resolveOpts := config.RuntimeOptions{
 			Overrides:              overrides,
-			ConfigDir:              cfgDir,
-			DataDir:                dataDir,
 			RequireSigningKey:      false,
 			RequireBootstrapAPIKey: true,
 		}
-		runtime, err := config.Resolve(resolveOpts)
+		runtime, err := config.Resolve(cfgDir, dataDir, resolveOpts)
 		if err != nil {
 			return err
 		}

@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
-	consentconfig "git.sr.ht/~jakintosh/consent/internal/config"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/pkg/client"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
@@ -27,7 +27,7 @@ const (
 	defaultConfigDir       = "./config"
 )
 
-type config struct {
+type Config struct {
 	AuthURL             string
 	AuthorityDomain     string
 	Port                int
@@ -154,52 +154,50 @@ func main() {
 func parseConfig(
 	i *args.Input,
 ) (
-	config,
+	Config,
 	error,
 ) {
 	authURL := i.GetParameterOr("auth-url", defaultAuthURL)
 	authURL, err := normalizeAuthURL(authURL)
 	if err != nil {
-		return config{}, err
+		return Config{}, err
 	}
 
 	authorityDomain := i.GetParameterOr("authority-domain", defaultAuthorityDomain)
 	if strings.TrimSpace(authorityDomain) == "" {
-		return config{}, fmt.Errorf("--authority-domain cannot be empty")
+		return Config{}, fmt.Errorf("--authority-domain cannot be empty")
 	}
 
 	port := i.GetIntParameterOr("port", defaultPort)
 	if port < 1 || port > 65535 {
-		return config{}, fmt.Errorf("invalid --port %q: out of range", port)
+		return Config{}, fmt.Errorf("invalid --port %q: out of range", port)
 	}
 
 	serviceName := i.GetParameterOr("service", defaultServiceName)
 	if strings.TrimSpace(serviceName) == "" {
-		return config{}, fmt.Errorf("--service cannot be empty")
+		return Config{}, fmt.Errorf("--service cannot be empty")
 	}
 
 	audience := i.GetParameterOr("audience", fmt.Sprintf("localhost:%d", port))
 	if strings.TrimSpace(audience) == "" {
-		return config{}, fmt.Errorf("--audience cannot be empty")
+		return Config{}, fmt.Errorf("--audience cannot be empty")
 	}
 
 	configDir := i.GetParameterOr("config-dir", defaultConfigDir)
 	if strings.TrimSpace(configDir) == "" {
-		return config{}, fmt.Errorf("--config-dir cannot be empty")
+		return Config{}, fmt.Errorf("--config-dir cannot be empty")
 	}
 
-	roots, err := consentconfig.ResolveRoots(configDir, "")
+	defaultVerificationKeyPath, err := config.VerificationKeyPath(configDir)
 	if err != nil {
-		return config{}, err
+		return Config{}, err
 	}
-
-	defaultVerificationKeyPath := consentconfig.BuildPaths(roots).VerificationKeyFile
 	verificationKeyPath := i.GetParameterOr("verification-key", defaultVerificationKeyPath)
 	if strings.TrimSpace(verificationKeyPath) == "" {
-		return config{}, fmt.Errorf("--verification-key cannot be empty")
+		return Config{}, fmt.Errorf("--verification-key cannot be empty")
 	}
 
-	return config{
+	return Config{
 		AuthURL:             authURL,
 		AuthorityDomain:     authorityDomain,
 		Port:                port,
@@ -225,7 +223,7 @@ func normalizeAuthURL(raw string) (string, error) {
 	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), nil
 }
 
-func homeHandler(c client.Verifier, cfg config) http.HandlerFunc {
+func homeHandler(c client.Verifier, cfg Config) http.HandlerFunc {
 	loginURL := fmt.Sprintf("%s/authorize?service=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Service))
 
 	return func(w http.ResponseWriter, r *http.Request) {

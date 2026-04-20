@@ -6,6 +6,7 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 type serviceDefinition struct {
@@ -37,7 +38,7 @@ var servicesListCmd = &args.Command{
 	Name: "list",
 	Help: "List services",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -61,7 +62,7 @@ var servicesGetCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -107,7 +108,7 @@ var servicesCreateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -171,7 +172,7 @@ var servicesUpdateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}
@@ -217,7 +218,7 @@ var servicesDeleteCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, DEFAULT_CFG_DIR, "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}

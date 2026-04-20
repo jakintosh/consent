@@ -12,14 +12,10 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
-const (
-	BIN_AUTHOR       = "jakintosh"
-	DEFAULT_CFG_DIR  = "~/.config/consent"
-	DEFAULT_DATA_DIR = "~/.local/share/consent"
-)
+const BIN_AUTHOR = "jakintosh"
 
 var envsOpts = envs.CommandOptions{
-	DefaultConfigDir: DEFAULT_CFG_DIR,
+	DefaultConfigDir: config.DefaultConfigDir(),
 	KeyBackend: keys.EnvBackend{
 		CollectionPath: "/api/v1/admin/keys",
 	},

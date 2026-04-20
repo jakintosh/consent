@@ -15,30 +15,28 @@ import (
 )
 
 type InitOptions struct {
-	ConfigDir string
-	DataDir   string
-	Force     bool
 	Overrides Overrides
+	Force     bool
 }
 
 type InitResult struct {
 	Config Config
 	Paths  Paths
-	Roots  Roots
 }
 
 func Init(
+	configDir string,
+	dataDir string,
 	opts InitOptions,
 ) (
 	InitResult,
 	error,
 ) {
-	roots, err := ResolveRoots(opts.ConfigDir, opts.DataDir)
+	paths, err := resolvePaths(configDir, dataDir)
 	if err != nil {
 		return InitResult{}, err
 	}
 
-	paths := BuildPaths(roots)
 	cfg := Default().WithOverrides(opts.Overrides)
 	if err := cfg.Validate(); err != nil {
 		return InitResult{}, err
@@ -64,7 +62,17 @@ func Init(
 		return InitResult{}, fmt.Errorf("config: create %s: %w", paths.SecretsDir, err)
 	}
 
-	if err := writeFileAtomic(paths.ConfigFile, mustMarshalConfig(cfg), 0o644, opts.Force); err != nil {
+	if !opts.Force {
+		exists, err := fileExists(paths.ConfigFile)
+		if err != nil {
+			return InitResult{}, err
+		}
+		if exists {
+			return InitResult{}, fmt.Errorf("config: refusing to overwrite existing file: %s", paths.ConfigFile)
+		}
+	}
+
+	if err := Save(paths.ConfigDir, paths.DataDir, cfg); err != nil {
 		return InitResult{}, err
 	}
 	if err := writeFileAtomic(paths.SigningKeyFile, signingKeyDER, 0o600, opts.Force); err != nil {
@@ -80,7 +88,6 @@ func Init(
 	return InitResult{
 		Config: cfg,
 		Paths:  paths,
-		Roots:  roots,
 	}, nil
 }
 
@@ -144,16 +151,6 @@ func resolveBootstrapAPIKey() (
 	}
 
 	return key, nil
-}
-
-func mustMarshalConfig(
-	cfg Config,
-) []byte {
-	data, err := marshalConfig(cfg)
-	if err != nil {
-		panic(err)
-	}
-	return data
 }
 
 func writeFileAtomic(

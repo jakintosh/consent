@@ -15,13 +15,19 @@ const (
 	EnvBootstrapAPIKey     = "CONSENT_BOOTSTRAP_API_KEY"
 )
 
-type ResolveOptions struct {
+type RuntimeOptions struct {
 	Overrides              Overrides
-	ConfigDir              string
-	DataDir                string
 	RequireSigningKey      bool
 	RequireBootstrapAPIKey bool
 }
+
+type SecretSource string
+
+const (
+	SecretSourceNone SecretSource = ""
+	SecretSourceEnv  SecretSource = "env"
+	SecretSourceFile SecretSource = "file"
+)
 
 type Runtime struct {
 	Config  Config
@@ -48,8 +54,8 @@ type RuntimeSecrets struct {
 }
 
 type RuntimeSource struct {
-	SigningKeyFromEnv      bool
-	BootstrapAPIKeyFromEnv bool
+	SigningKeySource       SecretSource
+	BootstrapAPIKeySource  SecretSource
 	VerificationKeyPresent bool
 	ConfigFilePresent      bool
 }
@@ -79,20 +85,19 @@ type ViewSecrets struct {
 }
 
 type ViewSource struct {
-	ConfigFilePresent      bool `yaml:"configFilePresent" json:"configFilePresent"`
-	SigningKeyFromEnv      bool `yaml:"signingKeyFromEnv" json:"signingKeyFromEnv"`
-	BootstrapAPIKeyFromEnv bool `yaml:"bootstrapAPIKeyFromEnv" json:"bootstrapAPIKeyFromEnv"`
-	VerificationKeyPresent bool `yaml:"verificationKeyPresent" json:"verificationKeyPresent"`
+	ConfigFilePresent      bool         `yaml:"configFilePresent" json:"configFilePresent"`
+	SigningKeySource       SecretSource `yaml:"signingKeySource" json:"signingKeySource"`
+	BootstrapAPIKeySource  SecretSource `yaml:"bootstrapAPIKeySource" json:"bootstrapAPIKeySource"`
+	VerificationKeyPresent bool         `yaml:"verificationKeyPresent" json:"verificationKeyPresent"`
 }
 
-func Resolve(opts ResolveOptions) (Runtime, error) {
-	roots, err := ResolveRoots(opts.ConfigDir, opts.DataDir)
+func Resolve(configDir string, dataDir string, opts RuntimeOptions) (Runtime, error) {
+	paths, err := resolvePaths(configDir, dataDir)
 	if err != nil {
 		return Runtime{}, err
 	}
 
-	paths := BuildPaths(roots)
-	cfg, err := Load(paths)
+	cfg, err := Load(configDir, dataDir)
 	if err != nil {
 		return Runtime{}, err
 	}
@@ -107,7 +112,7 @@ func Resolve(opts ResolveOptions) (Runtime, error) {
 		return Runtime{}, fmt.Errorf("config: %w", err)
 	}
 
-	signingKeyDER, signingKeyFromEnv, err := loadSecretBytes(paths.SigningKeyFile, EnvSigningKeyDERBase64, true)
+	signingKeyDER, signingKeySource, err := loadSecretBytes(paths.SigningKeyFile, EnvSigningKeyDERBase64, true)
 	if err != nil {
 		return Runtime{}, err
 	}
@@ -122,7 +127,7 @@ func Resolve(opts ResolveOptions) (Runtime, error) {
 		return Runtime{}, fmt.Errorf("config: signing key is required; set %s or create %s", EnvSigningKeyDERBase64, paths.SigningKeyFile)
 	}
 
-	bootstrapAPIKey, bootstrapKeyFromEnv, err := loadSecretString(paths.BootstrapAPIKeyFile, EnvBootstrapAPIKey)
+	bootstrapAPIKey, bootstrapKeySource, err := loadSecretString(paths.BootstrapAPIKeyFile, EnvBootstrapAPIKey)
 	if err != nil {
 		return Runtime{}, err
 	}
@@ -158,8 +163,8 @@ func Resolve(opts ResolveOptions) (Runtime, error) {
 			BootstrapAPIKey: bootstrapAPIKey,
 		},
 		Source: RuntimeSource{
-			SigningKeyFromEnv:      signingKeyFromEnv,
-			BootstrapAPIKeyFromEnv: bootstrapKeyFromEnv,
+			SigningKeySource:       signingKeySource,
+			BootstrapAPIKeySource:  bootstrapKeySource,
 			VerificationKeyPresent: verificationKeyPresent,
 			ConfigFilePresent:      configFilePresent,
 		},
@@ -186,8 +191,8 @@ func (r Runtime) View() View {
 		},
 		Source: ViewSource{
 			ConfigFilePresent:      r.Source.ConfigFilePresent,
-			SigningKeyFromEnv:      r.Source.SigningKeyFromEnv,
-			BootstrapAPIKeyFromEnv: r.Source.BootstrapAPIKeyFromEnv,
+			SigningKeySource:       r.Source.SigningKeySource,
+			BootstrapAPIKeySource:  r.Source.BootstrapAPIKeySource,
 			VerificationKeyPresent: r.Source.VerificationKeyPresent,
 		},
 	}
@@ -210,44 +215,44 @@ func normalizePublicURL(raw string) (string, *url.URL, error) {
 	return parsed.String(), parsed, nil
 }
 
-func loadSecretBytes(path string, envVar string, base64Decode bool) ([]byte, bool, error) {
+func loadSecretBytes(path string, envVar string, base64Decode bool) ([]byte, SecretSource, error) {
 	if value, ok := os.LookupEnv(envVar); ok && strings.TrimSpace(value) != "" {
 		if !base64Decode {
-			return []byte(value), true, nil
+			return []byte(value), SecretSourceEnv, nil
 		}
 
 		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(value))
 		if err != nil {
-			return nil, true, fmt.Errorf("config: decode %s: %w", envVar, err)
+			return nil, SecretSourceEnv, fmt.Errorf("config: decode %s: %w", envVar, err)
 		}
-		return decoded, true, nil
+		return decoded, SecretSourceEnv, nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, false, nil
+			return nil, SecretSourceNone, nil
 		}
-		return nil, false, fmt.Errorf("config: read %s: %w", path, err)
+		return nil, SecretSourceNone, fmt.Errorf("config: read %s: %w", path, err)
 	}
 
-	return data, false, nil
+	return data, SecretSourceFile, nil
 }
 
-func loadSecretString(path string, envVar string) (string, bool, error) {
+func loadSecretString(path string, envVar string) (string, SecretSource, error) {
 	if value, ok := os.LookupEnv(envVar); ok && strings.TrimSpace(value) != "" {
-		return strings.TrimSpace(value), true, nil
+		return strings.TrimSpace(value), SecretSourceEnv, nil
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", false, nil
+			return "", SecretSourceNone, nil
 		}
-		return "", false, fmt.Errorf("config: read %s: %w", path, err)
+		return "", SecretSourceNone, fmt.Errorf("config: read %s: %w", path, err)
 	}
 
-	return strings.TrimSpace(string(data)), false, nil
+	return strings.TrimSpace(string(data)), SecretSourceFile, nil
 }
 
 func fileExists(path string) (bool, error) {

@@ -4,6 +4,7 @@ import (
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	keys "git.sr.ht/~jakintosh/command-go/pkg/keys/cmd"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 var apiCmd = &args.Command{
@@ -13,6 +14,6 @@ var apiCmd = &args.Command{
 	Subcommands: []*args.Command{
 		registerCmd,
 		servicesCmd,
-		keys.Command(DEFAULT_CFG_DIR, "/api/v1/admin"),
+		keys.Command(config.DefaultConfigDir(), "/api/v1/admin"),
 	},
 }

@@ -17,12 +17,7 @@ import (
 func TestLoad_DefaultWhenConfigMissing(t *testing.T) {
 	t.Parallel()
 
-	roots, err := config.ResolveRoots(filepath.Join(t.TempDir(), "cfg"), filepath.Join(t.TempDir(), "data"))
-	if err != nil {
-		t.Fatalf("ResolveRoots failed: %v", err)
-	}
-
-	cfg, err := config.Load(config.BuildPaths(roots))
+	cfg, err := config.Load(filepath.Join(t.TempDir(), "cfg"), filepath.Join(t.TempDir(), "data"))
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -35,22 +30,18 @@ func TestLoad_DefaultWhenConfigMissing(t *testing.T) {
 func TestLoad_StrictUnknownField(t *testing.T) {
 	t.Parallel()
 
-	roots, err := config.ResolveRoots(filepath.Join(t.TempDir(), "cfg"), filepath.Join(t.TempDir(), "data"))
-	if err != nil {
-		t.Fatalf("ResolveRoots failed: %v", err)
-	}
-
-	paths := config.BuildPaths(roots)
-	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+	configDir := filepath.Join(t.TempDir(), "cfg")
+	dataDir := filepath.Join(t.TempDir(), "data")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
 
 	payload := []byte("server:\n  publicURL: http://localhost:9001\n  authorityDomain: localhost\n  port: 9001\n  devMode: true\n  extra: nope\n")
-	if err := os.WriteFile(paths.ConfigFile, payload, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, config.ConfigFileName), payload, 0o644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 
-	_, err = config.Load(paths)
+	_, err := config.Load(configDir, dataDir)
 	if err == nil || !strings.Contains(err.Error(), "field extra not found") {
 		t.Fatalf("Load error = %v, want unknown field error", err)
 	}
@@ -59,17 +50,11 @@ func TestLoad_StrictUnknownField(t *testing.T) {
 func TestResolve_UsesOverridesAndSecretEnv(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), "cfg")
 	dataDir := filepath.Join(t.TempDir(), "data")
-	roots, err := config.ResolveRoots(configDir, dataDir)
-	if err != nil {
-		t.Fatalf("ResolveRoots failed: %v", err)
-	}
-
-	paths := config.BuildPaths(roots)
-	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll failed: %v", err)
 	}
 
-	if err := config.Save(paths, config.Config{
+	if err := config.Save(configDir, dataDir, config.Config{
 		Server: config.ServerConfig{
 			PublicURL:       "http://example.test:9001",
 			AuthorityDomain: "issuer-from-file",
@@ -92,18 +77,16 @@ func TestResolve_UsesOverridesAndSecretEnv(t *testing.T) {
 	overridePort := 7777
 	overrideDevMode := true
 
-	opts := config.ResolveOptions{
+	opts := config.RuntimeOptions{
 		Overrides: config.Overrides{
 			PublicURL: &overrideURL,
 			Port:      &overridePort,
 			DevMode:   &overrideDevMode,
 		},
-		ConfigDir:              configDir,
-		DataDir:                dataDir,
 		RequireSigningKey:      true,
 		RequireBootstrapAPIKey: true,
 	}
-	runtime, err := config.Resolve(opts)
+	runtime, err := config.Resolve(configDir, dataDir, opts)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
 	}
@@ -123,7 +106,7 @@ func TestResolve_UsesOverridesAndSecretEnv(t *testing.T) {
 	if runtime.Secrets.BootstrapAPIKey != "bootstrap.from.env" {
 		t.Fatalf("BootstrapAPIKey = %q, want env value", runtime.Secrets.BootstrapAPIKey)
 	}
-	if !runtime.Source.SigningKeyFromEnv || !runtime.Source.BootstrapAPIKeyFromEnv {
+	if runtime.Source.SigningKeySource != config.SecretSourceEnv || runtime.Source.BootstrapAPIKeySource != config.SecretSourceEnv {
 		t.Fatalf("secret source flags = %#v, want env-backed", runtime.Source)
 	}
 
@@ -142,10 +125,7 @@ func TestInit_IsNonDestructiveUnlessForced(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), "cfg")
 	dataDir := filepath.Join(t.TempDir(), "data")
 
-	result, err := config.Init(config.InitOptions{
-		ConfigDir: configDir,
-		DataDir:   dataDir,
-	})
+	result, err := config.Init(configDir, dataDir, config.InitOptions{})
 	if err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -161,18 +141,13 @@ func TestInit_IsNonDestructiveUnlessForced(t *testing.T) {
 		}
 	}
 
-	_, err = config.Init(config.InitOptions{
-		ConfigDir: configDir,
-		DataDir:   dataDir,
-	})
+	_, err = config.Init(configDir, dataDir, config.InitOptions{})
 	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite") {
 		t.Fatalf("second Init error = %v, want overwrite refusal", err)
 	}
 
 	overrideURL := "http://forced.test:9100"
-	_, err = config.Init(config.InitOptions{
-		ConfigDir: configDir,
-		DataDir:   dataDir,
+	_, err = config.Init(configDir, dataDir, config.InitOptions{
 		Force:     true,
 		Overrides: config.Overrides{PublicURL: &overrideURL},
 	})
@@ -180,12 +155,7 @@ func TestInit_IsNonDestructiveUnlessForced(t *testing.T) {
 		t.Fatalf("forced Init failed: %v", err)
 	}
 
-	roots, err := config.ResolveRoots(configDir, dataDir)
-	if err != nil {
-		t.Fatalf("ResolveRoots failed: %v", err)
-	}
-
-	cfg, err := config.Load(config.BuildPaths(roots))
+	cfg, err := config.Load(configDir, dataDir)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
