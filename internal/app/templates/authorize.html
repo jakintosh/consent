@@ -1,54 +1,61 @@
 {{ define "style" }}
-		.authorize ul { padding-left: 1.25em; }
-		.authorize li { margin: 0.75rem 0; }
-		.authorize .name { color: #7521b0; font-family: monospace; }
-		.authorize .scope-group + .scope-group { margin-top: 1.5rem; }
+.authorize ul { padding-inline-start: 1.25em; }
+.authorize li { margin: 0.75rem 0; }
+.authorize .name { color: var(--color-primary); font-family: var(--font-mono); }
+.authorize .scope-group + .scope-group { margin-block-start: 1.5rem; }
 {{ end }}
+
 {{ define "content" }}
-	<section class="page authorize stack">
-		<p class="eyebrow">Authorization Request</p>
-		<h2>Authorize {{ .ServiceDisplay }}</h2>
-		<p><span class="name">{{ .ServiceDisplay }}</span> is requesting access to your Consent account.</p>
-		{{ if .GrantedScopes }}
-		<div class="scope-group">
-			<p class="notice">Already approved for this app:</p>
-			<ul>
-			{{ range .GrantedScopes }}
-				<li>
-					<strong>{{ .Label }}</strong><br />
-					<span>{{ .Description }}</span>
-				</li>
-			{{ end }}
-			</ul>
-		</div>
-		{{ end }}
-		<div class="scope-group">
-			{{ if .GrantedScopes }}
-			<p>Approving now will additionally grant:</p>
-			{{ else }}
-			<p>This app is asking for permission to:</p>
-			{{ end }}
-			<ul>
-			{{ range .MissingScopes }}
-				<li>
-					<strong>{{ .Label }}</strong><br />
-					<span>{{ .Description }}</span>
-				</li>
-			{{ end }}
-			</ul>
-		</div>
-		<form method="POST" action="/authorize">
-			<input type="hidden" name="service" value="{{ .ServiceName }}" />
-			{{ range .RequestedScopes }}
-			<input type="hidden" name="scope" value="{{ .Name }}" />
-			{{ end }}
-			<input type="hidden" name="state" value="{{ .State }}" />
-			<input type="hidden" name="csrf" value="{{ .CSRF }}" />
-			<div class="actions">
-				<button type="submit" class="primary" name="action" value="approve">Approve</button>
-				<button type="submit" name="action" value="deny">Deny</button>
-			</div>
-		</form>
-	</section>
+<section class="page authorize stack">
+    <p class="eyebrow">Authorization Request</p>
+    <h2>Authorize {{ .ServiceDisplay }}</h2>
+    <p>
+        <span class="name">{{ .ServiceDisplay }}</span> is requesting access to
+        your Consent account.
+    </p>
+    {{ if .GrantedScopes }}
+    <div class="scope-group">
+        <p class="notice">Already approved for this app:</p>
+        <ul>
+            {{ range .GrantedScopes }}
+            <li>
+                <strong>{{ .Label }}</strong><br />
+                <span>{{ .Description }}</span>
+            </li>
+            {{ end }}
+        </ul>
+    </div>
+    {{ end }}
+    <div class="scope-group">
+        {{ if .GrantedScopes }}
+        <p>Approving now will additionally grant:</p>
+        {{ else }}
+        <p>This app is asking for permission to:</p>
+        {{ end }}
+        <ul>
+            {{ range .MissingScopes }}
+            <li>
+                <strong>{{ .Label }}</strong><br />
+                <span>{{ .Description }}</span>
+            </li>
+            {{ end }}
+        </ul>
+    </div>
+    <form method="POST" action="/authorize">
+        <input type="hidden" name="service" value="{{ .ServiceName }}" />
+        {{ range .RequestedScopes }}
+        <input type="hidden" name="scope" value="{{ .Name }}" />
+        {{ end }}
+        <input type="hidden" name="state" value="{{ .State }}" />
+        <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+        <div class="actions">
+            <button type="submit" class="primary" name="action" value="approve">
+                Approve
+            </button>
+            <button type="submit" name="action" value="deny">Deny</button>
+        </div>
+    </form>
+</section>
 {{ end }}
+
 {{- template "base.html" . -}}

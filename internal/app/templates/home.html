@@ -1,22 +1,25 @@
 {{ define "style" }}
-		.home .actions { margin-top: 1.25rem; }
+.home .actions { margin-block-start: 1.25rem; }
 {{ end }}
 {{ define "content" }}
-	<section class="page home stack">
-		<p class="eyebrow">Consent</p>
-	{{ if .Authenticated }}
-		<h2>Welcome</h2>
-		<p>You are logged in and ready to approve access requests for connected services.</p>
-		<div class="actions">
-			<a class="button" href="{{ .LogoutURL }}">Log Out</a>
-		</div>
-	{{ else }}
-		<h2>Welcome</h2>
-		<p>Sign in to review access requests and manage connected applications.</p>
-		<div class="actions">
-			<a class="button primary" href="{{ .LoginURL }}">Log In</a>
-		</div>
-	{{ end }}
-	</section>
+<section class="page home stack">
+    <p class="eyebrow">Consent</p>
+    {{ if .Authenticated }}
+    <h2>Welcome</h2>
+    <p>
+        You are logged in and ready to approve access requests for connected
+        services.
+    </p>
+    <div class="actions">
+        <a class="button" href="{{ .LogoutURL }}">Log Out</a>
+    </div>
+    {{ else }}
+    <h2>Welcome</h2>
+    <p>Sign in to review access requests and manage connected applications.</p>
+    <div class="actions">
+        <a class="button primary" href="{{ .LoginURL }}">Log In</a>
+    </div>
+    {{ end }}
+</section>
 {{ end }}
 {{- template "base.html" . -}}

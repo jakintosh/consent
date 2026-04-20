@@ -1,118 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-	<title>Consent</title>
-	<style>
-		* { box-sizing: border-box; }
-		:root,
-		input,
-		button,
-		textarea,
-		select { font-size: 12pt; font-family: sans-serif; }
-		:root {
-			color: #24192e;
-			background: #f7f1fb;
-			accent-color: #7521b0;
-		}
-		body { margin: 0; background: linear-gradient(180deg, #fbf8fe 0%, #f4ecfb 100%); }
-		a { color: #7521b0; text-underline-offset: 0.18em; }
-		header { color: white; background-color: #7521b0; padding: 1.25rem 1rem; text-align: center; box-shadow: 0 1px 0 #5f1b8e; }
-		header h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
-		main { width: auto; margin: 0 auto; padding: 1.25rem; max-width: 44rem; }
-		section { margin: 0; }
-		h2 { margin: 0 0 0.4rem; color: #7521b0; font-size: 1.5rem; }
-		p { line-height: 1.5; }
-		p:first-child { margin-block-start: 0; }
-		p:last-child { margin-block-end: 0; }
-		ul { margin: 0; }
-		.page {
-			margin: 2rem auto;
-			padding: 1.5rem;
-			background: rgba(255, 255, 255, 0.88);
-			border: 1px solid #ddc9ef;
-			border-radius: 0.9rem;
-			box-shadow: 0 16px 40px rgba(80, 32, 112, 0.08);
-		}
-		.eyebrow {
-			margin: 0 0 0.6rem;
-			color: #75548d;
-			font-size: 0.92rem;
-			text-transform: uppercase;
-			letter-spacing: 0.08em;
-		}
-		.notice {
-			margin: 1rem 0;
-			padding: 0.85rem 1rem;
-			border-radius: 0.75rem;
-			border: 1px solid #e9d8f7;
-			background: #fbf7fe;
-		}
-		.notice.error {
-			border-color: #d08ab3;
-			background: #fff5f9;
-			color: #7a1c4c;
-		}
-		.stack > * + * { margin-top: 1rem; }
-		.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; }
-		.button,
-		button {
-			display: inline-flex;
-			align-items: center;
-			justify-content: center;
-			padding: 0.8rem 1.1rem;
-			border: 1px solid #7521b0;
-			border-radius: 0.75rem;
-			background: white;
-			color: #7521b0;
-			font-weight: 600;
-			text-decoration: none;
-			cursor: pointer;
-		}
-		.button.primary,
-		button.primary {
-			background: #7521b0;
-			color: white;
-		}
-		.button:hover,
-		button:hover { background: #f7effd; }
-		.button.primary:hover,
-		button.primary:hover { background: #652097; }
-		input[type="text"],
-		input[type="password"] {
-			width: 100%;
-			padding: 0.8rem 0.9rem;
-			border: 1px solid #c9afd9;
-			border-radius: 0.75rem;
-			background: white;
-			color: inherit;
-		}
-		input[type="text"]:focus,
-		input[type="password"]:focus,
-		button:focus,
-		.button:focus {
-			outline: 2px solid #b98bdb;
-			outline-offset: 2px;
-		}
-		label { display: block; font-weight: 600; margin-bottom: 0.4rem; }
-		footer { text-align: center; padding: 0 1rem 1.5rem; color: #75548d; }
-		.copyleft { display:inline-block;transform: scaleX(-1); }
-		{{- template "style" .}}
-		@media screen and (min-width: 480px) {
-			main { padding: 1.5rem; }
-		}
-	</style>
-</head>
-<body>
-	<header>
-		<h1>Pollinator Network</h1>
-	</header>
-	<main>
-		{{- template "content" . -}}
-	</main>
-	<footer>
-		<span class="copyleft">(c)</span> ∞ Human Kind
-	</footer>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+        <title>Consent</title>
+        <style>
+            :root {
+            	--color-primary: #7521b0;
+            	--color-primary-dark: #5f1b8e;
+            	--color-primary-light: #652097;
+            	--color-primary-lighter: #7521b0;
+            	--color-text: #24192e;
+            	--color-text-muted: #75548d;
+            	--color-text-error: #7a1c4c;
+            	--color-bg: #f7f1fb;
+            	--color-bg-gradient: linear-gradient(180deg, #fbf8fe 0%, #f4ecfb 100%);
+            	--color-surface: rgba(255, 255, 255, 0.88);
+            	--color-border: #ddc9ef;
+            	--color-border-light: #e9d8f7;
+            	--color-border-error: #d08ab3;
+            	--color-bg-error: #fff5f9;
+            	--color-bg-notice: #fbf7fe;
+            	--color-input-border: #c9afd9;
+            	--color-focus: #b98bdb;
+
+            	--font-sans: sans-serif;
+            	--font-mono: monospace;
+
+            	--radius-sm: 0.75rem;
+            	--radius-md: 0.9rem;
+
+            	--shadow-header: 0 1px 0 var(--color-primary-dark);
+            	--shadow-card: 0 16px 40px rgba(80, 32, 112, 0.08);
+            }
+            *, *::before, *::after { box-sizing: border-box; }
+            :root,
+            input,
+            button,
+            textarea,
+            select { font-size: 12pt; font-family: var(--font-sans); }
+            :root {
+            	color: var(--color-text);
+            	background: var(--color-bg);
+            	accent-color: var(--color-primary);
+            }
+            body { margin: 0; background: var(--color-bg-gradient); }
+            a { color: var(--color-primary); text-underline-offset: 0.18em; }
+            header { color: white; background-color: var(--color-primary); padding: 1.25rem 1rem; text-align: center; box-shadow: var(--shadow-header); }
+            header h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+            main { width: auto; margin: 0 auto; padding: 1.25rem; max-width: 44rem; }
+            section { margin: 0; }
+            h2 { margin: 0 0 0.4rem; color: var(--color-primary); font-size: 1.5rem; }
+            p { line-height: 1.5; }
+            p:first-child { margin-block-start: 0; }
+            p:last-child { margin-block-end: 0; }
+            ul { margin: 0; }
+            .page {
+            	margin: 2rem auto;
+            	padding: 1.5rem;
+            	background: var(--color-surface);
+            	border: 1px solid var(--color-border);
+            	border-radius: var(--radius-md);
+            	box-shadow: var(--shadow-card);
+            }
+            .eyebrow {
+            	margin: 0 0 0.6rem;
+            	color: var(--color-text-muted);
+            	font-size: 0.92rem;
+            	text-transform: uppercase;
+            	letter-spacing: 0.08em;
+            }
+            .notice {
+            	margin: 1rem 0;
+            	padding: 0.85rem 1rem;
+            	border-radius: var(--radius-sm);
+            	border: 1px solid var(--color-border-light);
+            	background: var(--color-bg-notice);
+            }
+            .notice.error {
+            	border-color: var(--color-border-error);
+            	background: var(--color-bg-error);
+            	color: var(--color-text-error);
+            }
+            .stack > * + * { margin-block-start: 1rem; }
+            .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-block-start: 1.5rem; }
+            .button,
+            button {
+            	display: inline-flex;
+            	align-items: center;
+            	justify-content: center;
+            	padding: 0.8rem 1.1rem;
+            	border: 1px solid var(--color-primary);
+            	border-radius: var(--radius-sm);
+            	background: white;
+            	color: var(--color-primary);
+            	font-weight: 600;
+            	text-decoration: none;
+            	cursor: pointer;
+            	transition: background-color 0.15s ease;
+            }
+            .button.primary,
+            button.primary {
+            	background: var(--color-primary);
+            	color: white;
+            }
+            .button:hover,
+            button:hover { background: var(--color-bg-notice); }
+            .button.primary:hover,
+            button.primary:hover { background: var(--color-primary-light); }
+            input[type="text"],
+            input[type="password"] {
+            	width: 100%;
+            	padding: 0.8rem 0.9rem;
+            	border: 1px solid var(--color-input-border);
+            	border-radius: var(--radius-sm);
+            	background: white;
+            	color: inherit;
+            }
+            input[type="text"]:focus,
+            input[type="password"]:focus,
+            button:focus,
+            .button:focus {
+            	outline: 2px solid var(--color-focus);
+            	outline-offset: 2px;
+            }
+            label { display: block; font-weight: 600; margin-block-end: 0.4rem; }
+            footer { text-align: center; padding: 0 1rem 1.5rem; color: var(--color-text-muted); }
+            .copyleft { display:inline-block;transform: scaleX(-1); }
+            {{- template "style" .}}
+            @media screen and (min-width: 480px) {
+            	main { padding: 1.5rem; }
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Pollinator Network</h1>
+        </header>
+        <main>{{- template "content" . -}}</main>
+        <footer><span class="copyleft">(c)</span> ∞ Human Kind</footer>
+    </body>
 </html>

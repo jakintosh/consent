@@ -31,7 +31,10 @@ type App struct {
 
 func New(
 	options AppOptions,
-) (*App, error) {
+) (
+	*App,
+	error,
+) {
 	if options.Service == nil {
 		return nil, fmt.Errorf("service is required")
 	}
@@ -99,63 +102,46 @@ type statusPageData struct {
 func (a *App) serve(handler appHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := handler(w, r); err != nil {
-			a.handleAppError(w, r, err)
+			spec := appErrorSpecs[err.kind]
+			if spec.loggable {
+				if err.cause != nil {
+					logAppErr(r, fmt.Sprintf("%s: %v", spec.logMessage, err.cause))
+				} else {
+					logAppErr(r, spec.logMessage)
+				}
+			}
+			page := statusPageData{
+				Title:   spec.title,
+				Message: spec.message,
+			}
+			a.returnTemplate(w, r, spec.status, "status.html", page)
 		}
 	}
-}
-
-func (a *App) handleAppError(
-	w http.ResponseWriter,
-	r *http.Request,
-	err *appError,
-) {
-	spec := appErrorSpecs[err.kind]
-	if spec.loggable {
-		if err.cause != nil {
-			logAppErr(r, fmt.Sprintf("%s: %v", spec.logMessage, err.cause))
-		} else {
-			logAppErr(r, spec.logMessage)
-		}
-	}
-	a.returnStatusPage(w, r, spec.status, spec.title, spec.message)
 }
 
 func (a *App) returnTemplate(
 	w http.ResponseWriter,
 	r *http.Request,
+	status int,
 	name string,
 	data any,
 ) {
 	bytes, err := a.templates.RenderTemplate(name, data)
 	if err != nil {
 		logAppErr(r, fmt.Sprintf("couldn't render template: %v", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(serverErrorHTML)
+		error := http.StatusText(http.StatusInternalServerError)
+		code := http.StatusInternalServerError
+		http.Error(w, error, code)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(bytes)
-}
 
-func (a *App) returnStatusPage(
-	w http.ResponseWriter,
-	r *http.Request,
-	status int,
-	title, message string,
-) {
-	w.WriteHeader(status)
-	page := statusPageData{
-		Title:   title,
-		Message: message,
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if status != http.StatusOK {
+		w.WriteHeader(status)
 	}
-	a.returnTemplate(w, r, "status.html", page)
+	_, _ = w.Write(bytes)
 }
 
 func logAppErr(r *http.Request, msg string) {
 	log.Printf("%s %s: %s\n", r.Method, r.URL.String(), msg)
 }
-
-var serverErrorHTML = []byte(`<!DOCTYPE html><html>
-<head><style>:root{text-align:center;font-family:sans-serif;}</style></head>
-<body><h1>Server Error</h1><hr /><p>The server ran into an issue; try again later.</p></body>
-</html>`)

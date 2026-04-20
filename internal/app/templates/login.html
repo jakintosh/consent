@@ -1,32 +1,47 @@
 {{ define "style" }}
-		.auth-form { max-width: 24rem; }
-		.auth-form .field + .field { margin-top: 1rem; }
-		.auth-form .actions { margin-top: 1.25rem; }
+.auth-form { max-width: 24rem; }
+.auth-form .field + .field { margin-block-start: 1rem; }
+.auth-form .actions { margin-block-start: 1.25rem; }
 {{ end }}
+
 {{ define "content" }}
-	<section class="page auth-form stack">
-		<p class="eyebrow">Sign In</p>
-		<div>
-			<h2>Log in to Consent</h2>
-			<p>Use your Pollinator Network ID to continue.</p>
-		</div>
-		{{ if .Error }}
-		<p class="notice error">{{ .Error }}</p>
-		{{ end }}
-		<form method="POST" action="/login">
-			<div class="field">
-				<label for="handle">Handle</label>
-				<input id="handle" type="text" name="handle" value="{{ .Handle }}" autocomplete="username" required />
-			</div>
-			<div class="field">
-				<label for="secret">Secret</label>
-				<input id="secret" type="password" name="secret" autocomplete="current-password" required />
-			</div>
-			<input type="hidden" name="return_to" value="{{ .ReturnTo }}" />
-			<div class="actions">
-				<button type="submit" class="primary">Log In</button>
-			</div>
-		</form>
-	</section>
+<section class="page auth-form stack">
+    <p class="eyebrow">Sign In</p>
+    <div>
+        <h2>Log in to Consent</h2>
+        <p>Use your Pollinator Network ID to continue.</p>
+    </div>
+    <form method="POST" action="/login">
+        <div class="field">
+            <label for="handle">Handle</label>
+            <input
+                id="handle"
+                type="text"
+                name="handle"
+                value="{{ .Handle }}"
+                autocomplete="username"
+                required
+            />
+        </div>
+        <div class="field">
+            <label for="secret">Secret</label>
+            <input
+                id="secret"
+                type="password"
+                name="secret"
+                autocomplete="current-password"
+                required
+            />
+        </div>
+        <input type="hidden" name="return_to" value="{{ .ReturnTo }}" />
+        {{ if .Error }}
+        <p class="notice error">{{ .Error }}</p>
+        {{ end }}
+        <div class="actions">
+            <button type="submit" class="primary">Log In</button>
+        </div>
+    </form>
+</section>
 {{ end }}
+
 {{- template "base.html" . -}}

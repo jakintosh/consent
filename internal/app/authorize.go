@@ -23,10 +23,12 @@ func (a *App) handleGetAuthorize(
 	w http.ResponseWriter,
 	r *http.Request,
 ) *appError {
+	// parse query params
 	svcName := r.URL.Query().Get("service")
 	scopes := r.URL.Query()["scope"]
 	state := r.URL.Query().Get("state")
 
+	// get auth status
 	accessToken, csrf, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
 	if err != nil {
 		if !errors.Is(err, client.ErrTokenAbsent) {
@@ -35,34 +37,34 @@ func (a *App) handleGetAuthorize(
 		http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
 		return nil
 	}
+	sub := accessToken.Subject()
 
 	// get a review of what needs to be authorized
-	sub := accessToken.Subject()
 	review, err := a.service.ReviewAuthorizationRequest(sub, svcName, scopes, state)
 	if err != nil {
 		return appErr(errAuthorizePrepare, err)
 	}
 
-	// check for auto-redirect if already approved
-	if !review.NeedsApproval() {
+	switch review.NeedsApproval() {
+	case true: // render authorize page
+		a.returnTemplate(w, r, http.StatusOK, "authorize.html", authorizePageData{
+			ServiceName:     review.Request.Service.Name,
+			ServiceDisplay:  review.Request.Service.Display,
+			RequestedScopes: review.RequestedScopes,
+			GrantedScopes:   review.GrantedScopes,
+			MissingScopes:   review.MissingScopes,
+			State:           review.Request.State,
+			CSRF:            csrf,
+		})
+
+	case false: // try auto-approve and redirect
 		redirectURL, err := a.service.ApproveAuthorization(sub, review)
 		if err != nil {
 			return appErr(errAuthorizeAutoApprove, err)
 		}
 		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-		return nil
 	}
 
-	data := authorizePageData{
-		ServiceName:     review.Request.Service.Name,
-		ServiceDisplay:  review.Request.Service.Display,
-		RequestedScopes: review.RequestedScopes,
-		GrantedScopes:   review.GrantedScopes,
-		MissingScopes:   review.MissingScopes,
-		State:           review.Request.State,
-		CSRF:            csrf,
-	}
-	a.returnTemplate(w, r, "authorize.html", data)
 	return nil
 }
 
@@ -70,12 +72,17 @@ func (a *App) handlePostAuthorize(
 	w http.ResponseWriter,
 	r *http.Request,
 ) *appError {
+	// parse form values
 	if err := r.ParseForm(); err != nil {
 		return appErr(errAuthorizeFormInvalid, err)
 	}
+	csrf := r.FormValue("csrf")
+	action := r.FormValue("action")
+	scopes := r.Form["scope"]
+	state := r.FormValue("state")
+	svc := r.FormValue("service")
 
 	// validate user
-	csrf := r.FormValue("csrf")
 	accessToken, _, err := a.auth.Verifier.VerifyAuthorizationCheckCSRF(w, r, csrf)
 	if err != nil {
 		if errors.Is(err, client.ErrCSRFInvalid) {
@@ -87,17 +94,15 @@ func (a *App) handlePostAuthorize(
 		http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
 		return nil
 	}
-
-	action := r.FormValue("action")
-	scopes := r.Form["scope"]
-	state := r.FormValue("state")
 	sub := accessToken.Subject()
-	svc := r.FormValue("service")
+
+	// review auth request
 	review, err := a.service.ReviewAuthorizationRequest(sub, svc, scopes, state)
 	if err != nil {
 		return appErr(errAuthorizeSubmitInvalid, err)
 	}
 
+	// handle action and redirect
 	switch action {
 	case "approve":
 		redirectURL, err := a.service.ApproveAuthorization(sub, review)
@@ -105,7 +110,6 @@ func (a *App) handlePostAuthorize(
 			return appErr(errAuthorizeApprove, err)
 		}
 		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-		return nil
 
 	case "deny":
 		redirectURL, err := a.service.DenyAuthorization(review)
@@ -113,11 +117,12 @@ func (a *App) handlePostAuthorize(
 			return appErr(errAuthorizeDeny, err)
 		}
 		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-		return nil
 
 	default:
 		return appErr(errAuthorizeActionMissing, nil)
 	}
+
+	return nil
 }
 
 func (a *App) loginReturnToURL(

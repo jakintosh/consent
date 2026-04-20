@@ -8,30 +8,45 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/client"
 )
 
+type homePageData struct {
+	Authenticated bool
+	LoginURL      string
+	LogoutURL     string
+}
+
 func (a *App) handleGetHome(
 	w http.ResponseWriter,
 	r *http.Request,
 ) *appError {
-	data := map[string]any{
-		"Authenticated": false,
-		"LoginURL":      a.auth.LoginURL,
-	}
-
-	_, csrfSecret, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
+	// get authorization
+	accessToken, csrfSecret, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
 	if err != nil {
 		if !errors.Is(err, client.ErrTokenAbsent) {
 			logAppErr(r, "failed to verify authorization: "+err.Error())
 		}
-	} else {
-		data["Authenticated"] = true
-		logoutURL, err := buildLogoutURL(a.auth.LogoutURL, csrfSecret)
+	}
+
+	// build page data
+	var data homePageData
+	if accessToken != nil {
+		logoutUrl, err := buildLogoutURL(a.auth.LogoutURL, csrfSecret)
 		if err != nil {
 			return appErr(errHomeSessionUI, err)
 		}
-		data["LogoutURL"] = logoutURL
+		data = homePageData{
+			Authenticated: true,
+			LoginURL:      a.auth.LoginURL,
+			LogoutURL:     logoutUrl,
+		}
+	} else {
+		data = homePageData{
+			Authenticated: false,
+			LoginURL:      a.auth.LoginURL,
+		}
 	}
 
-	a.returnTemplate(w, r, "home.html", data)
+	// render page
+	a.returnTemplate(w, r, http.StatusOK, "home.html", data)
 	return nil
 }
 
