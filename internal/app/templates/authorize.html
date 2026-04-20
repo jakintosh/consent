@@ -1,29 +1,45 @@
 {{ define "style" }}
-		.authorize { max-width: 640px; margin: 2em auto; }
-		.authorize h2 { color: #7521b0; margin-block-end: 0.25em; }
-		.authorize p { margin: 0.5em 0; }
 		.authorize ul { padding-left: 1.25em; }
-		.authorize li { margin: 0.75em 0; }
+		.authorize li { margin: 0.75rem 0; }
 		.authorize .name { color: #7521b0; font-family: monospace; }
-		.authorize .actions { display: flex; gap: 0.75em; margin-top: 1.5em; }
-		.authorize button { border: 1pt solid #7521b0; background: white; color: #7521b0; padding: 0.75em 1.25em; cursor: pointer; }
-		.authorize button.primary { background: #7521b0; color: white; }
+		.authorize .scope-group + .scope-group { margin-top: 1.5rem; }
 {{ end }}
 {{ define "content" }}
-	<section class="authorize">
+	<section class="page authorize stack">
+		<p class="eyebrow">Authorization Request</p>
 		<h2>Authorize {{ .ServiceDisplay }}</h2>
 		<p><span class="name">{{ .ServiceDisplay }}</span> is requesting access to your Consent account.</p>
-		<ul>
-		{{ range .Scopes }}
-			<li>
-				<strong>{{ .Label }}</strong><br />
-				<span>{{ .Description }}</span>
-			</li>
+		{{ if .GrantedScopes }}
+		<div class="scope-group">
+			<p class="notice">Already approved for this app:</p>
+			<ul>
+			{{ range .GrantedScopes }}
+				<li>
+					<strong>{{ .Label }}</strong><br />
+					<span>{{ .Description }}</span>
+				</li>
+			{{ end }}
+			</ul>
+		</div>
 		{{ end }}
-		</ul>
+		<div class="scope-group">
+			{{ if .GrantedScopes }}
+			<p>Approving now will additionally grant:</p>
+			{{ else }}
+			<p>This app is asking for permission to:</p>
+			{{ end }}
+			<ul>
+			{{ range .MissingScopes }}
+				<li>
+					<strong>{{ .Label }}</strong><br />
+					<span>{{ .Description }}</span>
+				</li>
+			{{ end }}
+			</ul>
+		</div>
 		<form method="POST" action="/authorize">
 			<input type="hidden" name="service" value="{{ .ServiceName }}" />
-			{{ range .Scopes }}
+			{{ range .RequestedScopes }}
 			<input type="hidden" name="scope" value="{{ .Name }}" />
 			{{ end }}
 			<input type="hidden" name="state" value="{{ .State }}" />

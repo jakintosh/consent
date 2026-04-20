@@ -36,7 +36,7 @@ func TestHome_Unauthenticated(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !strings.Contains(body, "Log in to Consent") {
+	if !strings.Contains(body, "Log In") {
 		t.Fatalf("expected login prompt in home page")
 	}
 	if !strings.Contains(body, "/login") {
@@ -73,7 +73,7 @@ func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
 	}
 
 	body := rr.Body.String()
-	if !strings.Contains(body, "You are logged in to Consent.") {
+	if !strings.Contains(body, "ready to approve access requests") {
 		t.Fatalf("expected authenticated home content")
 	}
 	if !strings.Contains(body, "/logout?csrf=") {

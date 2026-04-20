@@ -78,21 +78,53 @@ func New(
 
 func (a *App) Router() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", a.Home())
-	mux.HandleFunc("/login", a.Login())
-	mux.HandleFunc("GET /authorize", a.Authorize())
-	mux.HandleFunc("POST /authorize", a.AuthorizeSubmit())
+	mux.HandleFunc("/", a.serve(a.handleGetHome))
+	mux.HandleFunc("GET /login", a.serve(a.handleGetLogin))
+	mux.HandleFunc("POST /login", a.serve(a.handlePostLogin))
+	mux.HandleFunc("GET /authorize", a.serve(a.handleGetAuthorize))
+	mux.HandleFunc("POST /authorize", a.serve(a.handlePostAuthorize))
 	for pattern, handler := range a.auth.Routes {
 		mux.HandleFunc(pattern, handler)
 	}
 	return mux
 }
 
-func (a *App) returnTemplate(
-	name string,
-	data any,
+type appHandler func(http.ResponseWriter, *http.Request) *appError
+
+type statusPageData struct {
+	Title   string
+	Message string
+}
+
+func (a *App) serve(handler appHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := handler(w, r); err != nil {
+			a.handleAppError(w, r, err)
+		}
+	}
+}
+
+func (a *App) handleAppError(
 	w http.ResponseWriter,
 	r *http.Request,
+	err *appError,
+) {
+	spec := appErrorSpecs[err.kind]
+	if spec.loggable {
+		if err.cause != nil {
+			logAppErr(r, fmt.Sprintf("%s: %v", spec.logMessage, err.cause))
+		} else {
+			logAppErr(r, spec.logMessage)
+		}
+	}
+	a.returnStatusPage(w, r, spec.status, spec.title, spec.message)
+}
+
+func (a *App) returnTemplate(
+	w http.ResponseWriter,
+	r *http.Request,
+	name string,
+	data any,
 ) {
 	bytes, err := a.templates.RenderTemplate(name, data)
 	if err != nil {
@@ -101,17 +133,27 @@ func (a *App) returnTemplate(
 		w.Write(serverErrorHTML)
 		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(bytes)
+}
+
+func (a *App) returnStatusPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	status int,
+	title, message string,
+) {
+	w.WriteHeader(status)
+	page := statusPageData{
+		Title:   title,
+		Message: message,
+	}
+	a.returnTemplate(w, r, "status.html", page)
 }
 
 func logAppErr(r *http.Request, msg string) {
 	log.Printf("%s %s: %s\n", r.Method, r.URL.String(), msg)
 }
-
-var badRequestHTML = []byte(`<!DOCTYPE html><html>
-<head><style>:root{text-align:center;font-family:sans-serif;}</style></head>
-<body><h1>Bad Request</h1><hr /><p>You're using this page wrong.</p></body>
-</html>`)
 
 var serverErrorHTML = []byte(`<!DOCTYPE html><html>
 <head><style>:root{text-align:center;font-family:sans-serif;}</style></head>

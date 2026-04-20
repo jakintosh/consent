@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -11,144 +10,119 @@ import (
 )
 
 type authorizePageData struct {
-	ServiceName    string
-	ServiceDisplay string
-	Scopes         []service.ScopeDefinition
-	GrantedScopes  []string
-	MissingScopes  []string
-	State          string
-	CSRF           string
+	ServiceName     string
+	ServiceDisplay  string
+	RequestedScopes []service.ScopeDefinition
+	GrantedScopes   []service.ScopeDefinition
+	MissingScopes   []service.ScopeDefinition
+	State           string
+	CSRF            string
 }
 
-func (a *App) Authorize() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		req, err := a.service.PrepareAuthorizationRequest(
-			r.URL.Query().Get("service"),
-			r.URL.Query()["scope"],
-			r.URL.Query().Get("state"),
-		)
-		if err != nil {
-			logAppErr(r, fmt.Sprintf("invalid authorization request: %v", err))
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(badRequestHTML)
-			return
-		}
+func (a *App) handleGetAuthorize(
+	w http.ResponseWriter,
+	r *http.Request,
+) *appError {
+	svcName := r.URL.Query().Get("service")
+	scopes := r.URL.Query()["scope"]
+	state := r.URL.Query().Get("state")
 
-		accessToken, csrf, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
-		if err != nil {
-			if !errors.Is(err, client.ErrTokenAbsent) {
-				logAppErr(r, fmt.Sprintf("failed to verify authorization: %v", err))
-			}
-			http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
-			return
+	accessToken, csrf, err := a.auth.Verifier.VerifyAuthorizationGetCSRF(w, r)
+	if err != nil {
+		if !errors.Is(err, client.ErrTokenAbsent) {
+			logAppErr(r, "failed to verify authorization: "+err.Error())
 		}
-
-		decision, err := a.service.GetAuthorizationDecision(accessToken.Subject(), req)
-		if err != nil {
-			logAppErr(r, fmt.Sprintf("failed to prepare authorization decision: %v", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(serverErrorHTML)
-			return
-		}
-
-		if len(decision.MissingScopes) == 0 {
-			redirectURL, err := a.service.IssueAuthorizationCodeRedirect(accessToken.Subject(), req.Service.Name, req.Scopes, req.State)
-			if err != nil {
-				logAppErr(r, fmt.Sprintf("failed to issue authorization code: %v", err))
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write(serverErrorHTML)
-				return
-			}
-			http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-			return
-		}
-
-		data := authorizePageData{
-			ServiceName:    req.Service.Name,
-			ServiceDisplay: req.Service.Display,
-			Scopes:         service.ScopeDefinitions(req.Scopes),
-			GrantedScopes:  decision.GrantedScopes,
-			MissingScopes:  decision.MissingScopes,
-			State:          req.State,
-			CSRF:           csrf,
-		}
-		a.returnTemplate("authorize.html", data, w, r)
+		http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
+		return nil
 	}
-}
 
-func (a *App) AuthorizeSubmit() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			logAppErr(r, fmt.Sprintf("failed to parse authorize form: %v", err))
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(badRequestHTML)
-			return
-		}
+	// get a review of what needs to be authorized
+	sub := accessToken.Subject()
+	review, err := a.service.ReviewAuthorizationRequest(sub, svcName, scopes, state)
+	if err != nil {
+		return appErr(errAuthorizePrepare, err)
+	}
 
-		req, err := a.service.PrepareAuthorizationRequest(
-			r.FormValue("service"),
-			r.Form["scope"],
-			r.FormValue("state"),
-		)
+	// check for auto-redirect if already approved
+	if !review.NeedsApproval() {
+		redirectURL, err := a.service.ApproveAuthorization(sub, review)
 		if err != nil {
-			logAppErr(r, fmt.Sprintf("invalid authorization submit: %v", err))
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(badRequestHTML)
-			return
+			return appErr(errAuthorizeAutoApprove, err)
 		}
-
-		accessToken, _, err := a.auth.Verifier.VerifyAuthorizationCheckCSRF(w, r, r.FormValue("csrf"))
-		if err != nil {
-			if errors.Is(err, client.ErrCSRFInvalid) {
-				w.WriteHeader(http.StatusForbidden)
-				return
-			}
-			if !errors.Is(err, client.ErrTokenAbsent) {
-				logAppErr(r, fmt.Sprintf("failed to verify authorization submit: %v", err))
-			}
-			http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
-			return
-		}
-
-		action := r.FormValue("action")
-		if action == "deny" {
-			redirectURL, err := a.service.IssueAuthorizationDeniedRedirect(req.Service.Name, req.State)
-			if err != nil {
-				logAppErr(r, fmt.Sprintf("failed to deny authorization: %v", err))
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write(serverErrorHTML)
-				return
-			}
-			http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-			return
-		}
-		if action != "approve" {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write(badRequestHTML)
-			return
-		}
-
-		decision, err := a.service.GetAuthorizationDecision(accessToken.Subject(), req)
-		if err != nil {
-			logAppErr(r, fmt.Sprintf("failed to compute authorization decision: %v", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(serverErrorHTML)
-			return
-		}
-
-		redirectURL, err := a.service.ApproveAuthorization(accessToken.Subject(), decision)
-		if err != nil {
-			logAppErr(r, fmt.Sprintf("failed to approve authorization: %v", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write(serverErrorHTML)
-			return
-		}
-
 		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return nil
+	}
+
+	data := authorizePageData{
+		ServiceName:     review.Request.Service.Name,
+		ServiceDisplay:  review.Request.Service.Display,
+		RequestedScopes: review.RequestedScopes,
+		GrantedScopes:   review.GrantedScopes,
+		MissingScopes:   review.MissingScopes,
+		State:           review.Request.State,
+		CSRF:            csrf,
+	}
+	a.returnTemplate(w, r, "authorize.html", data)
+	return nil
+}
+
+func (a *App) handlePostAuthorize(
+	w http.ResponseWriter,
+	r *http.Request,
+) *appError {
+	if err := r.ParseForm(); err != nil {
+		return appErr(errAuthorizeFormInvalid, err)
+	}
+
+	// validate user
+	csrf := r.FormValue("csrf")
+	accessToken, _, err := a.auth.Verifier.VerifyAuthorizationCheckCSRF(w, r, csrf)
+	if err != nil {
+		if errors.Is(err, client.ErrCSRFInvalid) {
+			return appErr(errAuthorizeCSRFExpired, err)
+		}
+		if !errors.Is(err, client.ErrTokenAbsent) {
+			logAppErr(r, "failed to verify authorization submit: "+err.Error())
+		}
+		http.Redirect(w, r, a.loginReturnToURL(r), http.StatusSeeOther)
+		return nil
+	}
+
+	action := r.FormValue("action")
+	scopes := r.Form["scope"]
+	state := r.FormValue("state")
+	sub := accessToken.Subject()
+	svc := r.FormValue("service")
+	review, err := a.service.ReviewAuthorizationRequest(sub, svc, scopes, state)
+	if err != nil {
+		return appErr(errAuthorizeSubmitInvalid, err)
+	}
+
+	switch action {
+	case "approve":
+		redirectURL, err := a.service.ApproveAuthorization(sub, review)
+		if err != nil {
+			return appErr(errAuthorizeApprove, err)
+		}
+		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return nil
+
+	case "deny":
+		redirectURL, err := a.service.DenyAuthorization(review)
+		if err != nil {
+			return appErr(errAuthorizeDeny, err)
+		}
+		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return nil
+
+	default:
+		return appErr(errAuthorizeActionMissing, nil)
 	}
 }
 
-func (a *App) loginReturnToURL(r *http.Request) string {
+func (a *App) loginReturnToURL(
+	r *http.Request,
+) string {
 	loginURL, err := url.Parse(a.auth.LoginURL)
 	if err != nil || loginURL == nil {
 		return "/login?return_to=" + url.QueryEscape(r.URL.RequestURI())

@@ -1,55 +1,32 @@
 {{ define "style" }}
-		/* general form styling */
-		form.auth { max-width: 360px; margin: 2em auto; }
-		form.auth > * { display: block; display: flex; margin: 0.5em 0; }
-		form.auth > *:first-child { margin-block-start: 0; }
-		form.auth > *:last-child { margin-block-end: 0; }
-
-		/* form element styling */
-		form.auth h2 { color: #7521b0; }
-		form.auth input,
-		form.auth button { flex: 1; border: none; background-color: #0000; }
-		form.auth button { padding-block: 0.75em; font-weight: bold; color: white; background-color: #7521b0; }
-		form.auth > fieldset > legend { color: #7521b0; background-color: white;}
-
-		/* general focus */
-		form.auth input:focus,
-		form.auth button:focus { outline: none; background-color: #0000; }
-
-		/* button focus  */
-		form.auth button:hover { cursor: pointer; }
-		form.auth .focus:has(> button:focus),
-		form.auth .focus:has(> button:hover) { background-color: #7521b0b; }
-
-		/* input focus */
-		form.auth .focus:has(> input:focus) { color: #7521b0; background-color: #7521b01; }
-
-		form.auth .border { border: 1pt solid #7521b0; }
-		form.auth .submit { margin-block: 1.5em; }
-
-		.mono { font-family: monospace; }
+		.auth-form { max-width: 24rem; }
+		.auth-form .field + .field { margin-top: 1rem; }
+		.auth-form .actions { margin-top: 1.25rem; }
 {{ end }}
 {{ define "content" }}
-	<form class="auth" method="POST" action="/api/v1/login">
-		<h2>Log In</h2>
+	<section class="page auth-form stack">
+		<p class="eyebrow">Sign In</p>
 		<div>
-			<p>
-				Use your Pollinator Network ID to log in to Consent.
-			</p>
+			<h2>Log in to Consent</h2>
+			<p>Use your Pollinator Network ID to continue.</p>
 		</div>
-		<fieldset class="border focus">
-			<legend>Handle</legend>
-			<input type="text" name="handle" required />
-		</fieldset>
-		<fieldset class="border focus">
-			<legend>Secret</legend>
-		<input type="password" name="secret" required />
-		</fieldset>
-		<div class="border focus submit">
-			<input type="text" name="service" value="consent" hidden required />
-			<input type="text" name="return_to" value="{{.ReturnTo}}" hidden />
-			<button type="submit">Log In</button>
-		</div>
-	</form>
+		{{ if .Error }}
+		<p class="notice error">{{ .Error }}</p>
+		{{ end }}
+		<form method="POST" action="/login">
+			<div class="field">
+				<label for="handle">Handle</label>
+				<input id="handle" type="text" name="handle" value="{{ .Handle }}" autocomplete="username" required />
+			</div>
+			<div class="field">
+				<label for="secret">Secret</label>
+				<input id="secret" type="password" name="secret" autocomplete="current-password" required />
+			</div>
+			<input type="hidden" name="return_to" value="{{ .ReturnTo }}" />
+			<div class="actions">
+				<button type="submit" class="primary">Log In</button>
+			</div>
+		</form>
+	</section>
 {{ end }}
 {{- template "base.html" . -}}

@@ -12,7 +12,7 @@ func TestNewTemplatesFromFS_LoadsRenderablePages(t *testing.T) {
 		t.Fatalf("newTemplatesFromFS failed: %v", err)
 	}
 
-	if got, want := len(templates.pages), 3; got != want {
+	if got, want := len(templates.pages), 4; got != want {
 		t.Fatalf("loaded page count = %d, want %d", got, want)
 	}
 
@@ -44,6 +44,14 @@ func TestNewTemplatesFromFS_LoadsRenderablePages(t *testing.T) {
 	}
 	if !strings.Contains(string(authorizeBytes), "authorize: hello") {
 		t.Fatalf("expected authorize template content")
+	}
+
+	statusBytes, err := templates.RenderTemplate("status.html", map[string]string{"Message": "hello"})
+	if err != nil {
+		t.Fatalf("RenderTemplate(status.html) failed: %v", err)
+	}
+	if !strings.Contains(string(statusBytes), "status: hello") {
+		t.Fatalf("expected status template content")
 	}
 }
 
@@ -89,6 +97,9 @@ func testTemplateFS() fstest.MapFS {
 		},
 		"templates/authorize.html": {
 			Data: []byte(`{{define "content"}}authorize: {{.Message}}{{end}}{{template "base.html" .}}`),
+		},
+		"templates/status.html": {
+			Data: []byte(`{{define "content"}}status: {{.Message}}{{end}}{{template "base.html" .}}`),
 		},
 	}
 }

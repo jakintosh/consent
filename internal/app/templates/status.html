@@ -1,0 +1,14 @@
+{{ define "style" }}
+		.status { max-width: 32rem; }
+{{ end }}
+{{ define "content" }}
+	<section class="page status stack">
+		<p class="eyebrow">Consent</p>
+		<h2>{{ .Title }}</h2>
+		<p>{{ .Message }}</p>
+		<div class="actions">
+			<a class="button" href="/">Return Home</a>
+		</div>
+	</section>
+{{ end }}
+{{- template "base.html" . -}}

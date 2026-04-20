@@ -1,19 +1,21 @@
 {{ define "style" }}
-		.home { max-width: 480px; margin: 2em auto; }
-		.home h2 { color: #7521b0; margin-block-end: 0.25em; }
-		.home p { margin: 0.5em 0; }
-		.home a { color: #7521b0; text-underline-offset: 0.2em; }
+		.home .actions { margin-top: 1.25rem; }
 {{ end }}
 {{ define "content" }}
-	<section class="home">
+	<section class="page home stack">
+		<p class="eyebrow">Consent</p>
 	{{ if .Authenticated }}
 		<h2>Welcome</h2>
-		<p>You are logged in to Consent.</p>
-		<p><a href="{{ .LogoutURL }}">Log out</a></p>
+		<p>You are logged in and ready to approve access requests for connected services.</p>
+		<div class="actions">
+			<a class="button" href="{{ .LogoutURL }}">Log Out</a>
+		</div>
 	{{ else }}
 		<h2>Welcome</h2>
-		<p>You are not logged in.</p>
-		<p><a href="{{ .LoginURL }}">Log in to Consent</a></p>
+		<p>Sign in to review access requests and manage connected applications.</p>
+		<div class="actions">
+			<a class="button primary" href="{{ .LoginURL }}">Log In</a>
+		</div>
 	{{ end }}
 	</section>
 {{ end }}
