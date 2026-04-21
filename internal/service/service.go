@@ -5,6 +5,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,40 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var (
+	PermissionRead = keys.Permission{
+		Key:         "read",
+		Display:     "Read",
+		Description: "Read-only API access",
+	}
+	PermissionWrite = keys.Permission{
+		Key:         "write",
+		Display:     "Write",
+		Description: "Mutating API access",
+	}
+	PermissionAdmin = keys.Permission{
+		Key:         "admin",
+		Display:     "Admin",
+		Description: "Administrative access",
+	}
+)
+
+func AllKeyPermissions() []keys.Permission {
+	return []keys.Permission{
+		PermissionRead,
+		PermissionWrite,
+		PermissionAdmin,
+	}
+}
+
+func AllKeyPermissionRefs() []*keys.Permission {
+	return []*keys.Permission{
+		&PermissionRead,
+		&PermissionWrite,
+		&PermissionAdmin,
+	}
+}
 
 // PasswordMode controls bcrypt cost for password hashing.
 // Use PasswordModeProduction for real deployments and PasswordModeTesting only in tests.
@@ -93,7 +128,15 @@ func New(
 		return nil, errors.New("service: keys store required")
 	}
 
-	keysSvc, err := NewKeysService(options.KeysStore)
+	if options.KeysStore == nil {
+		return nil, fmt.Errorf("service: keys store required")
+	}
+
+	opts := keys.Options{
+		Store:       options.KeysStore,
+		Permissions: AllKeyPermissions(),
+	}
+	keysSvc, err := keys.New(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +162,27 @@ func Init(
 		return err
 	}
 
-	if err := InitKeys(options.KeysStore, options.BootstrapToken); err != nil {
+	if options.BootstrapToken == "" {
+		return fmt.Errorf("service: bootstrap token required")
+	}
+	if options.KeysStore == nil {
+		return fmt.Errorf("service: keys store required")
+	}
+
+	opts := keys.Options{
+		Store:       options.KeysStore,
+		Permissions: AllKeyPermissions(),
+	}
+	keysSvc, err := keys.New(opts)
+	if err != nil {
 		return err
+	}
+
+	err = keysSvc.Init(options.BootstrapToken, AllKeyPermissionRefs()...)
+	if err != nil {
+		if !errors.Is(err, keys.ErrAlreadyInitialized) {
+			return fmt.Errorf("service: initialize keys: %w", err)
+		}
 	}
 
 	return nil
