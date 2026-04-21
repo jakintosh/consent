@@ -160,7 +160,7 @@ func SetupTestEnvWithRouter(
 	t.Helper()
 	env := SetupTestEnv(t)
 	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
-	env.Router = env.Service.Router()
+	env.Router = env.Service.BuildRouter()
 	return env
 }
 

@@ -38,7 +38,7 @@ var registerCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/register", body, nil); err != nil {
+		if err := client.Post("/admin/register", body, nil); err != nil {
 			return err
 		}
 

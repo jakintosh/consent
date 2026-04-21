@@ -25,7 +25,7 @@ func TestAPILogin_JSON_Success(t *testing.T) {
 		"secret": "password123",
 		"service": "consent"
 	}`
-	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
 	location := result.Headers.Get("Location")
 	if location == "" {
@@ -49,7 +49,7 @@ func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 		"secret": "password123",
 		"service": "consent"
 	}`
-	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
 	location := result.Headers.Get("Location")
 	if location == "" {
@@ -68,7 +68,7 @@ func TestAPILogin_UnsupportedContentType(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// non-JSON content type is rejected
-	result := wire.TestPost[any](env.Router, "/login", "data", wire.TestHeader{Key: "Content-Type", Value: "text/plain"})
+	result := wire.TestPost[any](env.Router, "/auth/login", "data", wire.TestHeader{Key: "Content-Type", Value: "text/plain"})
 	result.ExpectStatus(t, http.StatusUnsupportedMediaType)
 	result.ExpectError(t)
 }
@@ -86,7 +86,7 @@ func TestAPILogin_InvalidCredentials(t *testing.T) {
 		"secret": "wrongpassword",
 		"service": "consent"
 	}`
-	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
 	result.ExpectError(t)
 }
@@ -101,7 +101,7 @@ func TestAPILogin_UnknownUser(t *testing.T) {
 		"secret": "password",
 		"service": "consent"
 	}`
-	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
 	result.ExpectError(t)
 }
@@ -119,7 +119,7 @@ func TestAPILogin_UnknownService(t *testing.T) {
 		"secret": "password123",
 		"service": "unknown"
 	}`
-	result := wire.TestPost[any](env.Router, "/login", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 
@@ -134,7 +134,7 @@ func TestAPILogin_InvalidJSON(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// malformed JSON returns 400
-	result := wire.TestPost[any](env.Router, "/login", "not-json", jsonHeader)
+	result := wire.TestPost[any](env.Router, "/auth/login", "not-json", jsonHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -156,7 +156,7 @@ func TestAPILogin_MissingFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := wire.TestPost[any](env.Router, "/login", tt.body, jsonHeader)
+			result := wire.TestPost[any](env.Router, "/auth/login", tt.body, jsonHeader)
 			// should either fail at login or return auth error
 			if result.Code == http.StatusSeeOther {
 				t.Error("should not redirect with missing fields")

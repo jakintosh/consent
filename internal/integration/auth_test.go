@@ -68,7 +68,7 @@ func TestAuthFlow_E2E(t *testing.T) {
 		"service":   []string{service.InternalServiceName},
 		"return_to": []string{mustURL(t, authorizeURL).RequestURI()},
 	}
-	loginResp := postFormNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/login", loginBody)
+	loginResp := postFormNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/login", loginBody)
 	if loginResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("login status = %d, want %d", loginResp.StatusCode, http.StatusSeeOther)
 	}
@@ -152,9 +152,9 @@ func TestAuthFlow_E2E(t *testing.T) {
 		t.Fatalf("expected opaque sub, got handle %q", appAccessToken.Subject())
 	}
 
-	meResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/me", accessCookie.Value)
+	meResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/me", accessCookie.Value)
 	if meResp.StatusCode != http.StatusOK {
-		t.Fatalf("/api/v1/me status = %d, want %d", meResp.StatusCode, http.StatusOK)
+		t.Fatalf("/api/v1/auth/me status = %d, want %d", meResp.StatusCode, http.StatusOK)
 	}
 	var meBody struct {
 		Profile struct {
@@ -188,12 +188,12 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	identityCallbackResp.Body.Close()
 
-	identityMeResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/me", identityAccessCookie.Value)
+	identityMeResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/me", identityAccessCookie.Value)
 	if identityMeResp.StatusCode != http.StatusOK {
-		t.Fatalf("identity-only /api/v1/me status = %d, want %d", identityMeResp.StatusCode, http.StatusOK)
+		t.Fatalf("identity-only /api/v1/auth/me status = %d, want %d", identityMeResp.StatusCode, http.StatusOK)
 	}
 	if strings.Contains(readBody(t, identityMeResp), "profile") {
-		t.Fatalf("identity-only /api/v1/me should not include profile data")
+		t.Fatalf("identity-only /api/v1/auth/me should not include profile data")
 	}
 	identityMeResp.Body.Close()
 }
@@ -219,9 +219,9 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
 			if r.Method == http.MethodPost {
 				switch r.URL.Path {
-				case "/api/v1/refresh":
+				case "/api/v1/auth/refresh":
 					h.counters.refreshCalls.Add(1)
-				case "/api/v1/logout":
+				case "/api/v1/auth/logout":
 					h.counters.logoutCalls.Add(1)
 				}
 			}
@@ -258,7 +258,7 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if err != nil {
 		t.Fatalf("service.New failed: %v", err)
 	}
-	wire.Subrouter(apiMux, "/api/v1", svc.Router())
+	wire.Subrouter(apiMux, "/api/v1", svc.BuildRouter())
 
 	clientOpts := tokens.ClientOptions{
 		VerificationKey: &signingKey.PublicKey,

@@ -218,7 +218,7 @@ func TestClearTokenCookies_InsecureCookiesDisablesSecure(t *testing.T) {
 func TestFetchMe_SendsBearerTokenAndDecodesResponse(t *testing.T) {
 	wantToken := "access.token.value"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/me" {
+		if r.URL.Path != "/api/v1/auth/me" {
 			http.NotFound(w, r)
 			return
 		}
@@ -298,7 +298,7 @@ func setupLogoutTestClient(
 	revokedToken = ""
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/logout" {
+		if r.URL.Path != "/api/v1/auth/logout" {
 			http.NotFound(w, r)
 			return
 		}

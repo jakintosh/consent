@@ -44,7 +44,7 @@ var servicesListCmd = &args.Command{
 		}
 
 		var services []serviceDefinition
-		if err := client.Get("/services", &services); err != nil {
+		if err := client.Get("/admin/services", &services); err != nil {
 			return err
 		}
 
@@ -73,7 +73,7 @@ var servicesGetCmd = &args.Command{
 		}
 
 		var service serviceDefinition
-		if err := client.Get("/services/"+name, &service); err != nil {
+		if err := client.Get("/admin/services/"+name, &service); err != nil {
 			return err
 		}
 
@@ -136,7 +136,7 @@ var servicesCreateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/services", body, nil); err != nil {
+		if err := client.Post("/admin/services", body, nil); err != nil {
 			return err
 		}
 
@@ -199,7 +199,7 @@ var servicesUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Put("/services/"+name, body, nil); err != nil {
+		if err := client.Put("/admin/services/"+name, body, nil); err != nil {
 			return err
 		}
 
@@ -228,7 +228,7 @@ var servicesDeleteCmd = &args.Command{
 			return fmt.Errorf("service name is required")
 		}
 
-		if err := client.Delete("/services/"+name, nil); err != nil {
+		if err := client.Delete("/admin/services/"+name, nil); err != nil {
 			return err
 		}
 

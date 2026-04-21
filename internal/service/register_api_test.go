@@ -12,22 +12,24 @@ import (
 func TestAPIRegister_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// valid registration succeeds
 	body := `{
 		"username": "newuser",
 		"password": "securepass"
 	}`
-	result := wire.TestPost[any](env.Router, "/register", body, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 }
 
 func TestAPIRegister_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// malformed JSON returns 400
-	result := wire.TestPost[any](env.Router, "/register", "not-json", jsonHeader)
+	result := wire.TestPost[any](env.Router, "/admin/register", "not-json", jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -35,20 +37,21 @@ func TestAPIRegister_InvalidJSON(t *testing.T) {
 func TestAPIRegister_DuplicateUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// first registration succeeds
 	body := `{
 		"username": "alice",
 		"password": "pass1"
 	}`
-	wire.TestPost[any](env.Router, "/register", body, jsonHeader)
+	wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
 
 	// second registration with same username returns 409
 	body2 := `{
 		"username": "alice",
 		"password": "pass2"
 	}`
-	result := wire.TestPost[any](env.Router, "/register", body2, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/admin/register", body2, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusConflict)
 	result.ExpectError(t)
 }
@@ -56,13 +59,14 @@ func TestAPIRegister_DuplicateUser(t *testing.T) {
 func TestAPIRegister_ThenLogin(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// register new user
 	regBody := `{
 		"username": "newuser",
 		"password": "mypassword"
 	}`
-	result := wire.TestPost[any](env.Router, "/register", regBody, jsonHeader)
+	result := wire.TestPost[any](env.Router, "/admin/register", regBody, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	// login with registered credentials succeeds
@@ -71,7 +75,7 @@ func TestAPIRegister_ThenLogin(t *testing.T) {
 		"secret": "mypassword",
 		"service": "consent"
 	}`
-	loginResult := wire.TestPost[any](env.Router, "/login", loginBody, jsonHeader)
+	loginResult := wire.TestPost[any](env.Router, "/auth/login", loginBody, jsonHeader)
 	loginResult.ExpectStatus(t, http.StatusSeeOther)
 	location := loginResult.Headers.Get("Location")
 	if location == "" {
@@ -85,9 +89,10 @@ func TestAPIRegister_ThenLogin(t *testing.T) {
 func TestAPIRegister_EmptyBody(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// empty JSON body returns 400
-	result := wire.TestPost[any](env.Router, "/register", "{}", jsonHeader)
+	result := wire.TestPost[any](env.Router, "/admin/register", "{}", jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
@@ -95,6 +100,7 @@ func TestAPIRegister_EmptyBody(t *testing.T) {
 func TestAPIRegister_MultipleUsers(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
 
 	// multiple unique users can register
 	users := []string{"alice", "bob", "charlie"}
@@ -103,7 +109,7 @@ func TestAPIRegister_MultipleUsers(t *testing.T) {
 			"username": "` + user + `",
 			"password": "password"
 		}`
-		result := wire.TestPost[any](env.Router, "/register", body, jsonHeader)
+		result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
 		result.ExpectStatus(t, http.StatusOK)
 	}
 }

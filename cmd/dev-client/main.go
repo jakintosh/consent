@@ -317,7 +317,7 @@ func fetchProfileHandle(
 ) string {
 	me, err := authClient.FetchMe(accessToken)
 	if err != nil {
-		log.Printf("failed to call /api/v1/me: %v", err)
+		log.Printf("failed to call /api/v1/auth/me: %v", err)
 		return ""
 	}
 	if me.Profile == nil {

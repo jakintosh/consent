@@ -159,7 +159,7 @@
 //
 // Tokens carry an opaque `sub` value plus the requested scopes for that
 // authorization event. If your application needs user-facing profile data,
-// call Consent's `/api/v1/me` resource endpoint with the scoped access token:
+// call Consent's `/api/v1/auth/me` resource endpoint with the scoped access token:
 //
 //	me, err := authClient.FetchMe(accessToken.Encoded())
 //	if err != nil {
@@ -169,6 +169,6 @@
 //	    fmt.Println(me.Profile.Handle)
 //	}
 //
-// `/api/v1/me` is a bearer-token resource endpoint. It does not use cookie
+// `/api/v1/auth/me` is a bearer-token resource endpoint. It does not use cookie
 // fallback; callers must present the access token explicitly.
 package client

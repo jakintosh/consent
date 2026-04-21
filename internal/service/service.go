@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/keys"
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -125,28 +124,6 @@ func Init(
 	}
 
 	return nil
-}
-
-func (s *Service) Router() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /me", s.handleMe)
-	mux.HandleFunc("POST /login", s.handleLogin)
-	mux.HandleFunc("POST /logout", s.handleLogout)
-	mux.HandleFunc("POST /refresh", s.handleRefresh)
-	mux.HandleFunc("POST /register", s.handleRegister)
-
-	mux.HandleFunc("GET /services", s.keys.WithAuthFunc(s.handleListServices, &PermissionRead))
-	mux.HandleFunc("POST /services", s.keys.WithAuthFunc(s.handleCreateService, &PermissionWrite))
-	mux.HandleFunc("GET /services/{name}", s.keys.WithAuthFunc(s.handleGetService, &PermissionRead))
-	mux.HandleFunc("PUT /services/{name}", s.keys.WithAuthFunc(s.handleUpdateService, &PermissionWrite))
-	mux.HandleFunc("DELETE /services/{name}", s.keys.WithAuthFunc(s.handleDeleteService, &PermissionWrite))
-
-	admin := http.NewServeMux()
-	wire.Subrouter(admin, "/keys", s.keys.WithAuth(s.keys.Handler(), &PermissionAdmin))
-	wire.Subrouter(mux, "/admin", admin)
-
-	return mux
 }
 
 func decodeRequest[T any](r *http.Request) (T, error) {

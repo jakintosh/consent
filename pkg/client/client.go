@@ -339,9 +339,9 @@ func (c *Client) RefreshTokens(
 	}
 
 	response := service.RefreshResponse{}
-	c.log(LogLevelDebug, "POST { refresh_token } => %s/api/v1/refresh\n", c.authUrl)
-	if err := c.apiClient.Post("/api/v1/refresh", body, &response); err != nil {
-		c.log(LogLevelDebug, "POST %s/api/v1/refresh failed: %v\n", c.authUrl, err)
+	c.log(LogLevelDebug, "POST { refresh_token } => %s/api/v1/auth/refresh\n", c.authUrl)
+	if err := c.apiClient.Post("/api/v1/auth/refresh", body, &response); err != nil {
+		c.log(LogLevelDebug, "POST %s/api/v1/auth/refresh failed: %v\n", c.authUrl, err)
 		return nil, nil, false
 	}
 	if response.AccessToken == "" || response.RefreshToken == "" {
@@ -442,27 +442,27 @@ func (c *Client) FetchMe(
 	*MeResponse,
 	error,
 ) {
-	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/me", nil)
+	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/auth/me", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create /api/v1/me request: %v", err)
+		return nil, fmt.Errorf("failed to create /api/v1/auth/me request: %v", err)
 	}
 	request.Header.Set("Authorization", "Bearer "+accessToken)
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call /api/v1/me: %v", err)
+		return nil, fmt.Errorf("failed to call /api/v1/auth/me: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("/api/v1/me returned status %d", response.StatusCode)
+		return nil, fmt.Errorf("/api/v1/auth/me returned status %d", response.StatusCode)
 	}
 
 	var body struct {
 		Data MeResponse `json:"data"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("failed to decode /api/v1/me response: %v", err)
+		return nil, fmt.Errorf("failed to decode /api/v1/auth/me response: %v", err)
 	}
 
 	return &body.Data, nil
@@ -488,9 +488,9 @@ func revokeRefreshToken(
 		return fmt.Errorf("failed to encode logout payload: %v\n", err)
 	}
 
-	err = client.Post("/api/v1/logout", body, nil)
+	err = client.Post("/api/v1/auth/logout", body, nil)
 	if err != nil {
-		return fmt.Errorf("POST /api/v1/logout failed: %v\n", err)
+		return fmt.Errorf("POST /api/v1/auth/logout failed: %v\n", err)
 	}
 
 	return nil

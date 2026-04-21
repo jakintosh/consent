@@ -136,7 +136,7 @@ var serveCmd = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.Handle("/", appServer.Router())
-		wire.Subrouter(mux, "/api/v1", svc.Router())
+		wire.Subrouter(mux, "/api/v1", svc.BuildRouter())
 
 		if verbose {
 			log.Printf("Listening on %s", runtime.Server.ListenAddress)

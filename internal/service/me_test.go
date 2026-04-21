@@ -18,7 +18,7 @@ func TestMe_IdentityOnly(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password")
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
-	result := testutil.Get(env.Router, "/me", &struct {
+	result := testutil.Get(env.Router, "/auth/me", &struct {
 		Data service.MeResponse `json:"data"`
 	}{}, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusOK, result)
@@ -39,7 +39,7 @@ func TestMe_ProfileScope(t *testing.T) {
 	var response struct {
 		Data service.MeResponse `json:"data"`
 	}
-	result := testutil.Get(env.Router, "/me", &response, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
+	result := testutil.Get(env.Router, "/auth/me", &response, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusOK, result)
 	if response.Data.Profile == nil || response.Data.Profile.Handle != "alice" {
 		t.Fatalf("profile handle = %#v, want alice", response.Data.Profile)
@@ -52,7 +52,7 @@ func TestMe_RequiresIdentityScope(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password")
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"profile"})
-	result := testutil.Get(env.Router, "/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
+	result := testutil.Get(env.Router, "/auth/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusForbidden, result)
 }
 
@@ -62,7 +62,7 @@ func TestMe_RequiresBearerHeader(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password")
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
-	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token.Encoded()})
 	rr := httptest.NewRecorder()
 	env.Router.ServeHTTP(rr, req)
@@ -77,6 +77,6 @@ func TestMe_RequiresConsentAudience(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password")
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity"})
-	result := testutil.Get(env.Router, "/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
+	result := testutil.Get(env.Router, "/auth/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusBadRequest, result)
 }
