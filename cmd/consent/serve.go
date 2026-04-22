@@ -6,7 +6,9 @@ import (
 	"net/http"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/internal/database"
@@ -60,6 +62,7 @@ var serveCmd = &args.Command{
 			log.Printf("  Insecure cookies: %t", insecureCookies)
 		}
 
+		// open database
 		dbOpts := database.Options{
 			Path: runtime.Paths.DatabaseFile,
 		}
@@ -69,10 +72,10 @@ var serveCmd = &args.Command{
 		}
 		defer db.Close()
 
+		// create service
 		svcOpts := service.Options{
 			PasswordMode: service.PasswordModeProduction,
 			Store:        db,
-			KeysStore:    db.KeysStore,
 			TokenServerOpts: tokens.ServerOptions{
 				SigningKey:   runtime.Secrets.SigningKey,
 				IssuerDomain: runtime.Server.AuthorityDomain,
@@ -86,6 +89,19 @@ var serveCmd = &args.Command{
 		svc, err := service.New(svcOpts)
 		if err != nil {
 			return fmt.Errorf("failed to initialize service: %w", err)
+		}
+
+		// create api server
+		apiOpts := api.Options{
+			Service: svc,
+			Keys: &keys.Options{
+				Store:       db.KeysStore,
+				Permissions: service.AllKeyPermissions(),
+			},
+		}
+		apiServer, err := api.New(apiOpts)
+		if err != nil {
+			return fmt.Errorf("failed to initialize api server: %w", err)
 		}
 
 		var authConfig app.AuthConfig
@@ -136,7 +152,7 @@ var serveCmd = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.Handle("/", appServer.Router())
-		wire.Subrouter(mux, "/api/v1", svc.BuildRouter())
+		wire.Subrouter(mux, "/api/v1", apiServer.Router())
 
 		if verbose {
 			log.Printf("Listening on %s", runtime.Server.ListenAddress)

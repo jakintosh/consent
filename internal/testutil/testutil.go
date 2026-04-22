@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -105,7 +107,6 @@ func SetupTestEnv(
 	serviceOpts := service.Options{
 		PasswordMode:    service.PasswordModeTesting,
 		Store:           db,
-		KeysStore:       db.KeysStore,
 		TokenServerOpts: tkServerOpts,
 		ResourceTokenClientOpts: tokens.ClientOptions{
 			VerificationKey: &getSharedSigningKey().PublicKey,
@@ -118,9 +119,21 @@ func SetupTestEnv(
 		t.Fatalf("failed to initialize test service: %v", err)
 	}
 
+	apiServer, err := api.New(api.Options{
+		Service: svc,
+		Keys: &keys.Options{
+			Store:       db.KeysStore,
+			Permissions: service.AllKeyPermissions(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to initialize test api server: %v", err)
+	}
+
 	return &TestEnv{
 		DB:             db,
 		Service:        svc,
+		Router:         apiServer.Router(),
 		TokenIssuer:    issuer,
 		TokenValidator: validator,
 	}
@@ -160,7 +173,6 @@ func SetupTestEnvWithRouter(
 	t.Helper()
 	env := SetupTestEnv(t)
 	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
-	env.Router = env.Service.BuildRouter()
 	return env
 }
 

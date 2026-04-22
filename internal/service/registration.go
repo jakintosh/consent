@@ -1,20 +1,11 @@
 package service
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
-	"net/http"
 	"strings"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type RegistrationRequest struct {
-	Handle   string `json:"username"`
-	Password string `json:"password"`
-}
 
 func (s *Service) Register(
 	handle string,
@@ -43,31 +34,4 @@ func (s *Service) Register(
 	}
 
 	return nil
-}
-
-func (s *Service) handleRegister(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	req, err := decodeRequest[RegistrationRequest](r)
-	if err != nil {
-		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-		return
-	}
-
-	err = s.Register(req.Handle, req.Password)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, nil)
-}
-
-func generateSubject() (string, error) {
-	randomBytes := make([]byte, 24)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", fmt.Errorf("failed to generate subject: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }

@@ -6,8 +6,8 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/config"
-	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
 var registerCmd = &args.Command{
@@ -29,7 +29,7 @@ var registerCmd = &args.Command{
 			return err
 		}
 
-		payload := service.RegistrationRequest{
+		payload := api.RegistrationRequest{
 			Handle:   i.GetOperand("handle"),
 			Password: i.GetOperand("password"),
 		}

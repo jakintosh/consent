@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
@@ -408,7 +409,7 @@ func TestAPIRefresh_Success(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[service.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
 	response := result.ExpectOK(t)
 	if response.AccessToken == "" {
 		t.Error("expected non-empty access token")
@@ -460,7 +461,7 @@ func TestAPIRefresh_InvalidatesOldToken(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[service.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
 	result.ExpectOK(t)
 
 	// second refresh with same token fails (token was rotated)
@@ -491,14 +492,14 @@ func TestAPIRefresh_NewTokenCanBeUsed(t *testing.T) {
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
 	}`
-	result := wire.TestPost[service.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
+	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
 	response1 := result.ExpectOK(t)
 
 	// new refresh token can be used for another refresh
 	body2 := `{
 		"refreshToken": "` + response1.RefreshToken + `"
 	}`
-	result = wire.TestPost[service.RefreshResponse](env.Router, "/auth/refresh", body2, jsonHeader)
+	result = wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body2, jsonHeader)
 	response2 := result.ExpectOK(t)
 	if response2.AccessToken == "" {
 		t.Error("second refresh should return access token")
@@ -512,7 +513,7 @@ func TestMe_IdentityOnly(t *testing.T) {
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
 	result := testutil.Get(env.Router, "/auth/me", &struct {
-		Data service.MeResponse `json:"data"`
+		Data api.MeResponse `json:"data"`
 	}{}, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusOK, result)
 	if string(result.Body) == "" {
@@ -530,7 +531,7 @@ func TestMe_ProfileScope(t *testing.T) {
 
 	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity", "profile"})
 	var response struct {
-		Data service.MeResponse `json:"data"`
+		Data api.MeResponse `json:"data"`
 	}
 	result := testutil.Get(env.Router, "/auth/me", &response, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
 	testutil.ExpectStatus(t, http.StatusOK, result)

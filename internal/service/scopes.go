@@ -112,7 +112,7 @@ func (s *Service) DenyAuthorization(
 	*url.URL,
 	error,
 ) {
-	redirectURL, err := parseFullURL(review.Request.Service.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(review.Request.Service.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}
@@ -142,7 +142,6 @@ func (s *Service) issueAuthorizationCodeRedirect(
 	*url.URL,
 	error,
 ) {
-
 	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
 		subject,
 		[]string{req.Service.Audience, s.consentAPIAudience},
@@ -157,7 +156,7 @@ func (s *Service) issueAuthorizationCodeRedirect(
 		return nil, fmt.Errorf("%w: failed to store auth code: %v", ErrInternal, err)
 	}
 
-	redirectURL, err := parseFullURL(req.Service.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(req.Service.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}

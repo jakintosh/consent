@@ -4,18 +4,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
-
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 )
 
 type ServiceDefinition struct {
-	Name     string `json:"name"`
-	Display  string `json:"display"`
-	Audience string `json:"audience"`
-	Redirect string `json:"redirect"`
+	Name     string
+	Display  string
+	Audience string
+	Redirect string
 }
 
 const (
@@ -27,7 +24,7 @@ func BuildInternalServiceDefinition(publicUrl string) (
 	ServiceDefinition,
 	error,
 ) {
-	baseUrl, err := parseFullURL(publicUrl)
+	baseUrl, err := parseAndValidateRedirectURL(publicUrl)
 	if err != nil {
 		return ServiceDefinition{}, err
 	}
@@ -64,12 +61,6 @@ func EnsureSystemServices(store Store, publicURL string) error {
 	return nil
 }
 
-type UpdateServiceRequest struct {
-	Display  *string `json:"display,omitempty"`
-	Audience *string `json:"audience,omitempty"`
-	Redirect *string `json:"redirect,omitempty"`
-}
-
 func (s *Service) CreateService(
 	name string,
 	display string,
@@ -88,7 +79,7 @@ func (s *Service) CreateService(
 		return ErrInvalidService
 	}
 
-	if _, err := parseFullURL(redirect); err != nil {
+	if _, err := parseAndValidateRedirectURL(redirect); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 
@@ -127,7 +118,9 @@ func (s *Service) GetServiceByName(
 
 func (s *Service) UpdateService(
 	name string,
-	req UpdateServiceRequest,
+	display *string,
+	audience *string,
+	redirect *string,
 ) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -147,29 +140,26 @@ func (s *Service) UpdateService(
 	}
 
 	// Apply updates (use current values as defaults)
-	display := current.Display
-	if req.Display != nil {
-		display = strings.TrimSpace(*req.Display)
+	if display != nil {
+		current.Display = strings.TrimSpace(*display)
 	}
-	audience := current.Audience
-	if req.Audience != nil {
-		audience = strings.TrimSpace(*req.Audience)
+	if audience != nil {
+		current.Audience = strings.TrimSpace(*audience)
 	}
-	redirect := current.Redirect
-	if req.Redirect != nil {
-		redirect = strings.TrimSpace(*req.Redirect)
+	if redirect != nil {
+		current.Redirect = strings.TrimSpace(*redirect)
 	}
 
 	// Validate final values
-	if display == "" || audience == "" || redirect == "" {
+	if current.Display == "" || current.Audience == "" || current.Redirect == "" {
 		return ErrInvalidService
 	}
 
-	if _, err := parseFullURL(redirect); err != nil {
+	if _, err := parseAndValidateRedirectURL(current.Redirect); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 
-	err = s.store.UpdateService(name, display, audience, redirect)
+	err = s.store.UpdateService(name, current.Display, current.Audience, current.Redirect)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s", ErrServiceNotFound, name)
@@ -210,113 +200,4 @@ func (s *Service) ListServices() (
 		return nil, fmt.Errorf("%w: failed to list services: %v", ErrInternal, err)
 	}
 	return records, nil
-}
-
-func (s *Service) handleCreateService(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	req, err := decodeRequest[ServiceDefinition](r)
-	if err != nil {
-		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-		return
-	}
-
-	err = s.CreateService(req.Name, req.Display, req.Audience, req.Redirect)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, nil)
-}
-
-func (s *Service) handleGetService(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	name := r.PathValue("name")
-	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
-		return
-	}
-
-	serviceDef, err := s.GetServiceByName(name)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, serviceDef)
-}
-
-func (s *Service) handleUpdateService(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	name := r.PathValue("name")
-	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
-		return
-	}
-
-	req, err := decodeRequest[UpdateServiceRequest](r)
-	if err != nil {
-		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-		return
-	}
-
-	err = s.UpdateService(name, req)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, nil)
-}
-
-func (s *Service) handleDeleteService(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	name := r.PathValue("name")
-	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
-		return
-	}
-
-	err := s.DeleteService(name)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, nil)
-}
-
-func (s *Service) handleListServices(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	services, err := s.ListServices()
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, services)
-}
-
-func parseFullURL(redirect string) (
-	*url.URL,
-	error,
-) {
-	parsed, err := url.Parse(redirect)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
-	}
-	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, ErrInvalidUrl
-	}
-	return parsed, nil
 }

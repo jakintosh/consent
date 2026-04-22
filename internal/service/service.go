@@ -3,11 +3,12 @@
 package service
 
 import (
-	"encoding/json"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
+	"net/url"
 	"os"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/keys"
@@ -88,7 +89,6 @@ func (m PasswordMode) Cost() int {
 // Options configures Service initialization.
 type Options struct {
 	Store                   Store
-	KeysStore               keys.Store
 	TokenServerOpts         tokens.ServerOptions
 	ResourceTokenClientOpts tokens.ClientOptions
 	PasswordMode            PasswordMode
@@ -111,7 +111,6 @@ type Service struct {
 	tokenValidator         tokens.Validator
 	resourceTokenValidator tokens.Validator
 	consentAPIAudience     string
-	keys                   *keys.Service
 }
 
 func New(
@@ -124,30 +123,12 @@ func New(
 		return nil, errors.New("service: store required")
 	}
 
-	if options.KeysStore == nil {
-		return nil, errors.New("service: keys store required")
-	}
-
-	if options.KeysStore == nil {
-		return nil, fmt.Errorf("service: keys store required")
-	}
-
-	opts := keys.Options{
-		Store:       options.KeysStore,
-		Permissions: AllKeyPermissions(),
-	}
-	keysSvc, err := keys.New(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
 	resourceValidator := tokens.InitClient(options.ResourceTokenClientOpts)
 
 	return &Service{
 		passwordMode:           options.PasswordMode,
 		store:                  options.Store,
-		keys:                   keysSvc,
 		tokenIssuer:            issuer,
 		tokenValidator:         validator,
 		resourceTokenValidator: resourceValidator,
@@ -188,8 +169,29 @@ func Init(
 	return nil
 }
 
-func decodeRequest[T any](r *http.Request) (T, error) {
-	var req T
-	err := json.NewDecoder(r.Body).Decode(&req)
-	return req, err
+func generateSubject() (
+	string,
+	error,
+) {
+	randomBytes := make([]byte, 24)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", fmt.Errorf("failed to generate subject: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
+}
+
+func parseAndValidateRedirectURL(
+	redirect string,
+) (
+	*url.URL,
+	error,
+) {
+	parsed, err := url.Parse(redirect)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
+	}
+	if parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, ErrInvalidUrl
+	}
+	return parsed, nil
 }

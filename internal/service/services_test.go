@@ -102,11 +102,7 @@ func TestUpdateService_Success(t *testing.T) {
 	display := "Service A2"
 	audience := "aud-b"
 	redirect := "https://svc-a.test/new"
-	err := env.Service.UpdateService("svc-a", service.UpdateServiceRequest{
-		Display:  &display,
-		Audience: &audience,
-		Redirect: &redirect,
-	})
+	err := env.Service.UpdateService("svc-a", &display, &audience, &redirect)
 	if err != nil {
 		t.Fatalf("UpdateService failed: %v", err)
 	}
@@ -125,9 +121,7 @@ func TestUpdateService_NotFound(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	display := "Service A2"
-	err := env.Service.UpdateService("missing", service.UpdateServiceRequest{
-		Display: &display,
-	})
+	err := env.Service.UpdateService("missing", &display, nil, nil)
 	if !errors.Is(err, service.ErrServiceNotFound) {
 		t.Fatalf("expected ErrServiceNotFound, got %v", err)
 	}
@@ -139,9 +133,7 @@ func TestUpdateService_InvalidRedirect(t *testing.T) {
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	redirect := "bad-url"
-	err := env.Service.UpdateService("svc-a", service.UpdateServiceRequest{
-		Redirect: &redirect,
-	})
+	err := env.Service.UpdateService("svc-a", nil, nil, &redirect)
 	if !errors.Is(err, service.ErrInvalidRedirect) {
 		t.Fatalf("expected ErrInvalidRedirect, got %v", err)
 	}
@@ -152,7 +144,7 @@ func TestUpdateService_ProtectedName(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	display := "Renamed"
-	err := env.Service.UpdateService(service.InternalServiceName, service.UpdateServiceRequest{Display: &display})
+	err := env.Service.UpdateService(service.InternalServiceName, &display, nil, nil)
 	if !errors.Is(err, service.ErrServiceProtected) {
 		t.Fatalf("expected ErrServiceProtected, got %v", err)
 	}

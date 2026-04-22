@@ -1,13 +1,111 @@
-package service_test
+package api_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
+
+func TestAPIRegister_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"username": "newuser",
+		"password": "securepass"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+}
+
+func TestAPIRegister_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestPost[any](env.Router, "/admin/register", "not-json", jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIRegister_DuplicateUser(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"username": "alice",
+		"password": "pass1"
+	}`
+	wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
+
+	body2 := `{
+		"username": "alice",
+		"password": "pass2"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/register", body2, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusConflict)
+	result.ExpectError(t)
+}
+
+func TestAPIRegister_ThenLogin(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	regBody := `{
+		"username": "newuser",
+		"password": "mypassword"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/register", regBody, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+
+	loginBody := `{
+		"handle": "newuser",
+		"secret": "mypassword",
+		"service": "consent"
+	}`
+	loginResult := wire.TestPost[any](env.Router, "/auth/login", loginBody, jsonHeader)
+	loginResult.ExpectStatus(t, http.StatusSeeOther)
+	location := loginResult.Headers.Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header in redirect")
+	}
+	if !strings.Contains(location, "auth_code=") {
+		t.Errorf("login after register should work, got redirect: %s", location)
+	}
+}
+
+func TestAPIRegister_EmptyBody(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestPost[any](env.Router, "/admin/register", "{}", jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIRegister_MultipleUsers(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	users := []string{"alice", "bob", "charlie"}
+	for _, user := range users {
+		body := `{
+			"username": "` + user + `",
+			"password": "password"
+		}`
+		result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
+		result.ExpectStatus(t, http.StatusOK)
+	}
+}
 
 func TestAPICreateService_Success(t *testing.T) {
 	t.Parallel()

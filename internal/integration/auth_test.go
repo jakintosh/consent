@@ -12,7 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -244,7 +246,6 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	svc, err = service.New(service.Options{
 		PasswordMode: service.PasswordModeTesting,
 		Store:        db,
-		KeysStore:    db.KeysStore,
 		TokenServerOpts: tokens.ServerOptions{
 			SigningKey:   signingKey,
 			IssuerDomain: testIssuerDomain,
@@ -258,7 +259,17 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if err != nil {
 		t.Fatalf("service.New failed: %v", err)
 	}
-	wire.Subrouter(apiMux, "/api/v1", svc.BuildRouter())
+	apiServer, err := api.New(api.Options{
+		Service: svc,
+		Keys: &keys.Options{
+			Store:       db.KeysStore,
+			Permissions: service.AllKeyPermissions(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("api.New failed: %v", err)
+	}
+	wire.Subrouter(apiMux, "/api/v1", apiServer.Router())
 
 	clientOpts := tokens.ClientOptions{
 		VerificationKey: &signingKey.PublicKey,
@@ -313,7 +324,7 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	})
 	h.appServer = httptest.NewTLSServer(appMux)
 
-	if err := svc.UpdateService(testServiceName, service.UpdateServiceRequest{Redirect: stringPtr(h.appServer.URL + "/auth/callback")}); err != nil {
+	if err := svc.UpdateService(testServiceName, nil, nil, stringPtr(h.appServer.URL+"/auth/callback")); err != nil {
 		t.Fatalf("UpdateService redirect failed: %v", err)
 	}
 

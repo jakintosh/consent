@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
-	"git.sr.ht/~jakintosh/consent/internal/service"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
@@ -332,13 +332,13 @@ func (c *Client) RefreshTokens(
 	*RefreshToken,
 	bool,
 ) {
-	body, err := json.Marshal(service.RefreshRequest{RefreshToken: refreshTokenStr})
+	body, err := json.Marshal(api.RefreshRequest{RefreshToken: refreshTokenStr})
 	if err != nil {
 		c.log(LogLevelError, "failed to encode refresh payload: %v\n", err)
 		return nil, nil, false
 	}
 
-	response := service.RefreshResponse{}
+	response := api.RefreshResponse{}
 	c.log(LogLevelDebug, "POST { refresh_token } => %s/api/v1/auth/refresh\n", c.authUrl)
 	if err := c.apiClient.Post("/api/v1/auth/refresh", body, &response); err != nil {
 		c.log(LogLevelDebug, "POST %s/api/v1/auth/refresh failed: %v\n", c.authUrl, err)
@@ -480,7 +480,7 @@ func revokeRefreshToken(
 	refreshToken *RefreshToken,
 ) error {
 	body, err := json.Marshal(
-		service.LogoutRequest{
+		api.LogoutRequest{
 			RefreshToken: refreshToken.Encoded(),
 		},
 	)

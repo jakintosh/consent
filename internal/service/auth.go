@@ -4,51 +4,51 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"golang.org/x/crypto/bcrypt"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-// ── Login ──
-
-type LoginRequest struct {
-	Handle   string `json:"handle"`
-	Secret   string `json:"secret"`
-	Service  string `json:"service"`
-	ReturnTo string `json:"returnTo"`
+type SubjectProfile struct {
+	Handle string
 }
 
-type LoginResponse struct {
-	RefreshToken string `json:"refreshToken"`
-	AccessToken  string `json:"accessToken"`
+type Viewer struct {
+	Profile *SubjectProfile
 }
 
-type LogoutRequest struct {
-	RefreshToken string `json:"refreshToken"`
-}
+func (s *Service) GetViewer(
+	encodedAccessToken string,
+) (
+	*Viewer,
+	error,
+) {
+	accessToken := new(tokens.AccessToken)
+	if err := accessToken.Decode(encodedAccessToken, s.resourceTokenValidator); err != nil {
+		return nil, fmt.Errorf("%w: couldn't decode access token: %v", ErrTokenInvalid, err)
+	}
 
-type RefreshRequest struct {
-	RefreshToken string `json:"refreshToken"`
-}
+	if !slices.Contains(accessToken.Scopes(), ScopeIdentity) {
+		return nil, ErrInsufficientScope
+	}
 
-type RefreshResponse struct {
-	RefreshToken string `json:"refreshToken"`
-	AccessToken  string `json:"accessToken"`
-}
+	identity, err := s.store.GetIdentityBySubject(accessToken.Subject())
+	if err != nil {
+		return nil, ErrAccountNotFound
+	}
 
-type MeResponse struct {
-	Profile *MeProfile `json:"profile,omitempty"`
-}
+	viewer := &Viewer{}
+	if slices.Contains(accessToken.Scopes(), ScopeProfile) {
+		viewer.Profile = &SubjectProfile{
+			Handle: identity.Handle,
+		}
+	}
 
-type MeProfile struct {
-	Handle string `json:"handle"`
+	return viewer, nil
 }
 
 func (s *Service) Login(
@@ -102,7 +102,7 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: %v", ErrInternal, err)
 	}
 
-	redirectURL, err := parseFullURL(svcDef.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(svcDef.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}
@@ -110,8 +110,10 @@ func (s *Service) Login(
 	return buildAuthCodeRedirectURL(redirectURL, refreshToken.Encoded(), "", redirectReturnTo), nil
 }
 
-func (s *Service) RevokeRefreshToken(refreshToken string) error {
-	deleted, err := s.store.DeleteRefreshToken(refreshToken)
+func (s *Service) RevokeRefreshToken(
+	encodedRefreshToken string,
+) error {
+	deleted, err := s.store.DeleteRefreshToken(encodedRefreshToken)
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete refresh token: %v", ErrInternal, err)
 	}
@@ -167,120 +169,6 @@ func (s *Service) RefreshAccessToken(
 
 	return accessToken.Encoded(), newRefreshToken.Encoded(), nil
 }
-func (s *Service) handleLogin(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	var req LoginRequest
-	switch r.Header.Get("Content-Type") {
-	case "application/x-www-form-urlencoded":
-		req = LoginRequest{
-			Handle:   r.FormValue("handle"),
-			Secret:   r.FormValue("secret"),
-			Service:  r.FormValue("service"),
-			ReturnTo: r.FormValue("return_to"),
-		}
-		if req.Handle == "" || req.Secret == "" || req.Service == "" {
-			wire.WriteError(w, http.StatusBadRequest, "Missing form fields")
-			return
-		}
-	case "application/json":
-		var err error
-		if req, err = decodeRequest[LoginRequest](r); err != nil {
-			wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-			return
-		}
-	default:
-		wire.WriteError(w, http.StatusUnsupportedMediaType, "Unsupported content type")
-		return
-	}
-
-	redirectURL, err := s.Login(req.Handle, req.Secret, req.Service, req.ReturnTo)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
-}
-
-func (s *Service) handleLogout(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	req, err := decodeRequest[LogoutRequest](r)
-	if err != nil {
-		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-		return
-	}
-
-	err = s.RevokeRefreshToken(req.RefreshToken)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	wire.WriteData(w, http.StatusOK, nil)
-}
-
-func (s *Service) handleRefresh(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	req, err := decodeRequest[RefreshRequest](r)
-	if err != nil {
-		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
-		return
-	}
-
-	accessToken, refreshToken, err := s.RefreshAccessToken(req.RefreshToken)
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(err), err.Error())
-		return
-	}
-
-	response := RefreshResponse{
-		RefreshToken: refreshToken,
-		AccessToken:  accessToken,
-	}
-	wire.WriteData(w, http.StatusOK, response)
-}
-
-func (s *Service) handleMe(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	encodedToken, ok := bearerToken(r.Header.Get("Authorization"))
-	if !ok {
-		wire.WriteError(w, httpStatusFromError(ErrTokenInvalid), ErrTokenInvalid.Error())
-		return
-	}
-
-	accessToken := new(tokens.AccessToken)
-	if err := accessToken.Decode(encodedToken, s.resourceTokenValidator); err != nil {
-		wire.WriteError(w, httpStatusFromError(ErrTokenInvalid), fmt.Sprintf("%v: couldn't decode access token: %v", ErrTokenInvalid, err))
-	}
-
-	if !slices.Contains(accessToken.Scopes(), ScopeIdentity) {
-		wire.WriteError(w, httpStatusFromError(ErrInsufficientScope), ErrInsufficientScope.Error())
-		return
-	}
-
-	identity, err := s.store.GetIdentityBySubject(accessToken.Subject())
-	if err != nil {
-		wire.WriteError(w, httpStatusFromError(ErrAccountNotFound), ErrAccountNotFound.Error())
-		return
-	}
-
-	response := MeResponse{}
-	if slices.Contains(accessToken.Scopes(), ScopeProfile) {
-		response.Profile = &MeProfile{
-			Handle: identity.Handle,
-		}
-	}
-
-	wire.WriteData(w, http.StatusOK, response)
-}
 
 func buildAuthCodeRedirectURL(
 	redirect *url.URL,
@@ -314,24 +202,4 @@ func buildAuthorizationErrorRedirectURL(
 	}
 	redirectURL.RawQuery = q.Encode()
 	return &redirectURL
-}
-
-func bearerToken(
-	header string,
-) (
-	string,
-	bool,
-) {
-	if header == "" {
-		return "", false
-	}
-	parts := strings.SplitN(header, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return "", false
-	}
-	encodedToken := strings.TrimSpace(parts[1])
-	if encodedToken == "" {
-		return "", false
-	}
-	return encodedToken, true
 }

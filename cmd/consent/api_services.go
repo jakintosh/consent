@@ -6,8 +6,8 @@ import (
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
 	"git.sr.ht/~jakintosh/command-go/pkg/envs"
+	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/config"
-	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
 var servicesCmd = &args.Command{
@@ -31,7 +31,7 @@ var servicesListCmd = &args.Command{
 			return err
 		}
 
-		var services []service.ServiceDefinition
+		var services []api.ServiceDefinition
 		if err := client.Get("/admin/services", &services); err != nil {
 			return err
 		}
@@ -60,7 +60,7 @@ var servicesGetCmd = &args.Command{
 			return fmt.Errorf("service name is required")
 		}
 
-		var serviceDef service.ServiceDefinition
+		var serviceDef api.ServiceDefinition
 		if err := client.Get("/admin/services/"+name, &serviceDef); err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ var servicesCreateCmd = &args.Command{
 			return fmt.Errorf("--display, --audience, and --redirect are required")
 		}
 
-		payload := service.ServiceDefinition{
+		payload := api.ServiceDefinition{
 			Name:     name,
 			Display:  *display,
 			Audience: *audience,
@@ -177,7 +177,7 @@ var servicesUpdateCmd = &args.Command{
 			return fmt.Errorf("at least one of --display, --audience, or --redirect is required")
 		}
 
-		payload := service.UpdateServiceRequest{
+		payload := api.UpdateServiceRequest{
 			Display:  display,
 			Audience: audience,
 			Redirect: redirect,

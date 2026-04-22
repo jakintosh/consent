@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"net/http"
 )
 
 var (
@@ -26,33 +25,3 @@ var (
 	ErrInsufficientScope      = errors.New("insufficient scope")
 	ErrAuthorizationDenied    = errors.New("authorization denied")
 )
-
-func httpStatusFromError(err error) int {
-	switch {
-	case errors.Is(err, ErrInvalidCredentials),
-		errors.Is(err, ErrAccountNotFound):
-		return http.StatusUnauthorized
-	case errors.Is(err, ErrServiceNotFound),
-		errors.Is(err, ErrTokenInvalid),
-		errors.Is(err, ErrTokenNotFound),
-		errors.Is(err, ErrInvalidHandle),
-		errors.Is(err, ErrInvalidScope),
-		errors.Is(err, ErrMissingScope),
-		errors.Is(err, ErrIdentityScopeRequired),
-		errors.Is(err, ErrInvalidScopeDependency):
-		return http.StatusBadRequest
-	case errors.Is(err, ErrHandleExists),
-		errors.Is(err, ErrServiceExists):
-		return http.StatusConflict
-	case errors.Is(err, ErrServiceProtected),
-		errors.Is(err, ErrInsufficientScope):
-		return http.StatusForbidden
-	case errors.Is(err, ErrInvalidRedirect),
-		errors.Is(err, ErrInvalidService):
-		return http.StatusBadRequest
-	case errors.Is(err, ErrInternal):
-		return http.StatusInternalServerError
-	default:
-		return http.StatusInternalServerError
-	}
-}
