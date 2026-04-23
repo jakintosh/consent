@@ -3,7 +3,7 @@ module git.sr.ht/~jakintosh/consent
 go 1.24.1
 
 require (
-	git.sr.ht/~jakintosh/command-go v0.4.2
+	git.sr.ht/~jakintosh/command-go v0.4.3
 	golang.org/x/crypto v0.30.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.44.1
