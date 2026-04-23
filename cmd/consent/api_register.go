@@ -29,7 +29,7 @@ var registerCmd = &args.Command{
 			return err
 		}
 
-		payload := api.RegistrationRequest{
+		payload := api.CreateUserRequest{
 			Handle:   i.GetOperand("handle"),
 			Password: i.GetOperand("password"),
 		}
@@ -38,7 +38,7 @@ var registerCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/admin/register", body, nil); err != nil {
+		if err := client.Post("/admin/users", body, nil); err != nil {
 			return err
 		}
 

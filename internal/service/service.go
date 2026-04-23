@@ -143,6 +143,10 @@ func Init(
 		return err
 	}
 
+	if err := SeedSystemRoles(options.Store); err != nil {
+		return err
+	}
+
 	if options.BootstrapToken == "" {
 		return fmt.Errorf("service: bootstrap token required")
 	}

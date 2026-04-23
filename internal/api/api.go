@@ -73,8 +73,32 @@ func (a *API) buildServicesRouter() http.Handler {
 	mux.HandleFunc("GET /", a.handleListServices)
 	mux.HandleFunc("POST /", a.handleCreateService)
 	mux.HandleFunc("GET /{name}", a.handleGetService)
-	mux.HandleFunc("PUT /{name}", a.handleUpdateService)
+	mux.HandleFunc("PATCH /{name}", a.handleUpdateService)
 	mux.HandleFunc("DELETE /{name}", a.handleDeleteService)
+
+	return mux
+}
+
+func (a *API) buildUsersRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /", a.handleListUsers)
+	mux.HandleFunc("POST /", a.handleCreateUser)
+	mux.HandleFunc("GET /{subject}", a.handleGetUser)
+	mux.HandleFunc("PATCH /{subject}", a.handleUpdateUser)
+	mux.HandleFunc("DELETE /{subject}", a.handleDeleteUser)
+
+	return mux
+}
+
+func (a *API) buildRolesRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /", a.handleListRoles)
+	mux.HandleFunc("POST /", a.handleCreateRole)
+	mux.HandleFunc("GET /{name}", a.handleGetRole)
+	mux.HandleFunc("PUT /{name}", a.handleUpdateRole)
+	mux.HandleFunc("DELETE /{name}", a.handleDeleteRole)
 
 	return mux
 }
@@ -82,8 +106,9 @@ func (a *API) buildServicesRouter() http.Handler {
 func (a *API) buildAdminRouter() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /register", a.handleRegister)
 	wire.Subrouter(mux, "/services", a.buildServicesRouter())
+	wire.Subrouter(mux, "/users", a.buildUsersRouter())
+	wire.Subrouter(mux, "/roles", a.buildRolesRouter())
 	wire.Subrouter(mux, "/keys", a.keys.Handler())
 
 	return mux

@@ -36,7 +36,7 @@ func (s *Service) GetViewer(
 		return nil, ErrInsufficientScope
 	}
 
-	identity, err := s.store.GetIdentityBySubject(accessToken.Subject())
+	identity, err := s.store.GetUserBySubject(accessToken.Subject())
 	if err != nil {
 		return nil, ErrAccountNotFound
 	}
@@ -65,7 +65,7 @@ func (s *Service) Login(
 		redirectReturnTo = returnTo[0]
 	}
 
-	identity, err := s.store.GetIdentityByHandle(handle)
+	identity, err := s.store.GetUserByHandle(handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrAccountNotFound, handle)

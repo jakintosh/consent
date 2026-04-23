@@ -20,12 +20,25 @@ var migrations = []Migration{
 				secret  BLOB NOT NULL
 			);
 
+			CREATE TABLE IF NOT EXISTS role (
+				name    TEXT PRIMARY KEY,
+				display TEXT NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS user_roles (
+				user_subject TEXT NOT NULL,
+				role_name    TEXT NOT NULL,
+				PRIMARY KEY (user_subject, role_name),
+				FOREIGN KEY (user_subject) REFERENCES identity(subject) ON DELETE CASCADE,
+				FOREIGN KEY (role_name)    REFERENCES role(name) ON DELETE CASCADE
+			);
+
 			CREATE TABLE IF NOT EXISTS refresh (
 				id         INTEGER PRIMARY KEY,
 				owner      INTEGER,
 				jwt        TEXT,
 				expiration INTEGER,
-				FOREIGN KEY (owner) REFERENCES identity (id)
+				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS service (

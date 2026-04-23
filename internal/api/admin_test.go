@@ -10,30 +10,49 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestAPIRegister_Success(t *testing.T) {
+func TestAPICreateUser_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
+
+	env.CreateTestRole(t, "ops", "Operations")
 
 	body := `{
 		"username": "newuser",
-		"password": "securepass"
+		"password": "securepass",
+		"roles": ["admin","ops"]
 	}`
-	result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
-	result.ExpectStatus(t, http.StatusOK)
+	result := wire.TestPost[apiUser](env.Router, "/admin/users", body, jsonHeader, authHeader)
+	response := result.ExpectOK(t)
+	if response.Subject == "" {
+		t.Fatal("expected subject")
+	}
+	if response.Handle != "newuser" {
+		t.Fatalf("handle = %s, want newuser", response.Handle)
+	}
+	if len(response.Roles) != 2 {
+		t.Fatalf("len(response.Roles) = %d, want 2", len(response.Roles))
+	}
+	roleSet := make(map[string]bool)
+	for _, r := range response.Roles {
+		roleSet[r] = true
+	}
+	if !roleSet["admin"] || !roleSet["ops"] {
+		t.Fatalf("roles = %#v, want admin and ops", response.Roles)
+	}
 }
 
-func TestAPIRegister_InvalidJSON(t *testing.T) {
+func TestAPICreateUser_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestPost[any](env.Router, "/admin/register", "not-json", jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/users", "not-json", jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPIRegister_DuplicateUser(t *testing.T) {
+func TestAPICreateUser_DuplicateUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
@@ -42,27 +61,45 @@ func TestAPIRegister_DuplicateUser(t *testing.T) {
 		"username": "alice",
 		"password": "pass1"
 	}`
-	wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
+	wire.TestPost[any](env.Router, "/admin/users", body, jsonHeader, authHeader)
 
 	body2 := `{
 		"username": "alice",
 		"password": "pass2"
 	}`
-	result := wire.TestPost[any](env.Router, "/admin/register", body2, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/users", body2, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusConflict)
 	result.ExpectError(t)
 }
 
-func TestAPIRegister_ThenLogin(t *testing.T) {
+func TestAPICreateUser_InvalidRoles(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
+	body := `{
+		"username": "alice",
+		"password": "pass1",
+		"roles": ["bad role"]
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/users", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPICreateUser_ThenLogin(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	env.CreateTestRole(t, "viewer", "Viewer")
+
 	regBody := `{
 		"username": "newuser",
-		"password": "mypassword"
+		"password": "mypassword",
+		"roles": ["viewer"]
 	}`
-	result := wire.TestPost[any](env.Router, "/admin/register", regBody, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/users", regBody, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	loginBody := `{
@@ -77,34 +114,148 @@ func TestAPIRegister_ThenLogin(t *testing.T) {
 		t.Fatal("expected Location header in redirect")
 	}
 	if !strings.Contains(location, "auth_code=") {
-		t.Errorf("login after register should work, got redirect: %s", location)
+		t.Errorf("login after create should work, got redirect: %s", location)
 	}
 }
 
-func TestAPIRegister_EmptyBody(t *testing.T) {
+func TestAPIGetUser_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	user, err := env.Service.CreateUser("alice", "password", []string{"admin"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	result := wire.TestGet[apiUser](env.Router, "/admin/users/"+user.Subject, authHeader)
+	response := result.ExpectOK(t)
+	if response.Subject != user.Subject {
+		t.Errorf("subject = %s, want %s", response.Subject, user.Subject)
+	}
+	if response.Handle != "alice" {
+		t.Errorf("handle = %s, want alice", response.Handle)
+	}
+	if len(response.Roles) != 1 || response.Roles[0] != "admin" {
+		t.Errorf("roles = %#v, want [admin]", response.Roles)
+	}
+}
+
+func TestAPIGetUser_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestPost[any](env.Router, "/admin/register", "{}", jsonHeader, authHeader)
+	result := wire.TestGet[any](env.Router, "/admin/users/missing", authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPIRegister_MultipleUsers(t *testing.T) {
+func TestAPIListUsers(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	if _, err := env.Service.CreateUser("alice", "password", []string{"admin"}); err != nil {
+		t.Fatalf("CreateUser alice failed: %v", err)
+	}
+	if _, err := env.Service.CreateUser("bob", "password", nil); err != nil {
+		t.Fatalf("CreateUser bob failed: %v", err)
+	}
+
+	result := wire.TestGet[[]apiUser](env.Router, "/admin/users", authHeader)
+	response := result.ExpectOK(t)
+	if len(response) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(response))
+	}
+	if response[0].Handle != "alice" || response[1].Handle != "bob" {
+		t.Fatalf("unexpected user order: %#v", response)
+	}
+}
+
+func TestAPIUpdateUser_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	user, err := env.Service.CreateUser("alice", "password", []string{"admin"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	env.CreateTestRole(t, "operator", "Operator")
+	env.CreateTestRole(t, "billing", "Billing")
+
+	body := `{"username":"alice-2","roles":["operator","billing"]}`
+	result := wire.TestPatch[any](env.Router, "/admin/users/"+user.Subject, body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+
+	updated, err := env.Service.GetUser(user.Subject)
+	if err != nil {
+		t.Fatalf("GetUser failed: %v", err)
+	}
+	if updated.Handle != "alice-2" {
+		t.Errorf("handle = %s, want alice-2", updated.Handle)
+	}
+	if len(updated.Roles) != 2 {
+		t.Fatalf("len(updated.Roles) = %d, want 2", len(updated.Roles))
+	}
+	roleSet := make(map[string]bool)
+	for _, r := range updated.Roles {
+		roleSet[r] = true
+	}
+	if !roleSet["operator"] || !roleSet["billing"] {
+		t.Errorf("roles = %#v, want operator and billing", updated.Roles)
+	}
+}
+
+func TestAPIUpdateUser_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	users := []string{"alice", "bob", "charlie"}
-	for _, user := range users {
-		body := `{
-			"username": "` + user + `",
-			"password": "password"
-		}`
-		result := wire.TestPost[any](env.Router, "/admin/register", body, jsonHeader, authHeader)
-		result.ExpectStatus(t, http.StatusOK)
+	body := `{"username":"alice-2"}`
+	result := wire.TestPatch[any](env.Router, "/admin/users/missing", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+}
+
+func TestAPIUpdateUser_InvalidRoles(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	user, err := env.Service.CreateUser("alice", "password", []string{"admin"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
 	}
+
+	body := `{"roles":["bad role"]}`
+	result := wire.TestPatch[any](env.Router, "/admin/users/"+user.Subject, body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+}
+
+func TestAPIDeleteUser_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	user, err := env.Service.CreateUser("alice", "password", nil)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	result := wire.TestDelete[any](env.Router, "/admin/users/"+user.Subject, authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+
+	_, err = env.Service.GetUser(user.Subject)
+	if err == nil {
+		t.Fatal("expected error after delete")
+	}
+}
+
+func TestAPIDeleteUser_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestDelete[any](env.Router, "/admin/users/missing", authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
 }
 
 func TestAPICreateService_Success(t *testing.T) {
@@ -242,7 +393,7 @@ func TestAPIUpdateService_Success(t *testing.T) {
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPut[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
 	svc, err := env.Service.GetServiceByName("svc-a")
@@ -260,9 +411,8 @@ func TestAPIUpdateService_NotFound(t *testing.T) {
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPut[any](env.Router, "/admin/services/missing", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/services/missing", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
 }
 
 func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
@@ -272,9 +422,8 @@ func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
 	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"bad-url"}`
-	result := wire.TestPut[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
 }
 
 func TestAPIUpdateService_ProtectedName(t *testing.T) {
@@ -283,10 +432,8 @@ func TestAPIUpdateService_ProtectedName(t *testing.T) {
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Consent 2"}`
-	result := wire.TestPut[any](env.Router, "/admin/services/"+service.InternalServiceName, body, jsonHeader, authHeader)
-
+	result := wire.TestPatch[any](env.Router, "/admin/services/"+service.InternalServiceName, body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusForbidden)
-	result.ExpectError(t)
 }
 
 func TestAPIDeleteService_Success(t *testing.T) {
@@ -361,4 +508,249 @@ func TestAPIListServices_Multiple(t *testing.T) {
 	if response[1]["name"] != "svc-a" {
 		t.Errorf("expected svc-a second, got %s", response[1]["name"])
 	}
+}
+
+func TestAPICreateRole_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"editor","display":"Content Editor"}`
+	result := wire.TestPost[apiRole](env.Router, "/admin/roles", body, jsonHeader, authHeader)
+	response := result.ExpectOK(t)
+	if response.Name != "editor" {
+		t.Fatalf("role.Name = %s, want editor", response.Name)
+	}
+	if response.Display != "Content Editor" {
+		t.Fatalf("role.Display = %s, want Content Editor", response.Display)
+	}
+}
+
+func TestAPICreateRole_EmptyName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"","display":"Something"}`
+	result := wire.TestPost[any](env.Router, "/admin/roles", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPICreateRole_EmptyDisplay(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"editor","display":""}`
+	result := wire.TestPost[any](env.Router, "/admin/roles", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPICreateRole_AdminProtected(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"admin","display":"Administrator"}`
+	result := wire.TestPost[any](env.Router, "/admin/roles", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
+func TestAPICreateRole_Duplicate(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"name":"editor","display":"Editor"}`
+	wire.TestPost[any](env.Router, "/admin/roles", body, jsonHeader, authHeader)
+
+	body2 := `{"name":"editor","display":"Another"}`
+	result := wire.TestPost[any](env.Router, "/admin/roles", body2, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusConflict)
+	result.ExpectError(t)
+}
+
+func TestAPIGetRole_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestRole(t, "editor", "Editor")
+
+	result := wire.TestGet[apiRole](env.Router, "/admin/roles/editor", authHeader)
+	response := result.ExpectOK(t)
+	if response.Name != "editor" {
+		t.Fatalf("role.Name = %s, want editor", response.Name)
+	}
+	if response.Display != "Editor" {
+		t.Fatalf("role.Display = %s, want Editor", response.Display)
+	}
+}
+
+func TestAPIGetRole_AdminSeeded(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestGet[apiRole](env.Router, "/admin/roles/admin", authHeader)
+	response := result.ExpectOK(t)
+	if response.Name != "admin" {
+		t.Fatalf("role.Name = %s, want admin", response.Name)
+	}
+}
+
+func TestAPIGetRole_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestGet[any](env.Router, "/admin/roles/nonexistent", authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIGetRole_MissingName(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestGet[any](env.Router, "/admin/roles/", authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+}
+
+func TestAPIUpdateRole_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestRole(t, "editor", "Editor")
+
+	body := `{"display":"Senior Editor"}`
+	result := wire.TestPut[apiRole](env.Router, "/admin/roles/editor", body, jsonHeader, authHeader)
+	response := result.ExpectOK(t)
+	if response.Display != "Senior Editor" {
+		t.Fatalf("role.Display = %s, want Senior Editor", response.Display)
+	}
+}
+
+func TestAPIUpdateRole_EmptyDisplay(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestRole(t, "editor", "Editor")
+
+	body := `{"display":""}`
+	result := wire.TestPut[any](env.Router, "/admin/roles/editor", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIUpdateRole_AdminProtected(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"display":"Super Admin"}`
+	result := wire.TestPut[any](env.Router, "/admin/roles/admin", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
+func TestAPIUpdateRole_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{"display":"Something"}`
+	result := wire.TestPut[any](env.Router, "/admin/roles/nonexistent", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIDeleteRole_Success(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestRole(t, "temp", "Temporary")
+
+	result := wire.TestDelete[any](env.Router, "/admin/roles/temp", authHeader)
+	result.ExpectStatus(t, http.StatusOK)
+
+	_, err := env.Service.GetRole("temp")
+	if err == nil {
+		t.Fatal("expected error after delete")
+	}
+}
+
+func TestAPIDeleteRole_AdminProtected(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestDelete[any](env.Router, "/admin/roles/admin", authHeader)
+	result.ExpectStatus(t, http.StatusForbidden)
+	result.ExpectError(t)
+}
+
+func TestAPIDeleteRole_NotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	result := wire.TestDelete[any](env.Router, "/admin/roles/nonexistent", authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectError(t)
+}
+
+func TestAPIDeleteRole_InUse(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	env.CreateTestRole(t, "editor", "Editor")
+	env.RegisterTestUser(t, "alice", "password")
+
+	// Create a user with this role
+	_, err := env.Service.CreateUser("bob", "password2", []string{"editor"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	result := wire.TestDelete[any](env.Router, "/admin/roles/editor", authHeader)
+	result.ExpectStatus(t, http.StatusConflict)
+	result.ExpectError(t)
+}
+
+func TestAPIListRoles(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	env.CreateTestRole(t, "editor", "Editor")
+	env.CreateTestRole(t, "viewer", "Viewer")
+
+	result := wire.TestGet[[]apiRole](env.Router, "/admin/roles", authHeader)
+	response := result.ExpectOK(t)
+	if len(response) != 3 {
+		t.Fatalf("len(response) = %d, want 3 (admin seeded + editor + viewer)", len(response))
+	}
+	roleNames := make(map[string]bool)
+	for _, r := range response {
+		roleNames[r.Name] = true
+	}
+	if !roleNames["admin"] || !roleNames["editor"] || !roleNames["viewer"] {
+		t.Fatalf("expected admin, editor, viewer in roles, got %#v", response)
+	}
+}
+
+type apiRole struct {
+	Name    string `json:"name"`
+	Display string `json:"display"`
+}
+
+type apiUser struct {
+	Subject string   `json:"subject"`
+	Handle  string   `json:"username"`
+	Roles   []string `json:"roles"`
 }

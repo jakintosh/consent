@@ -150,6 +150,20 @@ func (env *TestEnv) CreateTestService(
 	}
 }
 
+// CreateTestRole creates a role for tests.
+func (env *TestEnv) CreateTestRole(
+	t *testing.T,
+	name string,
+	display string,
+) *service.RoleDefinition {
+	t.Helper()
+	role, err := env.Service.CreateRole(name, display)
+	if err != nil {
+		t.Fatalf("failed to create test role %q: %v", name, err)
+	}
+	return role
+}
+
 // SetupTestEnvWithUsers creates TestEnv and registers the provided users.
 func SetupTestEnvWithUsers(
 	t *testing.T,
@@ -180,7 +194,7 @@ func (env *TestEnv) RegisterTestUser(
 	password string,
 ) {
 	t.Helper()
-	if err := env.Service.Register(handle, password); err != nil {
+	if _, err := env.Service.CreateUser(handle, password, nil); err != nil {
 		t.Fatalf("failed to register test user: %v", err)
 	}
 }
@@ -237,7 +251,7 @@ func (env *TestEnv) IssueTestAccessTokenWithScopes(
 
 func (env *TestEnv) resolveSubject(t *testing.T, subject string) string {
 	t.Helper()
-	identity, err := env.DB.GetIdentityByHandle(subject)
+	identity, err := env.DB.GetUserByHandle(subject)
 	if err == nil {
 		return identity.Subject
 	}

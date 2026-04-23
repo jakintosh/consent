@@ -187,7 +187,7 @@ var servicesUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Put("/admin/services/"+name, body, nil); err != nil {
+		if err := client.Patch("/admin/services/"+name, body, nil); err != nil {
 			return err
 		}
 

@@ -20,7 +20,9 @@ const (
 	internalServiceDisplay = "Consent"
 )
 
-func BuildInternalServiceDefinition(publicUrl string) (
+func BuildInternalServiceDefinition(
+	publicUrl string,
+) (
 	ServiceDefinition,
 	error,
 ) {
@@ -44,7 +46,10 @@ func BuildInternalServiceDefinition(publicUrl string) (
 	}, nil
 }
 
-func SeedSystemServices(store Store, publicURL string) error {
+func SeedSystemServices(
+	store Store,
+	publicURL string,
+) error {
 	if store == nil {
 		return fmt.Errorf("service: store required")
 	}

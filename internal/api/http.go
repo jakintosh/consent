@@ -22,16 +22,23 @@ func httpStatusFromError(err error) int {
 	case errors.Is(err, service.ErrServiceNotFound),
 		errors.Is(err, service.ErrTokenInvalid),
 		errors.Is(err, service.ErrTokenNotFound),
+		errors.Is(err, service.ErrUserNotFound),
 		errors.Is(err, service.ErrInvalidHandle),
+		errors.Is(err, service.ErrInvalidUser),
+		errors.Is(err, service.ErrInvalidRole),
 		errors.Is(err, service.ErrInvalidScope),
 		errors.Is(err, service.ErrMissingScope),
 		errors.Is(err, service.ErrIdentityScopeRequired),
-		errors.Is(err, service.ErrInvalidScopeDependency):
+		errors.Is(err, service.ErrInvalidScopeDependency),
+		errors.Is(err, service.ErrRoleNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrHandleExists),
-		errors.Is(err, service.ErrServiceExists):
+		errors.Is(err, service.ErrServiceExists),
+		errors.Is(err, service.ErrRoleExists),
+		errors.Is(err, service.ErrRoleInUse):
 		return http.StatusConflict
 	case errors.Is(err, service.ErrServiceProtected),
+		errors.Is(err, service.ErrRoleProtected),
 		errors.Is(err, service.ErrInsufficientScope):
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrInvalidRedirect),

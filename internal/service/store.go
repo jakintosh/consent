@@ -8,13 +8,30 @@ type IdentityRecord struct {
 	Subject string
 	Handle  string
 	Secret  []byte
+	Roles   []string
+}
+
+type RoleDefinition struct {
+	Name    string
+	Display string
 }
 
 // Store handles persistence of identity data, refresh tokens, and services.
 type Store interface {
-	InsertIdentity(subject, handle string, secret []byte) error
-	GetIdentityByHandle(handle string) (IdentityRecord, error)
-	GetIdentityBySubject(subject string) (IdentityRecord, error)
+	InsertUser(subject, handle string, secret []byte, roles []string) error
+	GetUserByHandle(handle string) (IdentityRecord, error)
+	GetUserBySubject(subject string) (IdentityRecord, error)
+	ListUsers() ([]IdentityRecord, error)
+	UpdateUser(subject, handle string, roles []string) error
+	DeleteUser(subject string) (deleted bool, err error)
+
+	InsertRole(name, display string) error
+	GetRole(name string) (RoleDefinition, error)
+	UpdateRoleDisplay(name, display string) error
+	DeleteRole(name string) (deleted bool, err error)
+	ListRoles() ([]RoleDefinition, error)
+	CountUsersWithRole(name string) (int, error)
+	ValidateRoleNames(names []string) error
 
 	InsertRefreshToken(token *tokens.RefreshToken) error
 	DeleteRefreshToken(jwt string) (deleted bool, err error)
