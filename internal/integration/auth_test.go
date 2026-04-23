@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/app"
@@ -260,11 +259,8 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		t.Fatalf("service.New failed: %v", err)
 	}
 	apiServer, err := api.New(api.Options{
-		Service: svc,
-		Keys: &keys.Options{
-			Store:       db.KeysStore,
-			Permissions: service.AllKeyPermissions(),
-		},
+		Service:   svc,
+		KeysStore: db.KeysStore,
 	})
 	if err != nil {
 		t.Fatalf("api.New failed: %v", err)
@@ -278,7 +274,7 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	}
 	tkValidator := tokens.InitClient(clientOpts)
 	consentClient := consentclient.Init(tkValidator, h.consentServer.URL)
-	appServer, err := app.New(app.AppOptions{
+	appServer, err := app.New(app.Options{
 		Service: svc,
 		Auth: app.AuthConfig{
 			Verifier:  consentClient,

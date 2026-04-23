@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/database"
@@ -119,13 +118,11 @@ func SetupTestEnv(
 		t.Fatalf("failed to initialize test service: %v", err)
 	}
 
-	apiServer, err := api.New(api.Options{
-		Service: svc,
-		Keys: &keys.Options{
-			Store:       db.KeysStore,
-			Permissions: service.AllKeyPermissions(),
-		},
-	})
+	apiOpts := api.Options{
+		Service:   svc,
+		KeysStore: db.KeysStore,
+	}
+	apiServer, err := api.New(apiOpts)
 	if err != nil {
 		t.Fatalf("failed to initialize test api server: %v", err)
 	}

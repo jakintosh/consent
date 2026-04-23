@@ -139,7 +139,7 @@ func New(
 func Init(
 	options InitOptions,
 ) error {
-	if err := EnsureSystemServices(options.Store, options.PublicURL); err != nil {
+	if err := SeedSystemServices(options.Store, options.PublicURL); err != nil {
 		return err
 	}
 

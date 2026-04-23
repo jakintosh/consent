@@ -15,7 +15,7 @@ import (
 func TestLogin_UnauthenticatedRendersForm(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -47,7 +47,7 @@ func TestLogin_UnauthenticatedRendersForm(t *testing.T) {
 func TestLogin_AuthenticatedRedirectsToReturnTo(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -79,7 +79,7 @@ func TestLogin_AuthenticatedRedirectsToReturnTo(t *testing.T) {
 func TestLogin_AuthenticatedRejectsAbsoluteReturnTo(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -113,7 +113,7 @@ func TestLoginSubmit_InvalidCredentialsRendersHTML(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -163,7 +163,7 @@ func TestLoginSubmit_SuccessRedirectsToAuthCallback(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -204,7 +204,7 @@ func TestLoginSubmit_InvalidReturnToFallsBackHome(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,

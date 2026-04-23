@@ -44,7 +44,7 @@ func BuildInternalServiceDefinition(publicUrl string) (
 	}, nil
 }
 
-func EnsureSystemServices(store Store, publicURL string) error {
+func SeedSystemServices(store Store, publicURL string) error {
 	if store == nil {
 		return fmt.Errorf("service: store required")
 	}

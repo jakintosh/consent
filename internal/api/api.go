@@ -10,8 +10,8 @@ import (
 )
 
 type Options struct {
-	Service *service.Service
-	Keys    *keys.Options
+	Service   *service.Service
+	KeysStore keys.Store
 }
 
 type API struct {
@@ -28,11 +28,15 @@ func New(
 	if options.Service == nil {
 		return nil, fmt.Errorf("api: service required")
 	}
-	if options.Keys == nil {
-		return nil, fmt.Errorf("api: keys options required")
+	if options.KeysStore == nil {
+		return nil, fmt.Errorf("api: keys store required")
 	}
 
-	keysSvc, err := keys.New(*options.Keys)
+	keysOpts := keys.Options{
+		Store:       options.KeysStore,
+		Permissions: service.AllKeyPermissions(),
+	}
+	keysSvc, err := keys.New(keysOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize key service: %w", err)
 	}

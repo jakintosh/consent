@@ -15,7 +15,7 @@ func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -50,7 +50,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -98,7 +98,7 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -147,7 +147,7 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -191,7 +191,7 @@ func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,

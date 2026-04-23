@@ -13,7 +13,7 @@ import (
 func TestHome_Unauthenticated(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,
@@ -47,7 +47,7 @@ func TestHome_Unauthenticated(t *testing.T) {
 func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 
-	appServer, err := New(AppOptions{
+	appServer, err := New(Options{
 		Service: &service.Service{},
 		Auth: AuthConfig{
 			Verifier:  tv,

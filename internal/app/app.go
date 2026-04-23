@@ -18,7 +18,7 @@ type AuthConfig struct {
 	Routes    map[string]http.HandlerFunc
 }
 
-type AppOptions struct {
+type Options struct {
 	Service *service.Service
 	Auth    AuthConfig
 }
@@ -30,7 +30,7 @@ type App struct {
 }
 
 func New(
-	options AppOptions,
+	options Options,
 ) (
 	*App,
 	error,
