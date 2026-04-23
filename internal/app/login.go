@@ -26,9 +26,10 @@ func (a *App) handleGetLogin(
 		return nil
 	}
 
-	a.returnTemplate(w, r, http.StatusOK, "login.html", loginPageData{
+	page := loginPageData{
 		ReturnTo: returnTo,
-	})
+	}
+	a.returnTemplate(w, r, http.StatusOK, "login.html", page)
 	return nil
 }
 
