@@ -53,7 +53,7 @@ var initCmd = &args.Command{
 
 		fmt.Printf("database: %s\n", runtime.Paths.DatabaseFile)
 		fmt.Printf("bootstrap api key: %s\n", runtime.Paths.BootstrapAPIKeyFile)
-		fmt.Printf("system service: %s\n", service.InternalServiceName)
+		fmt.Printf("system integration: %s\n", service.InternalIntegrationName)
 		return nil
 	},
 }

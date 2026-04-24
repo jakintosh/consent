@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -66,9 +67,10 @@ func TestUpdateRoleDisplay(t *testing.T) {
 		t.Fatalf("InsertRole failed: %v", err)
 	}
 
-	err = store.UpdateRoleDisplay("editor", "Senior Editor")
+	display := "Senior Editor"
+	err = store.UpdateRole("editor", &service.RoleUpdate{Display: &display})
 	if err != nil {
-		t.Fatalf("UpdateRoleDisplay failed: %v", err)
+		t.Fatalf("UpdateRole failed: %v", err)
 	}
 
 	role, err := store.GetRole("editor")
@@ -84,7 +86,8 @@ func TestUpdateRoleDisplay_NotFound(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.UpdateRoleDisplay("nonexistent", "Something")
+	display := "Something"
+	err := store.UpdateRole("nonexistent", &service.RoleUpdate{Display: &display})
 	if err == nil {
 		t.Fatal("expected error for nonexistent role")
 	}
@@ -126,102 +129,6 @@ func TestDeleteRole_NotFound(t *testing.T) {
 	}
 	if deleted {
 		t.Fatal("expected deleted = false")
-	}
-}
-
-func TestCountUsersWithRole(t *testing.T) {
-	t.Parallel()
-	store := testutil.SetupTestDB(t)
-
-	err := store.InsertRole("admin", "Administrator")
-	if err != nil {
-		t.Fatalf("InsertRole failed: %v", err)
-	}
-	err = store.InsertRole("editor", "Editor")
-	if err != nil {
-		t.Fatalf("InsertRole failed: %v", err)
-	}
-
-	err = store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"admin", "editor"})
-	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
-	}
-	err = store.InsertUser("subject-bob", "bob", []byte("secret"), []string{"admin"})
-	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
-	}
-
-	count, err := store.CountUsersWithRole("admin")
-	if err != nil {
-		t.Fatalf("CountUsersWithRole failed: %v", err)
-	}
-	if count != 2 {
-		t.Fatalf("count = %d, want 2", count)
-	}
-
-	count, err = store.CountUsersWithRole("editor")
-	if err != nil {
-		t.Fatalf("CountUsersWithRole failed: %v", err)
-	}
-	if count != 1 {
-		t.Fatalf("count = %d, want 1", count)
-	}
-
-	count, err = store.CountUsersWithRole("viewer")
-	if err != nil {
-		t.Fatalf("CountUsersWithRole failed: %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("count = %d, want 0", count)
-	}
-}
-
-func TestValidateRoleNames(t *testing.T) {
-	t.Parallel()
-	store := testutil.SetupTestDB(t)
-
-	err := store.InsertRole("admin", "Administrator")
-	if err != nil {
-		t.Fatalf("InsertRole failed: %v", err)
-	}
-	err = store.InsertRole("editor", "Editor")
-	if err != nil {
-		t.Fatalf("InsertRole failed: %v", err)
-	}
-
-	err = store.ValidateRoleNames([]string{"admin", "editor"})
-	if err != nil {
-		t.Fatalf("ValidateRoleNames failed: %v", err)
-	}
-}
-
-func TestValidateRoleNames_UnknownRole(t *testing.T) {
-	t.Parallel()
-	store := testutil.SetupTestDB(t)
-
-	err := store.InsertRole("admin", "Administrator")
-	if err != nil {
-		t.Fatalf("InsertRole failed: %v", err)
-	}
-
-	err = store.ValidateRoleNames([]string{"admin", "nonexistent"})
-	if err == nil {
-		t.Fatal("expected error for unknown role")
-	}
-}
-
-func TestValidateRoleNames_Empty(t *testing.T) {
-	t.Parallel()
-	store := testutil.SetupTestDB(t)
-
-	err := store.ValidateRoleNames(nil)
-	if err != nil {
-		t.Fatalf("ValidateRoleNames(nil) failed: %v", err)
-	}
-
-	err = store.ValidateRoleNames([]string{})
-	if err != nil {
-		t.Fatalf("ValidateRoleNames([]) failed: %v", err)
 	}
 }
 
@@ -396,12 +303,12 @@ func TestDeleteUser_CascadesUserRoles(t *testing.T) {
 		t.Fatal("expected GetUserBySubject to fail after deletion")
 	}
 
-	count, err := store.CountUsersWithRole("admin")
+	roles, err := store.ListRoles()
 	if err != nil {
-		t.Fatalf("CountUsersWithRole failed: %v", err)
+		t.Fatalf("ListRoles failed: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("count = %d, want 0", count)
+	if len(roles) != 1 || roles[0].Name != "admin" {
+		t.Fatalf("expected admin role to still exist after user deletion via cascade, got %#v", roles)
 	}
 }
 

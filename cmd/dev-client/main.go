@@ -23,7 +23,7 @@ const (
 	defaultAuthURL         = "http://localhost:9001"
 	defaultAuthorityDomain = "localhost"
 	defaultPort            = 10000
-	defaultServiceName     = "example@localhost"
+	defaultIntegrationName = "example@localhost"
 	defaultConfigDir       = "./config"
 )
 
@@ -31,7 +31,7 @@ type Config struct {
 	AuthURL             string
 	AuthorityDomain     string
 	Port                int
-	Service             string
+	Integration         string
 	Audience            string
 	VerificationKeyPath string
 }
@@ -69,9 +69,9 @@ var root = &args.Command{
 			Help: "HTTP listen port (default: 10000)",
 		},
 		{
-			Long: "service",
+			Long: "integration",
 			Type: args.OptionTypeParameter,
-			Help: "Service name for consent login (default: example@localhost)",
+			Help: "Integration name for consent login (default: example@localhost)",
 		},
 		{
 			Long: "audience",
@@ -101,7 +101,7 @@ var root = &args.Command{
 			log.Println("Starting development OAuth client...")
 			log.Printf("  Auth URL: %s", cfg.AuthURL)
 			log.Printf("  Authority domain: %s", cfg.AuthorityDomain)
-			log.Printf("  Service: %s", cfg.Service)
+			log.Printf("  Integration: %s", cfg.Integration)
 			log.Printf("  Audience: %s", cfg.Audience)
 			log.Printf("  Verification key: %s", cfg.VerificationKeyPath)
 			log.Printf("  Port: %d", cfg.Port)
@@ -131,7 +131,7 @@ var root = &args.Command{
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", homeHandler(authClient, cfg))
-		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg.Service))
+		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg.Integration))
 		mux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
 		mux.HandleFunc("/logout", authClient.HandleLogout())
 
@@ -173,9 +173,9 @@ func parseConfig(
 		return Config{}, fmt.Errorf("invalid --port %q: out of range", port)
 	}
 
-	serviceName := i.GetParameterOr("service", defaultServiceName)
-	if strings.TrimSpace(serviceName) == "" {
-		return Config{}, fmt.Errorf("--service cannot be empty")
+	integrationName := i.GetParameterOr("integration", defaultIntegrationName)
+	if strings.TrimSpace(integrationName) == "" {
+		return Config{}, fmt.Errorf("--integration cannot be empty")
 	}
 
 	audience := i.GetParameterOr("audience", fmt.Sprintf("localhost:%d", port))
@@ -201,7 +201,7 @@ func parseConfig(
 		AuthURL:             authURL,
 		AuthorityDomain:     authorityDomain,
 		Port:                port,
-		Service:             serviceName,
+		Integration:         integrationName,
 		Audience:            audience,
 		VerificationKeyPath: verificationKeyPath,
 	}, nil
@@ -224,11 +224,11 @@ func normalizeAuthURL(raw string) (string, error) {
 }
 
 func homeHandler(c client.Verifier, cfg Config) http.HandlerFunc {
-	loginURL := fmt.Sprintf("%s/authorize?service=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Service))
+	loginURL := fmt.Sprintf("%s/authorize?integration=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Integration))
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		page := homePageData{
-			Service:              cfg.Service,
+			Integration:          cfg.Integration,
 			Audience:             cfg.Audience,
 			AuthURL:              cfg.AuthURL,
 			CurrentOrigin:        requestOrigin(r),
@@ -264,10 +264,10 @@ func homeHandler(c client.Verifier, cfg Config) http.HandlerFunc {
 	}
 }
 
-func exampleHandler(c *client.Client, serviceName string) http.HandlerFunc {
+func exampleHandler(c *client.Client, integrationName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page := examplePageData{
-			Service:       serviceName,
+			Integration:   integrationName,
 			CurrentOrigin: requestOrigin(r),
 			CurrentHost:   r.Host,
 		}
@@ -347,7 +347,7 @@ func decodePublicKey(
 
 type homePageData struct {
 	Authenticated        bool
-	Service              string
+	Integration          string
 	Audience             string
 	AuthURL              string
 	CurrentOrigin        string
@@ -365,7 +365,7 @@ type homePageData struct {
 
 type examplePageData struct {
 	Authenticated bool
-	Service       string
+	Integration   string
 	CurrentOrigin string
 	CurrentHost   string
 	Handle        string
@@ -435,9 +435,9 @@ var homeTemplate = template.Must(template.New("home").Parse(`<!DOCTYPE html>
 		</section>
 
 		<section class="panel">
-			<h3>Service Details</h3>
+			<h3>Integration Details</h3>
 			<div class="grid">
-				<dl><dt>Service</dt><dd>{{.Service}}</dd></dl>
+				<dl><dt>Integration</dt><dd>{{.Integration}}</dd></dl>
 				<dl><dt>Audience</dt><dd>{{.Audience}}</dd></dl>
 				<dl><dt>Consent Server</dt><dd>{{.AuthURL}}</dd></dl>
 				<dl><dt>Current Origin</dt><dd>{{.CurrentOrigin}}</dd></dl>
@@ -461,7 +461,7 @@ var homeTemplate = template.Must(template.New("home").Parse(`<!DOCTYPE html>
 
 		<section class="panel">
 			<h3>Host Notes</h3>
-			<p>Mock services are registered on specific hosts like <code>mock1.localhost:9001</code>. The callback and the page you revisit need to use the same host, or the browser will treat them as separate cookie jars.</p>
+			<p>Mock integrations are registered on specific hosts like <code>mock1.localhost:9001</code>. The callback and the page you revisit need to use the same host, or the browser will treat them as separate cookie jars.</p>
 		</section>
 	</main>
 </body>
@@ -506,7 +506,7 @@ var exampleTemplate = template.Must(template.New("example").Parse(`<!DOCTYPE htm
 		</section>
 		<section class="panel">
 			<h2>Details</h2>
-			<dl><dt>Service</dt><dd>{{.Service}}</dd></dl>
+			<dl><dt>Integration</dt><dd>{{.Integration}}</dd></dl>
 			<dl><dt>Current Origin</dt><dd>{{.CurrentOrigin}}</dd></dl>
 			<dl><dt>Current Host</dt><dd>{{.CurrentHost}}</dd></dl>
 			{{if .Authenticated}}

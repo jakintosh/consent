@@ -58,7 +58,7 @@ func (a *App) handlePostLogin(
 	}
 
 	// call service
-	redirectURL, err := a.service.Login(handle, secret, service.InternalServiceName, returnTo)
+	redirectURL, err := a.service.Login(handle, secret, service.InternalIntegrationName, returnTo)
 	if err != nil {
 		// handle errors
 		switch {

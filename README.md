@@ -28,7 +28,7 @@ The user is then redirected back to the service with this code, which the client
 
 ## Operational Benefits
 
-**Simplified Deployment**: Client applications are "pre-authorized" by virtue of having the verification key. No per-client registration process is required—just distribute the key pair and register service definitions through the API.
+**Simplified Deployment**: Client applications are "pre-authorized" by virtue of having the verification key. No per-client registration process is required—just distribute the key pair and register integrations through the API.
 
 **Easier Key Management**: Single key pair per Consent instance instead of managing individual client secrets. Key rotation affects all clients uniformly.
 
@@ -193,7 +193,7 @@ Run a full local mock deployment with one real consent server login flow and thr
 make mock-deployment
 ```
 
-This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server with `--insecure-cookies` to seed a demo user and register three mock services through the API, and then starts:
+This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server with `--insecure-cookies` to seed a demo user and register three mock integrations through the API, and then starts:
 
 - `http://localhost:9000` for the consent server
 - `http://mock1.localhost:9001`

@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
@@ -62,27 +63,14 @@ func (db *DB) InsertUser(
 	return nil
 }
 
-func (db *DB) InsertIdentity(
-	subject string,
-	handle string,
-	secret []byte,
-) error {
-	return db.InsertUser(
-		subject,
-		handle,
-		secret,
-		nil,
-	)
-}
-
 func (db *DB) GetUserByHandle(
 	handle string,
 ) (
-	service.IdentityRecord,
+	*service.User,
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, i.secret, r.name
+		SELECT i.subject, i.handle, r.name
 		FROM identity i
 		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
@@ -90,30 +78,21 @@ func (db *DB) GetUserByHandle(
 		handle,
 	)
 	if err != nil {
-		return service.IdentityRecord{}, fmt.Errorf("couldn't query user by handle: %w", err)
+		return nil, fmt.Errorf("couldn't query user by handle: %w", err)
 	}
 	defer rows.Close()
 
 	return scanUserRows(rows)
 }
 
-func (db *DB) GetIdentityByHandle(
-	handle string,
-) (
-	service.IdentityRecord,
-	error,
-) {
-	return db.GetUserByHandle(handle)
-}
-
 func (db *DB) GetUserBySubject(
 	subject string,
 ) (
-	service.IdentityRecord,
+	*service.User,
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, i.secret, r.name
+		SELECT i.subject, i.handle, r.name
 		FROM identity i
 		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
@@ -121,28 +100,19 @@ func (db *DB) GetUserBySubject(
 		subject,
 	)
 	if err != nil {
-		return service.IdentityRecord{}, fmt.Errorf("couldn't query user by subject: %w", err)
+		return nil, fmt.Errorf("couldn't query user by subject: %w", err)
 	}
 	defer rows.Close()
 
 	return scanUserRows(rows)
 }
 
-func (db *DB) GetIdentityBySubject(
-	subject string,
-) (
-	service.IdentityRecord,
-	error,
-) {
-	return db.GetUserBySubject(subject)
-}
-
 func (db *DB) ListUsers() (
-	[]service.IdentityRecord,
+	[]service.User,
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, i.secret, r.name
+		SELECT i.subject, i.handle, r.name
 		FROM identity i
 		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
@@ -152,25 +122,23 @@ func (db *DB) ListUsers() (
 	}
 	defer rows.Close()
 
-	bySubject := make(map[string]*service.IdentityRecord)
+	bySubject := make(map[string]*service.User)
 	var order []string
 
 	for rows.Next() {
 		var subject, handle string
-		var secret []byte
 		var roleName *string
 
-		err := rows.Scan(&subject, &handle, &secret, &roleName)
+		err := rows.Scan(&subject, &handle, &roleName)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't scan user row: %w", err)
 		}
 
 		record, exists := bySubject[subject]
 		if !exists {
-			record = &service.IdentityRecord{
+			record = &service.User{
 				Subject: subject,
 				Handle:  handle,
-				Secret:  secret,
 				Roles:   nil,
 			}
 			bySubject[subject] = record
@@ -186,7 +154,7 @@ func (db *DB) ListUsers() (
 		return nil, fmt.Errorf("couldn't iterate users: %w", err)
 	}
 
-	records := make([]service.IdentityRecord, 0, len(order))
+	records := make([]service.User, 0, len(order))
 	for _, subject := range order {
 		record := bySubject[subject]
 		if record.Roles == nil {
@@ -223,22 +191,32 @@ func (db *DB) UpdateUser(
 		return sql.ErrNoRows
 	}
 
-	_, err = tx.Exec(`
-		DELETE FROM user_roles
-		WHERE user_subject=?1;`,
-		subject,
-	)
-	if err != nil {
-		return fmt.Errorf("couldn't remove old user roles: %w", err)
-	}
-
 	if len(roles) > 0 {
+		var placeholders []string
+		args := make([]any, 0, len(roles)+1)
+		args = append(args, subject)
+		for i, role := range roles {
+			placeholders = append(placeholders, fmt.Sprintf("?%d", i+2))
+			args = append(args, role)
+		}
+		notInClause := strings.Join(placeholders, ", ")
+
+		_, err = tx.Exec(fmt.Sprintf(`
+			DELETE FROM user_roles
+			WHERE user_subject=?1 AND role_name NOT IN (%s);`, notInClause),
+			args...,
+		)
+		if err != nil {
+			return fmt.Errorf("couldn't remove obsolete user roles: %w", err)
+		}
+
 		ensureStmt, err := tx.Prepare(`
 			INSERT OR IGNORE INTO role (name, display)
 			VALUES (?1, ?1);`)
 		if err != nil {
 			return fmt.Errorf("prepare role ensure statement: %w", err)
 		}
+		defer ensureStmt.Close()
 
 		assignStmt, err := tx.Prepare(`
 			INSERT OR IGNORE INTO user_roles (user_subject, role_name)
@@ -247,6 +225,7 @@ func (db *DB) UpdateUser(
 			_ = ensureStmt.Close()
 			return fmt.Errorf("prepare role assign statement: %w", err)
 		}
+		defer assignStmt.Close()
 
 		for _, role := range roles {
 			if _, err := ensureStmt.Exec(role); err != nil {
@@ -260,9 +239,15 @@ func (db *DB) UpdateUser(
 				return fmt.Errorf("assign role %q to user %q: %w", role, subject, err)
 			}
 		}
-
-		_ = ensureStmt.Close()
-		_ = assignStmt.Close()
+	} else {
+		_, err = tx.Exec(`
+			DELETE FROM user_roles
+			WHERE user_subject=?1;`,
+			subject,
+		)
+		if err != nil {
+			return fmt.Errorf("couldn't remove all user roles: %w", err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -297,41 +282,44 @@ func (db *DB) GetSecret(
 	[]byte,
 	error,
 ) {
-	identity, err := db.GetUserByHandle(handle)
+	var secret []byte
+	err := db.Conn.QueryRow(`
+		SELECT secret
+		FROM identity
+		WHERE handle=?1;`,
+		handle,
+	).Scan(&secret)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't get secret: %w", err)
 	}
-	return identity.Secret, nil
+	return secret, nil
 }
 
 func scanUserRows(
 	rows *sql.Rows,
 ) (
-	service.IdentityRecord,
+	*service.User,
 	error,
 ) {
-	var record service.IdentityRecord
+	var record *service.User
+	var subject, handle string
 	var roleNames []string
 
 	for rows.Next() {
-		var subject, handle string
-		var secret []byte
 		var roleName *string
 
 		if err := rows.Scan(
 			&subject,
 			&handle,
-			&secret,
 			&roleName,
 		); err != nil {
-			return service.IdentityRecord{}, fmt.Errorf("couldn't scan user row: %w", err)
+			return nil, fmt.Errorf("couldn't scan user row: %w", err)
 		}
 
-		if record.Subject == "" {
-			record = service.IdentityRecord{
+		if record == nil {
+			record = &service.User{
 				Subject: subject,
 				Handle:  handle,
-				Secret:  secret,
 				Roles:   roleNames,
 			}
 		}
@@ -341,8 +329,8 @@ func scanUserRows(
 		}
 	}
 
-	if record.Subject == "" {
-		return service.IdentityRecord{}, sql.ErrNoRows
+	if record == nil {
+		return nil, sql.ErrNoRows
 	}
 
 	if roleNames == nil {

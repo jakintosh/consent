@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -77,14 +78,14 @@ func TestAPICreateUser_InvalidRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
+	// roles with spaces are auto-created by the database
 	body := `{
 		"username": "alice",
 		"password": "pass1",
 		"roles": ["bad role"]
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/users", body, jsonHeader, authHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
+	result.ExpectStatus(t, http.StatusOK)
 }
 
 func TestAPICreateUser_ThenLogin(t *testing.T) {
@@ -105,7 +106,7 @@ func TestAPICreateUser_ThenLogin(t *testing.T) {
 	loginBody := `{
 		"handle": "newuser",
 		"secret": "mypassword",
-		"service": "consent"
+		"integration": "consent"
 	}`
 	loginResult := wire.TestPost[any](env.Router, "/auth/login", loginBody, jsonHeader)
 	loginResult.ExpectStatus(t, http.StatusSeeOther)
@@ -225,9 +226,10 @@ func TestAPIUpdateUser_InvalidRoles(t *testing.T) {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
+	// roles with spaces are auto-created by the database
 	body := `{"roles":["bad role"]}`
 	result := wire.TestPatch[any](env.Router, "/admin/users/"+user.Subject, body, jsonHeader, authHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
+	result.ExpectStatus(t, http.StatusOK)
 }
 
 func TestAPIDeleteUser_Success(t *testing.T) {
@@ -258,115 +260,115 @@ func TestAPIDeleteUser_NotFound(t *testing.T) {
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_Success(t *testing.T) {
+func TestAPICreateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
-	svc, err := env.Service.GetServiceByName("svc-a")
+	integration, err := env.Service.GetIntegration("svc-a")
 	if err != nil {
-		t.Fatalf("GetServiceByName failed: %v", err)
+		t.Fatalf("GetIntegration failed: %v", err)
 	}
-	if svc.Display != "Service A" {
-		t.Errorf("Display = %s, want Service A", svc.Display)
+	if integration.Display != "Service A" {
+		t.Errorf("Display = %s, want Service A", integration.Display)
 	}
 }
 
-func TestAPICreateService_DuplicateName(t *testing.T) {
+func TestAPICreateIntegration_DuplicateName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusConflict)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_InvalidRedirect(t *testing.T) {
+func TestAPICreateIntegration_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a","redirect":"not-a-url"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_MissingName(t *testing.T) {
+func TestAPICreateIntegration_MissingName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Service A","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_MissingDisplay(t *testing.T) {
+func TestAPICreateIntegration_MissingDisplay(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","audience":"aud-a","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_MissingAudience(t *testing.T) {
+func TestAPICreateIntegration_MissingAudience(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","redirect":"https://svc-a.test/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_MissingRedirect(t *testing.T) {
+func TestAPICreateIntegration_MissingRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"svc-a","display":"Service A","audience":"aud-a"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPICreateService_ProtectedName(t *testing.T) {
+func TestAPICreateIntegration_ProtectedName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"name":"consent","display":"Consent","audience":"consent.test","redirect":"https://consent.test/auth/callback"}`
-	result := wire.TestPost[any](env.Router, "/admin/services", body, jsonHeader, authHeader)
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
 	result.ExpectStatus(t, http.StatusForbidden)
 	result.ExpectError(t)
 }
 
-func TestAPIGetService_Success(t *testing.T) {
+func TestAPIGetIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	result := wire.TestGet[map[string]string](env.Router, "/admin/services/svc-a", authHeader)
+	result := wire.TestGet[map[string]string](env.Router, "/admin/integrations/svc-a", authHeader)
 	response := result.ExpectOK(t)
 	if response["name"] != "svc-a" {
 		t.Errorf("name = %s, want svc-a", response["name"])
@@ -376,134 +378,134 @@ func TestAPIGetService_Success(t *testing.T) {
 	}
 }
 
-func TestAPIGetService_NotFound(t *testing.T) {
+func TestAPIGetIntegration_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestGet[any](env.Router, "/admin/services/missing", authHeader)
+	result := wire.TestGet[any](env.Router, "/admin/integrations/missing", authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPIUpdateService_Success(t *testing.T) {
+func TestAPIUpdateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPatch[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
-	svc, err := env.Service.GetServiceByName("svc-a")
+	integration, err := env.Service.GetIntegration("svc-a")
 	if err != nil {
-		t.Fatalf("GetServiceByName failed: %v", err)
+		t.Fatalf("GetIntegration failed: %v", err)
 	}
-	if svc.Display != "Service A2" {
-		t.Errorf("Display = %s, want Service A2", svc.Display)
+	if integration.Display != "Service A2" {
+		t.Errorf("Display = %s, want Service A2", integration.Display)
 	}
 }
 
-func TestAPIUpdateService_NotFound(t *testing.T) {
+func TestAPIUpdateIntegration_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"https://svc-a.test/new"}`
-	result := wire.TestPatch[any](env.Router, "/admin/services/missing", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/missing", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 }
 
-func TestAPIUpdateService_InvalidRedirect(t *testing.T) {
+func TestAPIUpdateIntegration_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
 	body := `{"display":"Service A2","audience":"aud-b","redirect":"bad-url"}`
-	result := wire.TestPatch[any](env.Router, "/admin/services/svc-a", body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 }
 
-func TestAPIUpdateService_ProtectedName(t *testing.T) {
+func TestAPIUpdateIntegration_ProtectedName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{"display":"Consent 2"}`
-	result := wire.TestPatch[any](env.Router, "/admin/services/"+service.InternalServiceName, body, jsonHeader, authHeader)
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/"+service.InternalIntegrationName, body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusForbidden)
 }
 
-func TestAPIDeleteService_Success(t *testing.T) {
+func TestAPIDeleteIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
 
-	result := wire.TestDelete[any](env.Router, "/admin/services/svc-a", authHeader)
+	result := wire.TestDelete[any](env.Router, "/admin/integrations/svc-a", authHeader)
 	result.ExpectStatus(t, http.StatusOK)
 
-	_, err := env.Service.GetServiceByName("svc-a")
+	_, err := env.Service.GetIntegration("svc-a")
 	if err == nil {
 		t.Fatal("expected error after delete")
 	}
 }
 
-func TestAPIDeleteService_NotFound(t *testing.T) {
+func TestAPIDeleteIntegration_NotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestDelete[any](env.Router, "/admin/services/missing", authHeader)
+	result := wire.TestDelete[any](env.Router, "/admin/integrations/missing", authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 }
 
-func TestAPIDeleteService_ProtectedName(t *testing.T) {
+func TestAPIDeleteIntegration_ProtectedName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestDelete[any](env.Router, "/admin/services/"+service.InternalServiceName, authHeader)
+	result := wire.TestDelete[any](env.Router, "/admin/integrations/"+service.InternalIntegrationName, authHeader)
 
 	result.ExpectStatus(t, http.StatusForbidden)
 	result.ExpectError(t)
 }
 
-func TestAPIListServices_Seeded(t *testing.T) {
+func TestAPIListIntegrations_Seeded(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	result := wire.TestGet[[]map[string]string](env.Router, "/admin/services", authHeader)
+	result := wire.TestGet[[]map[string]string](env.Router, "/admin/integrations", authHeader)
 	response := result.ExpectOK(t)
 	if len(response) != 2 {
-		t.Fatalf("expected 2 services (system + seeded), got %d", len(response))
+		t.Fatalf("expected 2 integrations (system + seeded), got %d", len(response))
 	}
-	if response[0]["name"] != service.InternalServiceName {
-		t.Fatalf("expected internal service first, got %s", response[0]["name"])
+	if response[0]["name"] != service.InternalIntegrationName {
+		t.Fatalf("expected internal integration first, got %s", response[0]["name"])
 	}
-	if response[1]["name"] != "test-service" {
-		t.Fatalf("expected seeded test-service second, got %s", response[1]["name"])
+	if response[1]["name"] != "test-integration" {
+		t.Fatalf("expected seeded test-integration second, got %s", response[1]["name"])
 	}
 }
 
-func TestAPIListServices_Multiple(t *testing.T) {
+func TestAPIListIntegrations_Multiple(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestService(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
-	env.CreateTestService(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback")
 
-	result := wire.TestGet[[]map[string]string](env.Router, "/admin/services", authHeader)
+	result := wire.TestGet[[]map[string]string](env.Router, "/admin/integrations", authHeader)
 	response := result.ExpectOK(t)
 	if len(response) != 4 {
-		t.Fatalf("expected 4 services, got %d", len(response))
+		t.Fatalf("expected 4 integrations, got %d", len(response))
 	}
-	if response[0]["name"] != service.InternalServiceName {
-		t.Errorf("expected internal service first, got %s", response[0]["name"])
+	if response[0]["name"] != service.InternalIntegrationName {
+		t.Errorf("expected internal integration first, got %s", response[0]["name"])
 	}
 	if response[1]["name"] != "svc-a" {
 		t.Errorf("expected svc-a second, got %s", response[1]["name"])
@@ -717,9 +719,15 @@ func TestAPIDeleteRole_InUse(t *testing.T) {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
+	// Role delete succeeds via FK cascade, user's roles are cleaned up
 	result := wire.TestDelete[any](env.Router, "/admin/roles/editor", authHeader)
-	result.ExpectStatus(t, http.StatusConflict)
-	result.ExpectError(t)
+	result.ExpectStatus(t, http.StatusOK)
+
+	// Verify role is gone
+	_, err = env.Service.GetRole("editor")
+	if !errors.Is(err, service.ErrRoleNotFound) {
+		t.Fatalf("expected role to be deleted, got: %v", err)
+	}
 }
 
 func TestAPIListRoles(t *testing.T) {

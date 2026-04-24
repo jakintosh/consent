@@ -7,16 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 	consenttesting "git.sr.ht/~jakintosh/consent/pkg/testing"
 )
 
 func TestLogin_UnauthenticatedRendersForm(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
 
 	appServer, err := New(Options{
-		Service: &service.Service{},
+		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
 			LoginURL:  "/login",
@@ -28,7 +28,7 @@ func TestLogin_UnauthenticatedRendersForm(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/login?return_to=%2Fauthorize%3Fservice%3Dmock1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/login?return_to=%2Fauthorize%3Fintegration%3Dmock1", nil)
 	rr := httptest.NewRecorder()
 
 	appServer.Router().ServeHTTP(rr, req)
@@ -39,16 +39,17 @@ func TestLogin_UnauthenticatedRendersForm(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), "Log In") {
 		t.Fatalf("expected login form content")
 	}
-	if !strings.Contains(rr.Body.String(), `value="/authorize?service=mock1"`) {
+	if !strings.Contains(rr.Body.String(), `value="/authorize?integration=mock1"`) {
 		t.Fatalf("expected return_to to be preserved in form")
 	}
 }
 
 func TestLogin_AuthenticatedRedirectsToReturnTo(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
 
 	appServer, err := New(Options{
-		Service: &service.Service{},
+		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
 			LoginURL:  "/login",
@@ -60,7 +61,7 @@ func TestLogin_AuthenticatedRedirectsToReturnTo(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/login?return_to=%2Fauthorize%3Fservice%3Dmock1", "alice")
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/login?return_to=%2Fauthorize%3Fintegration%3Dmock1", "alice")
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -71,16 +72,17 @@ func TestLogin_AuthenticatedRedirectsToReturnTo(t *testing.T) {
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want %d", rr.Code, http.StatusSeeOther)
 	}
-	if rr.Header().Get("Location") != "/authorize?service=mock1" {
-		t.Fatalf("location = %q, want %q", rr.Header().Get("Location"), "/authorize?service=mock1")
+	if rr.Header().Get("Location") != "/authorize?integration=mock1" {
+		t.Fatalf("location = %q, want %q", rr.Header().Get("Location"), "/authorize?integration=mock1")
 	}
 }
 
 func TestLogin_AuthenticatedRejectsAbsoluteReturnTo(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
 
 	appServer, err := New(Options{
-		Service: &service.Service{},
+		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
 			LoginURL:  "/login",
@@ -129,7 +131,7 @@ func TestLoginSubmit_InvalidCredentialsRendersHTML(t *testing.T) {
 	body := url.Values{
 		"handle":    []string{"alice"},
 		"secret":    []string{"wrong-password"},
-		"return_to": []string{"/authorize?service=mock1"},
+		"return_to": []string{"/authorize?integration=mock1"},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -153,7 +155,7 @@ func TestLoginSubmit_InvalidCredentialsRendersHTML(t *testing.T) {
 	if strings.Contains(bodyText, `{"error"`) {
 		t.Fatalf("unexpected json error response")
 	}
-	if !strings.Contains(bodyText, `value="/authorize?service=mock1"`) {
+	if !strings.Contains(bodyText, `value="/authorize?integration=mock1"`) {
 		t.Fatalf("expected sanitized return_to to remain in form")
 	}
 }
@@ -179,7 +181,7 @@ func TestLoginSubmit_SuccessRedirectsToAuthCallback(t *testing.T) {
 	body := url.Values{
 		"handle":    []string{"alice"},
 		"secret":    []string{"password123"},
-		"return_to": []string{"/authorize?service=mock1&scope=identity"},
+		"return_to": []string{"/authorize?integration=mock1&scope=identity"},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -194,7 +196,7 @@ func TestLoginSubmit_SuccessRedirectsToAuthCallback(t *testing.T) {
 	if !strings.Contains(location, "/auth/callback?") {
 		t.Fatalf("redirect = %q, want auth callback", location)
 	}
-	if !strings.Contains(location, "return_to=%2Fauthorize%3Fservice%3Dmock1%26scope%3Didentity") {
+	if !strings.Contains(location, "return_to=%2Fauthorize%3Fintegration%3Dmock1%26scope%3Didentity") {
 		t.Fatalf("redirect = %q, want preserved return_to", location)
 	}
 }

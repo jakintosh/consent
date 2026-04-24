@@ -12,7 +12,7 @@ import (
 
 func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
 	appServer, err := New(Options{
@@ -28,7 +28,7 @@ func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/authorize?service=test-service&scope=identity", nil)
+	req := httptest.NewRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity", nil)
 	rr := httptest.NewRecorder()
 	appServer.Router().ServeHTTP(rr, req)
 
@@ -43,10 +43,10 @@ func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
@@ -63,7 +63,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?service=test-service&scope=identity&scope=profile", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", identity.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "Authorize Test Service") {
+	if !strings.Contains(body, "Authorize Test Integration") {
 		t.Fatalf("expected approval page content")
 	}
 	if !strings.Contains(body, "This app is asking for permission to:") {
@@ -88,12 +88,12 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if err := env.DB.InsertGrants(identity.Subject, "test-service", []string{"identity"}); err != nil {
+	if err := env.DB.InsertGrants(identity.Subject, "test-integration", []string{"identity"}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
@@ -111,7 +111,7 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?service=test-service&scope=identity&scope=profile", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", identity.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -136,13 +136,13 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
-	authReq, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?service=test-service&scope=identity", identity.Subject)
+	authReq, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity", identity.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	body := strings.NewReader("service=test-service&scope=identity&action=approve&csrf=wrong")
+	body := strings.NewReader("integration=test-integration&scope=identity&action=approve&csrf=wrong")
 	req := httptest.NewRequest(http.MethodPost, "/authorize", body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for _, cookie := range authReq.Cookies() {
@@ -181,12 +181,12 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "https://service.test/callback")
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if err := env.DB.InsertGrants(identity.Subject, "test-service", []string{"identity"}); err != nil {
+	if err := env.DB.InsertGrants(identity.Subject, "test-integration", []string{"identity"}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
@@ -204,7 +204,7 @@ func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?service=test-service&scope=identity&state=test", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&state=test", identity.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}

@@ -1,5 +1,5 @@
 // Package service implements the business logic layer for the consent identity server.
-// It handles user authentication, registration, token management, and service management operations.
+// It handles user authentication, registration, token management, and integration management operations.
 package service
 
 import (
@@ -139,7 +139,7 @@ func New(
 func Init(
 	options InitOptions,
 ) error {
-	if err := SeedSystemServices(options.Store, options.PublicURL); err != nil {
+	if err := SeedSystemIntegrations(options.Store, options.PublicURL); err != nil {
 		return err
 	}
 

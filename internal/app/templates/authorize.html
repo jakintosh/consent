@@ -8,9 +8,9 @@
 {{ define "content" }}
 <section class="page authorize stack">
     <p class="eyebrow">Authorization Request</p>
-    <h2>Authorize {{ .ServiceDisplay }}</h2>
+    <h2>Authorize {{ .IntegrationDisplay }}</h2>
     <p>
-        <span class="name">{{ .ServiceDisplay }}</span> is requesting access to
+        <span class="name">{{ .IntegrationDisplay }}</span> is requesting access to
         your Consent account.
     </p>
     {{ if .GrantedScopes }}
@@ -42,7 +42,7 @@
         </ul>
     </div>
     <form method="POST" action="/authorize">
-        <input type="hidden" name="service" value="{{ .ServiceName }}" />
+        <input type="hidden" name="integration" value="{{ .IntegrationName }}" />
         {{ range .RequestedScopes }}
         <input type="hidden" name="scope" value="{{ .Name }}" />
         {{ end }}

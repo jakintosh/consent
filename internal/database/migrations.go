@@ -41,7 +41,7 @@ var migrations = []Migration{
 				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE
 			);
 
-			CREATE TABLE IF NOT EXISTS service (
+			CREATE TABLE IF NOT EXISTS integration (
 				name     TEXT PRIMARY KEY,
 				display  TEXT NOT NULL,
 				audience TEXT NOT NULL,
@@ -51,12 +51,12 @@ var migrations = []Migration{
 			CREATE TABLE IF NOT EXISTS "grant" (
 				id         INTEGER PRIMARY KEY,
 				owner      INTEGER NOT NULL,
-				service    TEXT NOT NULL,
+				integration TEXT NOT NULL,
 				scope_name TEXT NOT NULL,
 				created_at INTEGER NOT NULL,
 				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE,
-				FOREIGN KEY (service) REFERENCES service (name) ON DELETE CASCADE,
-				UNIQUE (owner, service, scope_name)
+				FOREIGN KEY (integration) REFERENCES integration (name) ON DELETE CASCADE,
+				UNIQUE (owner, integration, scope_name)
 			);`,
 	},
 }

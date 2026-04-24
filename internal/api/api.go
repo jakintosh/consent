@@ -67,14 +67,14 @@ func (a *API) buildAuthRouter() http.Handler {
 	return mux
 }
 
-func (a *API) buildServicesRouter() http.Handler {
+func (a *API) buildIntegrationsRouter() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /", a.handleListServices)
-	mux.HandleFunc("POST /", a.handleCreateService)
-	mux.HandleFunc("GET /{name}", a.handleGetService)
-	mux.HandleFunc("PATCH /{name}", a.handleUpdateService)
-	mux.HandleFunc("DELETE /{name}", a.handleDeleteService)
+	mux.HandleFunc("GET /", a.handleListIntegrations)
+	mux.HandleFunc("POST /", a.handleCreateIntegration)
+	mux.HandleFunc("GET /{name}", a.handleGetIntegration)
+	mux.HandleFunc("PATCH /{name}", a.handleUpdateIntegration)
+	mux.HandleFunc("DELETE /{name}", a.handleDeleteIntegration)
 
 	return mux
 }
@@ -106,7 +106,7 @@ func (a *API) buildRolesRouter() http.Handler {
 func (a *API) buildAdminRouter() http.Handler {
 	mux := http.NewServeMux()
 
-	wire.Subrouter(mux, "/services", a.buildServicesRouter())
+	wire.Subrouter(mux, "/integrations", a.buildIntegrationsRouter())
 	wire.Subrouter(mux, "/users", a.buildUsersRouter())
 	wire.Subrouter(mux, "/roles", a.buildRolesRouter())
 	wire.Subrouter(mux, "/keys", a.keys.Handler())

@@ -21,15 +21,15 @@ MOCK_CONSENT_PORT?=9000
 
 MOCK_CLIENT_1_HOST?=mock1.localhost
 MOCK_CLIENT_1_PORT?=9001
-MOCK_CLIENT_1_SERVICE?=mock1
+MOCK_CLIENT_1_INTEGRATION?=mock1
 
 MOCK_CLIENT_2_HOST?=mock2.localhost
 MOCK_CLIENT_2_PORT?=9002
-MOCK_CLIENT_2_SERVICE?=mock2
+MOCK_CLIENT_2_INTEGRATION?=mock2
 
 MOCK_CLIENT_3_HOST?=mock3.localhost
 MOCK_CLIENT_3_PORT?=9003
-MOCK_CLIENT_3_SERVICE?=mock3
+MOCK_CLIENT_3_INTEGRATION?=mock3
 
 MOCK_DEMO_USER?=alice
 MOCK_DEMO_PASSWORD?=alice123
@@ -97,32 +97,32 @@ mock-deployment-init: build
 			sleep 1; \
 		done; \
 		$(CONSENT_BIN) api register "$(MOCK_DEMO_USER)" "$(MOCK_DEMO_PASSWORD)" --config-dir "$(MOCK_CONFIG_DIR)"; \
-		register_service() { \
+		register_integration() { \
 			name="$$1"; \
 			display="$$2"; \
 			audience="$$3"; \
 			redirect="$$4"; \
-			if $(CONSENT_BIN) api services get "$$name" --config-dir "$(MOCK_CONFIG_DIR)" >/dev/null 2>&1; then \
-				$(CONSENT_BIN) api services update "$$name" \
+			if $(CONSENT_BIN) api integrations get "$$name" --config-dir "$(MOCK_CONFIG_DIR)" >/dev/null 2>&1; then \
+				$(CONSENT_BIN) api integrations update "$$name" \
 					--config-dir "$(MOCK_CONFIG_DIR)" \
 					--display "$$display" \
 					--audience "$$audience" \
 					--redirect "$$redirect"; \
 			else \
-				$(CONSENT_BIN) api services create "$$name" \
+				$(CONSENT_BIN) api integrations create "$$name" \
 					--config-dir "$(MOCK_CONFIG_DIR)" \
 					--display "$$display" \
 					--audience "$$audience" \
 					--redirect "$$redirect"; \
 			fi; \
 		}; \
-		register_service "$(MOCK_CLIENT_1_SERVICE)" "Mock Client 1" \
+		register_integration "$(MOCK_CLIENT_1_INTEGRATION)" "Mock Client 1" \
 			"$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
 			"http://$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)/auth/callback"; \
-		register_service "$(MOCK_CLIENT_2_SERVICE)" "Mock Client 2" \
+		register_integration "$(MOCK_CLIENT_2_INTEGRATION)" "Mock Client 2" \
 			"$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
 			"http://$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)/auth/callback"; \
-		register_service "$(MOCK_CLIENT_3_SERVICE)" "Mock Client 3" \
+		register_integration "$(MOCK_CLIENT_3_INTEGRATION)" "Mock Client 3" \
 			"$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \
 			"http://$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)/auth/callback"; \
 		kill $$server_pid; \
@@ -157,7 +157,7 @@ mock-deployment: mock-deployment-init
 			--auth-url "$(MOCK_CONSENT_URL)" \
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_1_PORT)" \
-			--service "$(MOCK_CLIENT_1_SERVICE)" \
+			--integration "$(MOCK_CLIENT_1_INTEGRATION)" \
 			--audience "$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \
@@ -167,7 +167,7 @@ mock-deployment: mock-deployment-init
 			--auth-url "$(MOCK_CONSENT_URL)" \
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_2_PORT)" \
-			--service "$(MOCK_CLIENT_2_SERVICE)" \
+			--integration "$(MOCK_CLIENT_2_INTEGRATION)" \
 			--audience "$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \
@@ -177,7 +177,7 @@ mock-deployment: mock-deployment-init
 			--auth-url "$(MOCK_CONSENT_URL)" \
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_3_PORT)" \
-			--service "$(MOCK_CLIENT_3_SERVICE)" \
+			--integration "$(MOCK_CLIENT_3_INTEGRATION)" \
 			--audience "$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \

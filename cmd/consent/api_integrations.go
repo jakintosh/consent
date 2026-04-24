@@ -10,43 +10,43 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
-var servicesCmd = &args.Command{
-	Name: "services",
-	Help: "Manage services",
+var integrationsCmd = &args.Command{
+	Name: "integrations",
+	Help: "Manage integrations",
 	Subcommands: []*args.Command{
-		servicesListCmd,
-		servicesGetCmd,
-		servicesCreateCmd,
-		servicesUpdateCmd,
-		servicesDeleteCmd,
+		integrationsListCmd,
+		integrationsGetCmd,
+		integrationsCreateCmd,
+		integrationsUpdateCmd,
+		integrationsDeleteCmd,
 	},
 }
 
-var servicesListCmd = &args.Command{
+var integrationsListCmd = &args.Command{
 	Name: "list",
-	Help: "List services",
+	Help: "List integrations",
 	Handler: func(i *args.Input) error {
 		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
 		if err != nil {
 			return err
 		}
 
-		var services []api.ServiceDefinition
-		if err := client.Get("/admin/services", &services); err != nil {
+		var integrations []api.Integration
+		if err := client.Get("/admin/integrations", &integrations); err != nil {
 			return err
 		}
 
-		return printJSON(services)
+		return printJSON(integrations)
 	},
 }
 
-var servicesGetCmd = &args.Command{
+var integrationsGetCmd = &args.Command{
 	Name: "get",
-	Help: "Get a service",
+	Help: "Get an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Service name",
+			Help: "Integration name",
 		},
 	},
 	Handler: func(i *args.Input) error {
@@ -57,37 +57,37 @@ var servicesGetCmd = &args.Command{
 
 		name := i.GetOperand("name")
 		if name == "" {
-			return fmt.Errorf("service name is required")
+			return fmt.Errorf("integration name is required")
 		}
 
-		var serviceDef api.ServiceDefinition
-		if err := client.Get("/admin/services/"+name, &serviceDef); err != nil {
+		var integration api.Integration
+		if err := client.Get("/admin/integrations/"+name, &integration); err != nil {
 			return err
 		}
 
-		return printJSON(serviceDef)
+		return printJSON(integration)
 	},
 }
 
-var servicesCreateCmd = &args.Command{
+var integrationsCreateCmd = &args.Command{
 	Name: "create",
-	Help: "Create a service",
+	Help: "Create an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Service name",
+			Help: "Integration name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "Service display name",
+			Help: "Integration display name",
 		},
 		{
 			Long: "audience",
 			Type: args.OptionTypeParameter,
-			Help: "Service audience",
+			Help: "Integration audience",
 		},
 		{
 			Long: "redirect",
@@ -103,7 +103,7 @@ var servicesCreateCmd = &args.Command{
 
 		name := i.GetOperand("name")
 		if name == "" {
-			return fmt.Errorf("service name is required")
+			return fmt.Errorf("integration name is required")
 		}
 
 		display := i.GetParameter("display")
@@ -113,7 +113,7 @@ var servicesCreateCmd = &args.Command{
 			return fmt.Errorf("--display, --audience, and --redirect are required")
 		}
 
-		payload := api.ServiceDefinition{
+		payload := api.Integration{
 			Name:     name,
 			Display:  *display,
 			Audience: *audience,
@@ -124,7 +124,7 @@ var servicesCreateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/admin/services", body, nil); err != nil {
+		if err := client.Post("/admin/integrations", body, nil); err != nil {
 			return err
 		}
 
@@ -133,25 +133,25 @@ var servicesCreateCmd = &args.Command{
 	},
 }
 
-var servicesUpdateCmd = &args.Command{
+var integrationsUpdateCmd = &args.Command{
 	Name: "update",
-	Help: "Update a service",
+	Help: "Update an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Service name",
+			Help: "Integration name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "Service display name",
+			Help: "Integration display name",
 		},
 		{
 			Long: "audience",
 			Type: args.OptionTypeParameter,
-			Help: "Service audience",
+			Help: "Integration audience",
 		},
 		{
 			Long: "redirect",
@@ -167,7 +167,7 @@ var servicesUpdateCmd = &args.Command{
 
 		name := i.GetOperand("name")
 		if name == "" {
-			return fmt.Errorf("service name is required")
+			return fmt.Errorf("integration name is required")
 		}
 
 		display := i.GetParameter("display")
@@ -177,7 +177,7 @@ var servicesUpdateCmd = &args.Command{
 			return fmt.Errorf("at least one of --display, --audience, or --redirect is required")
 		}
 
-		payload := api.UpdateServiceRequest{
+		payload := api.UpdateIntegrationRequest{
 			Display:  display,
 			Audience: audience,
 			Redirect: redirect,
@@ -187,7 +187,7 @@ var servicesUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Patch("/admin/services/"+name, body, nil); err != nil {
+		if err := client.Patch("/admin/integrations/"+name, body, nil); err != nil {
 			return err
 		}
 
@@ -196,13 +196,13 @@ var servicesUpdateCmd = &args.Command{
 	},
 }
 
-var servicesDeleteCmd = &args.Command{
+var integrationsDeleteCmd = &args.Command{
 	Name: "delete",
-	Help: "Delete a service",
+	Help: "Delete an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Service name",
+			Help: "Integration name",
 		},
 	},
 	Handler: func(i *args.Input) error {
@@ -213,10 +213,10 @@ var servicesDeleteCmd = &args.Command{
 
 		name := i.GetOperand("name")
 		if name == "" {
-			return fmt.Errorf("service name is required")
+			return fmt.Errorf("integration name is required")
 		}
 
-		if err := client.Delete("/admin/services/"+name, nil); err != nil {
+		if err := client.Delete("/admin/integrations/"+name, nil); err != nil {
 			return err
 		}
 

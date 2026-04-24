@@ -54,7 +54,7 @@ func (s *Service) GetViewer(
 func (s *Service) Login(
 	handle string,
 	secret string,
-	serviceName string,
+	integrationName string,
 	returnTo ...string,
 ) (
 	*url.URL,
@@ -65,7 +65,7 @@ func (s *Service) Login(
 		redirectReturnTo = returnTo[0]
 	}
 
-	identity, err := s.store.GetUserByHandle(handle)
+	secretHash, err := s.store.GetSecret(handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrAccountNotFound, handle)
@@ -73,23 +73,28 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: failed to retrieve secret: %v", ErrInternal, err)
 	}
 
-	err = bcrypt.CompareHashAndPassword(identity.Secret, []byte(secret))
+	err = bcrypt.CompareHashAndPassword(secretHash, []byte(secret))
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
-	svcDef, err := s.GetServiceByName(serviceName)
+	user, err := s.store.GetUserByHandle(handle)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrServiceNotFound, serviceName)
+		return nil, fmt.Errorf("%w: %s", ErrAccountNotFound, handle)
 	}
 
-	if serviceName != InternalServiceName {
-		return nil, ErrInvalidService
+	integration, err := s.GetIntegration(integrationName)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrIntegrationNotFound, integrationName)
+	}
+
+	if integrationName != InternalIntegrationName {
+		return nil, ErrInvalidIntegration
 	}
 
 	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
-		identity.Subject,
-		[]string{svcDef.Audience},
+		user.Subject,
+		[]string{integration.Audience},
 		nil,
 		time.Second*10,
 	)
@@ -102,7 +107,7 @@ func (s *Service) Login(
 		return nil, fmt.Errorf("%w: %v", ErrInternal, err)
 	}
 
-	redirectURL, err := parseAndValidateRedirectURL(svcDef.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(integration.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}
@@ -122,6 +127,7 @@ func (s *Service) RevokeRefreshToken(
 	}
 	return nil
 }
+
 func (s *Service) RefreshAccessToken(
 	encodedRefreshToken string,
 ) (

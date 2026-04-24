@@ -9,11 +9,11 @@ import (
 )
 
 func insertIdentity(t *testing.T, store interface {
-	InsertIdentity(string, string, []byte) error
+	InsertUser(string, string, []byte, []string) error
 }, handle string, secret []byte) {
 	t.Helper()
-	if err := store.InsertIdentity("subject-"+handle, handle, secret); err != nil {
-		t.Fatalf("InsertIdentity failed: %v", err)
+	if err := store.InsertUser("subject-"+handle, handle, secret, nil); err != nil {
+		t.Fatalf("InsertUser failed: %v", err)
 	}
 }
 
@@ -33,7 +33,7 @@ func TestInsertIdentity_DuplicateHandle(t *testing.T) {
 	insertIdentity(t, store, "alice", []byte("password1"))
 
 	// second insert with same handle fails
-	err := store.InsertIdentity("subject-alice-2", "alice", []byte("password2"))
+	err := store.InsertUser("subject-alice-2", "alice", []byte("password2"), nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate handle")
 	}
@@ -111,9 +111,9 @@ func TestInsertIdentity_EmptyHandle(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// empty handle is allowed by schema
-	err := store.InsertIdentity("subject-empty", "", []byte("password"))
+	err := store.InsertUser("subject-empty", "", []byte("password"), nil)
 	if err != nil {
-		t.Fatalf("InsertIdentity with empty handle failed: %v", err)
+		t.Fatalf("InsertUser with empty handle failed: %v", err)
 	}
 }
 

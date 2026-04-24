@@ -6,15 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"git.sr.ht/~jakintosh/consent/internal/service"
+	"git.sr.ht/~jakintosh/consent/internal/testutil"
 	consenttesting "git.sr.ht/~jakintosh/consent/pkg/testing"
 )
 
 func TestHome_Unauthenticated(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
 
 	appServer, err := New(Options{
-		Service: &service.Service{},
+		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
 			LoginURL:  "/login",
@@ -46,9 +47,10 @@ func TestHome_Unauthenticated(t *testing.T) {
 
 func TestHome_AuthenticatedIncludesCSRFLogoutURL(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
 
 	appServer, err := New(Options{
-		Service: &service.Service{},
+		Service: env.Service,
 		Auth: AuthConfig{
 			Verifier:  tv,
 			LoginURL:  "/login",

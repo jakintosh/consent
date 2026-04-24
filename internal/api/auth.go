@@ -9,10 +9,10 @@ import (
 )
 
 type LoginRequest struct {
-	Handle   string `json:"handle"`
-	Secret   string `json:"secret"`
-	Service  string `json:"service"`
-	ReturnTo string `json:"returnTo"`
+	Handle      string `json:"handle"`
+	Secret      string `json:"secret"`
+	Integration string `json:"integration"`
+	ReturnTo    string `json:"returnTo"`
 }
 
 type LogoutRequest struct {
@@ -52,12 +52,12 @@ func (a *API) handleLogin(
 	switch r.Header.Get("Content-Type") {
 	case "application/x-www-form-urlencoded":
 		req = LoginRequest{
-			Handle:   r.FormValue("handle"),
-			Secret:   r.FormValue("secret"),
-			Service:  r.FormValue("service"),
-			ReturnTo: r.FormValue("return_to"),
+			Handle:      r.FormValue("handle"),
+			Secret:      r.FormValue("secret"),
+			Integration: r.FormValue("integration"),
+			ReturnTo:    r.FormValue("return_to"),
 		}
-		if req.Handle == "" || req.Secret == "" || req.Service == "" {
+		if req.Handle == "" || req.Secret == "" || req.Integration == "" {
 			wire.WriteError(w, http.StatusBadRequest, "Missing form fields")
 			return
 		}
@@ -72,7 +72,7 @@ func (a *API) handleLogin(
 		return
 	}
 
-	redirectURL, err := a.service.Login(req.Handle, req.Secret, req.Service, req.ReturnTo)
+	redirectURL, err := a.service.Login(req.Handle, req.Secret, req.Integration, req.ReturnTo)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return

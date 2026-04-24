@@ -136,8 +136,8 @@ func SetupTestEnv(
 	}
 }
 
-// CreateTestService seeds a service definition for tests.
-func (env *TestEnv) CreateTestService(
+// CreateTestIntegration seeds an integration definition for tests.
+func (env *TestEnv) CreateTestIntegration(
 	t *testing.T,
 	name string,
 	display string,
@@ -145,8 +145,8 @@ func (env *TestEnv) CreateTestService(
 	redirect string,
 ) {
 	t.Helper()
-	if err := env.Service.CreateService(name, display, audience, redirect); err != nil {
-		t.Fatalf("failed to create test service: %v", err)
+	if err := env.Service.CreateIntegration(name, display, audience, redirect); err != nil {
+		t.Fatalf("failed to create test integration: %v", err)
 	}
 }
 
@@ -155,7 +155,7 @@ func (env *TestEnv) CreateTestRole(
 	t *testing.T,
 	name string,
 	display string,
-) *service.RoleDefinition {
+) *service.Role {
 	t.Helper()
 	role, err := env.Service.CreateRole(name, display)
 	if err != nil {
@@ -183,7 +183,7 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
-	env.CreateTestService(t, "test-service", "Test Service", "test-audience", "http://localhost:8080/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback")
 	return env
 }
 

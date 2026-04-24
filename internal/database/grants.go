@@ -5,15 +5,15 @@ import (
 	"time"
 )
 
-func (db *DB) ListGrantedScopeNames(subject, service string) ([]string, error) {
+func (db *DB) ListGrantedScopeNames(subject, integration string) ([]string, error) {
 	rows, err := db.Conn.Query(`
 		SELECT g.scope_name
 		FROM "grant" g
 		JOIN identity i ON g.owner = i.id
-		WHERE i.subject=?1 AND g.service=?2
+		WHERE i.subject=?1 AND g.integration=?2
 		ORDER BY g.scope_name;`,
 		subject,
-		service,
+		integration,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't query grants: %v", err)
@@ -35,7 +35,7 @@ func (db *DB) ListGrantedScopeNames(subject, service string) ([]string, error) {
 	return scopes, nil
 }
 
-func (db *DB) InsertGrants(subject, service string, scopes []string) error {
+func (db *DB) InsertGrants(subject, integration string, scopes []string) error {
 	if len(scopes) == 0 {
 		return nil
 	}
@@ -46,11 +46,11 @@ func (db *DB) InsertGrants(subject, service string, scopes []string) error {
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO "grant" (owner, service, scope_name, created_at)
+		INSERT INTO "grant" (owner, integration, scope_name, created_at)
 		SELECT i.id, ?1, ?2, ?3
 		FROM identity i
 		WHERE i.subject=?4
-		ON CONFLICT(owner, service, scope_name) DO NOTHING;`)
+		ON CONFLICT(owner, integration, scope_name) DO NOTHING;`)
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("couldn't prepare grant insert statement: %v", err)
@@ -59,7 +59,7 @@ func (db *DB) InsertGrants(subject, service string, scopes []string) error {
 
 	createdAt := time.Now().Unix()
 	for _, scope := range scopes {
-		if _, err := stmt.Exec(service, scope, createdAt, subject); err != nil {
+		if _, err := stmt.Exec(integration, scope, createdAt, subject); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("couldn't insert grant %q: %v", scope, err)
 		}

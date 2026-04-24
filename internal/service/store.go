@@ -4,46 +4,33 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-type IdentityRecord struct {
-	Subject string
-	Handle  string
-	Secret  []byte
-	Roles   []string
-}
-
-type RoleDefinition struct {
-	Name    string
-	Display string
-}
-
-// Store handles persistence of identity data, refresh tokens, and services.
+// Store handles persistence of identity data, refresh tokens, and integrations.
 type Store interface {
 	InsertUser(subject, handle string, secret []byte, roles []string) error
-	GetUserByHandle(handle string) (IdentityRecord, error)
-	GetUserBySubject(subject string) (IdentityRecord, error)
-	ListUsers() ([]IdentityRecord, error)
+	GetUserByHandle(handle string) (*User, error)
+	GetUserBySubject(subject string) (*User, error)
+	ListUsers() ([]User, error)
 	UpdateUser(subject, handle string, roles []string) error
 	DeleteUser(subject string) (deleted bool, err error)
+	GetSecret(handle string) ([]byte, error)
 
 	InsertRole(name, display string) error
-	GetRole(name string) (RoleDefinition, error)
-	UpdateRoleDisplay(name, display string) error
+	GetRole(name string) (Role, error)
+	UpdateRole(name string, updates *RoleUpdate) error
 	DeleteRole(name string) (deleted bool, err error)
-	ListRoles() ([]RoleDefinition, error)
-	CountUsersWithRole(name string) (int, error)
-	ValidateRoleNames(names []string) error
+	ListRoles() ([]Role, error)
 
 	InsertRefreshToken(token *tokens.RefreshToken) error
 	DeleteRefreshToken(jwt string) (deleted bool, err error)
 	GetRefreshTokenOwner(jwt string) (subject string, err error)
 
-	ListGrantedScopeNames(subject, service string) ([]string, error)
-	InsertGrants(subject, service string, scopes []string) error
+	ListGrantedScopeNames(subject, integration string) ([]string, error)
+	InsertGrants(subject, integration string, scopes []string) error
 
-	InsertService(name, display, audience, redirect string) error
-	UpsertSystemServices(services []ServiceDefinition) error
-	GetService(name string) (ServiceDefinition, error)
-	UpdateService(name, display, audience, redirect string) error
-	DeleteService(name string) (deleted bool, err error)
-	ListServices() ([]ServiceDefinition, error)
+	InsertIntegration(name, display, audience, redirect string) error
+	UpsertSystemIntegrations(integrations []Integration) error
+	GetIntegration(name string) (Integration, error)
+	UpdateIntegration(name string, updates *IntegrationUpdate) error
+	DeleteIntegration(name string) (deleted bool, err error)
+	ListIntegrations() ([]Integration, error)
 }

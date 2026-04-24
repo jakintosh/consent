@@ -19,7 +19,7 @@ func httpStatusFromError(err error) int {
 	case errors.Is(err, service.ErrInvalidCredentials),
 		errors.Is(err, service.ErrAccountNotFound):
 		return http.StatusUnauthorized
-	case errors.Is(err, service.ErrServiceNotFound),
+	case errors.Is(err, service.ErrIntegrationNotFound),
 		errors.Is(err, service.ErrTokenInvalid),
 		errors.Is(err, service.ErrTokenNotFound),
 		errors.Is(err, service.ErrUserNotFound),
@@ -33,16 +33,16 @@ func httpStatusFromError(err error) int {
 		errors.Is(err, service.ErrRoleNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrHandleExists),
-		errors.Is(err, service.ErrServiceExists),
+		errors.Is(err, service.ErrIntegrationExists),
 		errors.Is(err, service.ErrRoleExists),
 		errors.Is(err, service.ErrRoleInUse):
 		return http.StatusConflict
-	case errors.Is(err, service.ErrServiceProtected),
+	case errors.Is(err, service.ErrIntegrationProtected),
 		errors.Is(err, service.ErrRoleProtected),
 		errors.Is(err, service.ErrInsufficientScope):
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrInvalidRedirect),
-		errors.Is(err, service.ErrInvalidService):
+		errors.Is(err, service.ErrInvalidIntegration):
 		return http.StatusBadRequest
 	case errors.Is(err, service.ErrInternal):
 		return http.StatusInternalServerError

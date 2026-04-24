@@ -13,7 +13,7 @@ const (
 	ScopeProfile  = "profile"
 )
 
-// ScopeDefinition describes a registered scope that a service can request.
+// ScopeDefinition describes a registered scope that an integration can request.
 type ScopeDefinition struct {
 	Name        string
 	Label       string
@@ -21,11 +21,11 @@ type ScopeDefinition struct {
 	Requires    []string
 }
 
-// AuthorizationRequest is a validated authorization request for a service.
+// AuthorizationRequest is a validated authorization request for an integration.
 type AuthorizationRequest struct {
-	Service ServiceDefinition
-	Scopes  []string
-	State   string
+	Integration Integration
+	Scopes      []string
+	State       string
 }
 
 // AuthorizationReview summarizes a request against the subject's existing grants.
@@ -45,20 +45,20 @@ func (r AuthorizationReview) NeedsApproval() bool {
 // granted, and missing scopes for the subject.
 func (s *Service) ReviewAuthorizationRequest(
 	subject string,
-	serviceName string,
+	integrationName string,
 	requestedScopes []string,
 	state string,
 ) (
 	*AuthorizationReview,
 	error,
 ) {
-	serviceDef, err := s.GetServiceByName(serviceName)
+	integration, err := s.GetIntegration(integrationName)
 	if err != nil {
 		return nil, err
 	}
 
-	if serviceDef.Name == InternalServiceName {
-		return nil, ErrInvalidService
+	if integration.Name == InternalIntegrationName {
+		return nil, ErrInvalidIntegration
 	}
 
 	scopes, err := validateRequestedScopes(requestedScopes)
@@ -66,15 +66,15 @@ func (s *Service) ReviewAuthorizationRequest(
 		return nil, err
 	}
 
-	grantedScopeNames, err := s.store.ListGrantedScopeNames(subject, serviceDef.Name)
+	grantedScopeNames, err := s.store.ListGrantedScopeNames(subject, integration.Name)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to list granted scopes: %v", ErrInternal, err)
 	}
 
 	request := &AuthorizationRequest{
-		Service: *serviceDef,
-		Scopes:  scopes,
-		State:   state,
+		Integration: *integration,
+		Scopes:      scopes,
+		State:       state,
 	}
 
 	return &AuthorizationReview{
@@ -96,7 +96,7 @@ func (s *Service) ApproveAuthorization(
 	missingScopeNames := scopeNames(review.MissingScopes)
 	if err := s.store.InsertGrants(
 		subject,
-		review.Request.Service.Name,
+		review.Request.Integration.Name,
 		missingScopeNames,
 	); err != nil {
 		return nil, fmt.Errorf("%w: failed to store grants: %v", ErrInternal, err)
@@ -112,7 +112,7 @@ func (s *Service) DenyAuthorization(
 	*url.URL,
 	error,
 ) {
-	redirectURL, err := parseAndValidateRedirectURL(review.Request.Service.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(review.Request.Integration.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}
@@ -144,7 +144,7 @@ func (s *Service) issueAuthorizationCodeRedirect(
 ) {
 	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
 		subject,
-		[]string{req.Service.Audience, s.consentAPIAudience},
+		[]string{req.Integration.Audience, s.consentAPIAudience},
 		req.Scopes,
 		10*time.Second,
 	)
@@ -156,7 +156,7 @@ func (s *Service) issueAuthorizationCodeRedirect(
 		return nil, fmt.Errorf("%w: failed to store auth code: %v", ErrInternal, err)
 	}
 
-	redirectURL, err := parseAndValidateRedirectURL(req.Service.Redirect)
+	redirectURL, err := parseAndValidateRedirectURL(req.Integration.Redirect)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
 	}

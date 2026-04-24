@@ -7,47 +7,47 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/service"
 )
 
-type ServiceDefinition struct {
+type Integration struct {
 	Name     string `json:"name"`
 	Display  string `json:"display"`
 	Audience string `json:"audience"`
 	Redirect string `json:"redirect"`
 }
 
-type UpdateServiceRequest struct {
+type UpdateIntegrationRequest struct {
 	Display  *string `json:"display,omitempty"`
 	Audience *string `json:"audience,omitempty"`
 	Redirect *string `json:"redirect,omitempty"`
 }
 
-func serviceDefinitionFromDomain(def service.ServiceDefinition) ServiceDefinition {
-	return ServiceDefinition{
-		Name:     def.Name,
-		Display:  def.Display,
-		Audience: def.Audience,
-		Redirect: def.Redirect,
+func integrationFromDomain(integration service.Integration) Integration {
+	return Integration{
+		Name:     integration.Name,
+		Display:  integration.Display,
+		Audience: integration.Audience,
+		Redirect: integration.Redirect,
 	}
 }
 
-func serviceDefinitionsFromDomain(defs []service.ServiceDefinition) []ServiceDefinition {
-	apiDefs := make([]ServiceDefinition, 0, len(defs))
-	for _, def := range defs {
-		apiDefs = append(apiDefs, serviceDefinitionFromDomain(def))
+func integrationsFromDomain(integrations []service.Integration) []Integration {
+	apiIntegrations := make([]Integration, 0, len(integrations))
+	for _, integration := range integrations {
+		apiIntegrations = append(apiIntegrations, integrationFromDomain(integration))
 	}
-	return apiDefs
+	return apiIntegrations
 }
 
-func (a *API) handleCreateService(
+func (a *API) handleCreateIntegration(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	req, err := decodeRequest[ServiceDefinition](r)
+	req, err := decodeRequest[Integration](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return
 	}
 
-	err = a.service.CreateService(req.Name, req.Display, req.Audience, req.Redirect)
+	err = a.service.CreateIntegration(req.Name, req.Display, req.Audience, req.Redirect)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -56,42 +56,46 @@ func (a *API) handleCreateService(
 	wire.WriteData(w, http.StatusOK, nil)
 }
 
-func (a *API) handleGetService(
+func (a *API) handleGetIntegration(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	name := r.PathValue("name")
 	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
+		wire.WriteError(w, http.StatusBadRequest, "Missing integration name")
 		return
 	}
 
-	serviceDef, err := a.service.GetServiceByName(name)
+	integration, err := a.service.GetIntegration(name)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
 	}
 
-	wire.WriteData(w, http.StatusOK, serviceDefinitionFromDomain(*serviceDef))
+	wire.WriteData(w, http.StatusOK, integrationFromDomain(*integration))
 }
 
-func (a *API) handleUpdateService(
+func (a *API) handleUpdateIntegration(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	name := r.PathValue("name")
 	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
+		wire.WriteError(w, http.StatusBadRequest, "Missing integration name")
 		return
 	}
 
-	req, err := decodeRequest[UpdateServiceRequest](r)
+	req, err := decodeRequest[UpdateIntegrationRequest](r)
 	if err != nil {
 		wire.WriteError(w, http.StatusBadRequest, "Malformed JSON")
 		return
 	}
 
-	err = a.service.UpdateService(name, req.Display, req.Audience, req.Redirect)
+	err = a.service.UpdateIntegration(name, &service.IntegrationUpdate{
+		Display:  req.Display,
+		Audience: req.Audience,
+		Redirect: req.Redirect,
+	})
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -100,17 +104,17 @@ func (a *API) handleUpdateService(
 	wire.WriteData(w, http.StatusOK, nil)
 }
 
-func (a *API) handleDeleteService(
+func (a *API) handleDeleteIntegration(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	name := r.PathValue("name")
 	if name == "" {
-		wire.WriteError(w, http.StatusBadRequest, "Missing service name")
+		wire.WriteError(w, http.StatusBadRequest, "Missing integration name")
 		return
 	}
 
-	err := a.service.DeleteService(name)
+	err := a.service.DeleteIntegration(name)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -119,17 +123,17 @@ func (a *API) handleDeleteService(
 	wire.WriteData(w, http.StatusOK, nil)
 }
 
-func (a *API) handleListServices(
+func (a *API) handleListIntegrations(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	services, err := a.service.ListServices()
+	integrations, err := a.service.ListIntegrations()
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
 	}
 
-	wire.WriteData(w, http.StatusOK, serviceDefinitionsFromDomain(services))
+	wire.WriteData(w, http.StatusOK, integrationsFromDomain(integrations))
 }
 
 type User struct {
@@ -232,7 +236,7 @@ func (a *API) handleUpdateUser(
 		return
 	}
 
-	user, err := a.service.UpdateUser(subject, req.Handle, req.Roles)
+	user, err := a.service.UpdateUser(subject, &service.UserUpdate{Handle: req.Handle, Roles: req.Roles})
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -269,14 +273,14 @@ type UpdateRoleRequest struct {
 	Display *string `json:"display,omitempty"`
 }
 
-func roleFromDomain(def service.RoleDefinition) Role {
+func roleFromDomain(def service.Role) Role {
 	return Role{
 		Name:    def.Name,
 		Display: def.Display,
 	}
 }
 
-func rolesFromDomain(defs []service.RoleDefinition) []Role {
+func rolesFromDomain(defs []service.Role) []Role {
 	apiRoles := make([]Role, 0, len(defs))
 	for _, def := range defs {
 		apiRoles = append(apiRoles, roleFromDomain(def))

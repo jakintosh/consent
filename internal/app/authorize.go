@@ -10,13 +10,13 @@ import (
 )
 
 type authorizePageData struct {
-	ServiceName     string
-	ServiceDisplay  string
-	RequestedScopes []service.ScopeDefinition
-	GrantedScopes   []service.ScopeDefinition
-	MissingScopes   []service.ScopeDefinition
-	State           string
-	CSRF            string
+	IntegrationName    string
+	IntegrationDisplay string
+	RequestedScopes    []service.ScopeDefinition
+	GrantedScopes      []service.ScopeDefinition
+	MissingScopes      []service.ScopeDefinition
+	State              string
+	CSRF               string
 }
 
 func (a *App) handleGetAuthorize(
@@ -24,7 +24,7 @@ func (a *App) handleGetAuthorize(
 	r *http.Request,
 ) *appError {
 	// parse query params
-	svcName := r.URL.Query().Get("service")
+	svcName := r.URL.Query().Get("integration")
 	scopes := r.URL.Query()["scope"]
 	state := r.URL.Query().Get("state")
 
@@ -48,13 +48,13 @@ func (a *App) handleGetAuthorize(
 	switch review.NeedsApproval() {
 	case true: // render authorize page
 		a.returnTemplate(w, r, http.StatusOK, "authorize.html", authorizePageData{
-			ServiceName:     review.Request.Service.Name,
-			ServiceDisplay:  review.Request.Service.Display,
-			RequestedScopes: review.RequestedScopes,
-			GrantedScopes:   review.GrantedScopes,
-			MissingScopes:   review.MissingScopes,
-			State:           review.Request.State,
-			CSRF:            csrf,
+			IntegrationName:    review.Request.Integration.Name,
+			IntegrationDisplay: review.Request.Integration.Display,
+			RequestedScopes:    review.RequestedScopes,
+			GrantedScopes:      review.GrantedScopes,
+			MissingScopes:      review.MissingScopes,
+			State:              review.Request.State,
+			CSRF:               csrf,
 		})
 
 	case false: // try auto-approve and redirect
@@ -80,7 +80,7 @@ func (a *App) handlePostAuthorize(
 	action := r.FormValue("action")
 	scopes := r.Form["scope"]
 	state := r.FormValue("state")
-	svc := r.FormValue("service")
+	svc := r.FormValue("integration")
 
 	// validate user
 	accessToken, _, err := a.auth.Verifier.VerifyAuthorizationCheckCSRF(w, r, csrf)

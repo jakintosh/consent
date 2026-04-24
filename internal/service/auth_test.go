@@ -26,7 +26,7 @@ func TestLogin_Success(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// valid login returns redirect URL with auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -46,8 +46,8 @@ func TestLogin_RedirectURL(t *testing.T) {
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// login redirects to service's configured callback URL
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
+	// login redirects to the integration's configured callback URL
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// wrong password returns ErrInvalidCredentials
-	_, err := env.Service.Login("alice", "wrongpassword", service.InternalServiceName)
+	_, err := env.Service.Login("alice", "wrongpassword", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -78,23 +78,23 @@ func TestLogin_UnknownUser(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	// unknown user returns ErrAccountNotFound
-	_, err := env.Service.Login("unknown", "password", service.InternalServiceName)
+	_, err := env.Service.Login("unknown", "password", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrAccountNotFound) {
 		t.Errorf("expected ErrAccountNotFound, got %v", err)
 	}
 }
 
-func TestLogin_UnknownService(t *testing.T) {
+func TestLogin_UnknownIntegration(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// unknown service returns ErrServiceNotFound
+	// unknown integration returns ErrIntegrationNotFound
 	_, err := env.Service.Login("alice", "password123", "nonexistent-service")
-	if !errors.Is(err, service.ErrServiceNotFound) {
-		t.Errorf("expected ErrServiceNotFound, got %v", err)
+	if !errors.Is(err, service.ErrIntegrationNotFound) {
+		t.Errorf("expected ErrIntegrationNotFound, got %v", err)
 	}
 }
 
@@ -106,7 +106,7 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -117,9 +117,9 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Token not stored: %v", err)
 	}
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
 	if owner != identity.Subject {
 		t.Errorf("token owner = %s, want %s", owner, identity.Subject)
@@ -134,7 +134,7 @@ func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalServiceName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestAPILogin_JSON_Success(t *testing.T) {
 	body := `{
 		"handle": "alice",
 		"secret": "password123",
-		"service": "consent"
+		"integration": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
@@ -178,11 +178,11 @@ func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// valid login redirects to service callback URL
+	// valid login redirects to integration callback URL
 	body := `{
 		"handle": "alice",
 		"secret": "password123",
-		"service": "consent"
+		"integration": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusSeeOther)
@@ -191,7 +191,7 @@ func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
 		t.Fatal("expected Location header in redirect")
 	}
 	if !strings.Contains(location, "consent.test") {
-		t.Errorf("redirect should be to service URL, got: %s", location)
+		t.Errorf("redirect should be to integration URL, got: %s", location)
 	}
 	if !strings.Contains(location, "/auth/callback") {
 		t.Errorf("redirect should include auth callback path, got: %s", location)
@@ -219,7 +219,7 @@ func TestAPILogin_InvalidCredentials(t *testing.T) {
 	body := `{
 		"handle": "alice",
 		"secret": "wrongpassword",
-		"service": "consent"
+		"integration": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
@@ -234,33 +234,33 @@ func TestAPILogin_UnknownUser(t *testing.T) {
 	body := `{
 		"handle": "unknown",
 		"secret": "password",
-		"service": "consent"
+		"integration": "consent"
 	}`
 	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusUnauthorized)
 	result.ExpectError(t)
 }
 
-func TestAPILogin_UnknownService(t *testing.T) {
+func TestAPILogin_UnknownIntegration(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// login with unknown service returns 400
+	// login with unknown integration returns 400
 	body := `{
 		"handle": "alice",
 		"secret": "password123",
-		"service": "unknown"
+		"integration": "unknown"
 	}`
 	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
 	result.ExpectError(t)
 
-	_, err := env.Service.GetServiceByName(service.InternalServiceName)
+	_, err := env.Service.GetIntegration(service.InternalIntegrationName)
 	if err != nil {
-		t.Fatalf("expected internal service to exist: %v", err)
+		t.Fatalf("expected internal integration to exist: %v", err)
 	}
 }
 
@@ -283,9 +283,9 @@ func TestAPILogin_MissingFields(t *testing.T) {
 		name string
 		body string
 	}{
-		{"missing handle", `{"secret":"pass","service":"test-service"}`},
-		{"missing secret", `{"handle":"user","service":"test-service"}`},
-		{"missing service", `{"handle":"user","secret":"pass"}`},
+		{"missing handle", `{"secret":"pass","integration":"test-integration"}`},
+		{"missing secret", `{"handle":"user","integration":"test-integration"}`},
+		{"missing integration", `{"handle":"user","secret":"pass"}`},
 		{"empty object", `{}`},
 	}
 
@@ -662,9 +662,9 @@ func TestRefreshAccessToken_StoresNewToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new token not stored: %v", err)
 	}
-	identity, err := env.DB.GetIdentityByHandle("alice")
+	identity, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
-		t.Fatalf("GetIdentityByHandle failed: %v", err)
+		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
 	if owner != identity.Subject {
 		t.Errorf("new token owner = %s, want %s", owner, identity.Subject)

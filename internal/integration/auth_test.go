@@ -52,7 +52,7 @@ func TestAuthFlow_E2E(t *testing.T) {
 	h := newE2EHarness(t)
 	defer h.close()
 
-	authorizeURL := h.consentServer.URL + "/authorize?service=" + url.QueryEscape(testServiceName) + "&scope=identity&scope=profile&state=" + url.QueryEscape(testState)
+	authorizeURL := h.consentServer.URL + "/authorize?integration=" + url.QueryEscape(testServiceName) + "&scope=identity&scope=profile&state=" + url.QueryEscape(testState)
 	authorizeResp := getNoRedirectWithCookies(t, h.consentServer.Client(), authorizeURL)
 	if authorizeResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("authorize status = %d, want %d", authorizeResp.StatusCode, http.StatusSeeOther)
@@ -64,10 +64,10 @@ func TestAuthFlow_E2E(t *testing.T) {
 	authorizeResp.Body.Close()
 
 	loginBody := url.Values{
-		"handle":    []string{testUserHandle},
-		"secret":    []string{testUserPassword},
-		"service":   []string{service.InternalServiceName},
-		"return_to": []string{mustURL(t, authorizeURL).RequestURI()},
+		"handle":      []string{testUserHandle},
+		"secret":      []string{testUserPassword},
+		"integration": []string{service.InternalIntegrationName},
+		"return_to":   []string{mustURL(t, authorizeURL).RequestURI()},
 	}
 	loginResp := postFormNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/login", loginBody)
 	if loginResp.StatusCode != http.StatusSeeOther {
@@ -100,7 +100,7 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	approvalBody := readBody(t, approvalResp)
 	if !strings.Contains(approvalBody, "Authorize "+testServiceNameUI) {
-		t.Fatalf("approval page missing service display: %q", approvalBody)
+		t.Fatalf("approval page missing integration display: %q", approvalBody)
 	}
 	approvalResp.Body.Close()
 
@@ -112,11 +112,11 @@ func TestAuthFlow_E2E(t *testing.T) {
 	tkValidator := tokens.InitClient(clientOpts)
 	csrf := decodeRefreshCSRF(t, consentRefreshCookie.Value, tkValidator)
 	approveBody := url.Values{
-		"service": []string{testServiceName},
-		"scope":   []string{"identity", "profile"},
-		"state":   []string{testState},
-		"csrf":    []string{csrf},
-		"action":  []string{"approve"},
+		"integration": []string{testServiceName},
+		"scope":       []string{"identity", "profile"},
+		"state":       []string{testState},
+		"csrf":        []string{csrf},
+		"action":      []string{"approve"},
 	}
 	approveResp := postFormWithCookiesNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/authorize", approveBody, consentAccessCookie, consentRefreshCookie)
 	if approveResp.StatusCode != http.StatusSeeOther {
@@ -168,7 +168,7 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	meResp.Body.Close()
 
-	identityOnlyURL := h.consentServer.URL + "/authorize?service=" + url.QueryEscape(testServiceName) + "&scope=identity&state=identity-only"
+	identityOnlyURL := h.consentServer.URL + "/authorize?integration=" + url.QueryEscape(testServiceName) + "&scope=identity&state=identity-only"
 	identityOnlyResp := getNoRedirectWithCookies(t, h.consentServer.Client(), identityOnlyURL, consentAccessCookie, consentRefreshCookie)
 	if identityOnlyResp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("identity-only authorize status = %d, want %d", identityOnlyResp.StatusCode, http.StatusSeeOther)
@@ -294,8 +294,8 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if err := svc.Register(testUserHandle, testUserPassword); err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
-	if err := svc.CreateService(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback"); err != nil {
-		t.Fatalf("CreateService failed: %v", err)
+	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback"); err != nil {
+		t.Fatalf("CreateIntegration failed: %v", err)
 	}
 
 	clientOpts = tokens.ClientOptions{
@@ -320,8 +320,8 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	})
 	h.appServer = httptest.NewTLSServer(appMux)
 
-	if err := svc.UpdateService(testServiceName, nil, nil, stringPtr(h.appServer.URL+"/auth/callback")); err != nil {
-		t.Fatalf("UpdateService redirect failed: %v", err)
+	if err := svc.UpdateIntegration(testServiceName, &service.IntegrationUpdate{Redirect: stringPtr(h.appServer.URL + "/auth/callback")}); err != nil {
+		t.Fatalf("UpdateIntegration redirect failed: %v", err)
 	}
 
 	return h

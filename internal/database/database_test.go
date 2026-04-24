@@ -22,7 +22,7 @@ func TestOpen_CreatesSchema(t *testing.T) {
 	store := testutil.SetupTestDB(t)
 
 	// schema is created - insert and retrieve works
-	err := store.InsertIdentity("subject-test-user", "test-user", []byte("secret-hash"))
+	err := store.InsertUser("subject-test-user", "test-user", []byte("secret-hash"), nil)
 	if err != nil {
 		t.Fatalf("schema not created - InsertIdentity failed: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestOpen_ExistingDatabaseRunsMigrationsOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first database.Open failed: %v", err)
 	}
-	if err := first.InsertIdentity("subject-alice", "alice", []byte("secret")); err != nil {
+	if err := first.InsertUser("subject-alice", "alice", []byte("secret"), nil); err != nil {
 		t.Fatalf("InsertIdentity failed: %v", err)
 	}
 	if err := first.Close(); err != nil {

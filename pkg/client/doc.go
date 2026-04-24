@@ -49,14 +49,14 @@
 //
 // # Authorization Code Flow
 //
-// Register a handler for the OAuth authorization code callback. Services should
+// Register a handler for the OAuth authorization code callback. Integrations should
 // start browser authentication at Consent's `/authorize` endpoint and configure
 // this handler as the registered redirect URL:
 //
 //	// Register the callback handler at /auth/callback
 //	http.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
 //	// Redirect users to:
-//	// https://consent.example.com/authorize?service=myapp&scope=identity&scope=profile
+//	// https://consent.example.com/authorize?integration=myapp&scope=identity&scope=profile
 //
 //	// When users complete login at the consent server, they'll be redirected
 //	// back to /auth/callback?auth_code=... and this handler will:

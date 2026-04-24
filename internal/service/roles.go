@@ -12,6 +12,15 @@ const (
 	ProtectedAdminRoleDisplay = "Administrator"
 )
 
+type Role struct {
+	Name    string
+	Display string
+}
+
+type RoleUpdate struct {
+	Display *string
+}
+
 func SeedSystemRoles(
 	store Store,
 ) error {
@@ -36,10 +45,9 @@ func (s *Service) CreateRole(
 	name string,
 	display string,
 ) (
-	*RoleDefinition,
+	*Role,
 	error,
 ) {
-	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrInvalidHandle
 	}
@@ -47,19 +55,19 @@ func (s *Service) CreateRole(
 		return nil, ErrRoleProtected
 	}
 
-	if strings.TrimSpace(display) == "" {
+	if display == "" {
 		return nil, ErrInvalidHandle
 	}
 
 	err := s.store.InsertRole(name, display)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		if isUniqueConstraintError(err) {
 			return nil, ErrRoleExists
 		}
 		return nil, fmt.Errorf("%w: failed to insert role: %v", ErrInternal, err)
 	}
 
-	return &RoleDefinition{
+	return &Role{
 		Name:    name,
 		Display: display,
 	}, nil
@@ -68,10 +76,9 @@ func (s *Service) CreateRole(
 func (s *Service) GetRole(
 	name string,
 ) (
-	*RoleDefinition,
+	*Role,
 	error,
 ) {
-	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrInvalidHandle
 	}
@@ -91,10 +98,9 @@ func (s *Service) UpdateRole(
 	name string,
 	display *string,
 ) (
-	*RoleDefinition,
+	*Role,
 	error,
 ) {
-	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrInvalidHandle
 	}
@@ -102,28 +108,27 @@ func (s *Service) UpdateRole(
 		return nil, ErrRoleProtected
 	}
 
-	current, err := s.store.GetRole(name)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrRoleNotFound, name)
-		}
-		return nil, fmt.Errorf("%w: failed to get role: %v", ErrInternal, err)
+	updates := &RoleUpdate{
+		Display: display,
 	}
 
-	if display != nil {
-		current.Display = strings.TrimSpace(*display)
-	}
-
-	if current.Display == "" {
-		return nil, ErrInvalidHandle
-	}
-
-	err = s.store.UpdateRoleDisplay(name, current.Display)
+	err := s.store.UpdateRole(name, updates)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrRoleNotFound, name)
 		}
 		return nil, fmt.Errorf("%w: failed to update role: %v", ErrInternal, err)
+	}
+
+	if display != nil {
+		if *display == "" {
+			return nil, ErrInvalidHandle
+		}
+	}
+
+	current, err := s.store.GetRole(name)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to get role: %v", ErrInternal, err)
 	}
 
 	return &current, nil
@@ -132,7 +137,6 @@ func (s *Service) UpdateRole(
 func (s *Service) DeleteRole(
 	name string,
 ) error {
-	name = strings.TrimSpace(name)
 	if name == "" {
 		return ErrInvalidHandle
 	}
@@ -140,16 +144,11 @@ func (s *Service) DeleteRole(
 		return ErrRoleProtected
 	}
 
-	count, err := s.store.CountUsersWithRole(name)
-	if err != nil {
-		return fmt.Errorf("%w: failed to count users with role: %v", ErrInternal, err)
-	}
-	if count > 0 {
-		return fmt.Errorf("%w: %s", ErrRoleInUse, name)
-	}
-
 	deleted, err := s.store.DeleteRole(name)
 	if err != nil {
+		if isFKConstraintError(err) {
+			return fmt.Errorf("%w: %s", ErrRoleInUse, name)
+		}
 		return fmt.Errorf("%w: failed to delete role: %v", ErrInternal, err)
 	}
 	if !deleted {
@@ -159,7 +158,7 @@ func (s *Service) DeleteRole(
 }
 
 func (s *Service) ListRoles() (
-	[]RoleDefinition,
+	[]Role,
 	error,
 ) {
 	records, err := s.store.ListRoles()
@@ -167,4 +166,11 @@ func (s *Service) ListRoles() (
 		return nil, fmt.Errorf("%w: failed to list roles: %v", ErrInternal, err)
 	}
 	return records, nil
+}
+
+func isFKConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "FOREIGN KEY constraint failed")
 }

@@ -209,13 +209,27 @@ func TestDeleteRole_InUse(t *testing.T) {
 
 	env.CreateTestRole(t, "editor", "Editor")
 
-	if _, err := env.Service.CreateUser("alice", "securepassword", []string{"editor"}); err != nil {
+	user, err := env.Service.CreateUser("alice", "securepassword", []string{"editor"})
+	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
-	err := env.Service.DeleteRole("editor")
-	if !errors.Is(err, service.ErrRoleInUse) {
-		t.Fatalf("expected ErrRoleInUse, got %v", err)
+	err = env.Service.DeleteRole("editor")
+	if err != nil {
+		t.Fatalf("DeleteRole should succeed via cascade, got: %v", err)
+	}
+
+	_, err = env.Service.GetRole("editor")
+	if !errors.Is(err, service.ErrRoleNotFound) {
+		t.Fatalf("expected ErrRoleNotFound after delete, got %v", err)
+	}
+
+	updated, err := env.Service.GetUser(user.Subject)
+	if err != nil {
+		t.Fatalf("user should still exist after role cascade delete, got: %v", err)
+	}
+	if len(updated.Roles) != 0 {
+		t.Fatalf("user roles should be empty after role cascade delete, got %v", updated.Roles)
 	}
 }
 
