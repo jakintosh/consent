@@ -215,10 +215,10 @@ func TestClearTokenCookies_InsecureCookiesDisablesSecure(t *testing.T) {
 	assertCookieSecure(t, rr.Result().Cookies(), false)
 }
 
-func TestFetchMe_SendsBearerTokenAndDecodesResponse(t *testing.T) {
+func TestFetchUserInfo_SendsBearerTokenAndDecodesResponse(t *testing.T) {
 	wantToken := "access.token.value"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/auth/me" {
+		if r.URL.Path != "/api/v1/auth/userinfo" {
 			http.NotFound(w, r)
 			return
 		}
@@ -229,9 +229,9 @@ func TestFetchMe_SendsBearerTokenAndDecodesResponse(t *testing.T) {
 			t.Fatalf("authorization = %q, want %q", r.Header.Get("Authorization"), "Bearer "+wantToken)
 		}
 		if err := json.NewEncoder(w).Encode(struct {
-			Data MeResponse `json:"data"`
+			Data UserInfo `json:"data"`
 		}{
-			Data: MeResponse{Profile: &MeProfile{Handle: "alice"}},
+			Data: UserInfo{Sub: "subject-alice", Profile: &UserInfoProfile{Handle: "alice"}},
 		}); err != nil {
 			t.Fatalf("Encode failed: %v", err)
 		}
@@ -239,23 +239,26 @@ func TestFetchMe_SendsBearerTokenAndDecodesResponse(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	c := Init(nil, server.URL)
-	response, err := c.FetchMe(wantToken)
+	response, err := c.FetchUserInfo(wantToken)
 	if err != nil {
-		t.Fatalf("FetchMe failed: %v", err)
+		t.Fatalf("FetchUserInfo failed: %v", err)
+	}
+	if response.Sub != "subject-alice" {
+		t.Fatalf("sub = %q, want subject-alice", response.Sub)
 	}
 	if response.Profile == nil || response.Profile.Handle != "alice" {
 		t.Fatalf("profile = %#v, want alice", response.Profile)
 	}
 }
 
-func TestFetchMe_StatusError(t *testing.T) {
+func TestFetchUserInfo_StatusError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
 	t.Cleanup(server.Close)
 
 	c := Init(nil, server.URL)
-	_, err := c.FetchMe("access.token.value")
+	_, err := c.FetchUserInfo("access.token.value")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -264,14 +267,14 @@ func TestFetchMe_StatusError(t *testing.T) {
 	}
 }
 
-func TestFetchMe_DecodeError(t *testing.T) {
+func TestFetchUserInfo_DecodeError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("not-json"))
 	}))
 	t.Cleanup(server.Close)
 
 	c := Init(nil, server.URL)
-	_, err := c.FetchMe("access.token.value")
+	_, err := c.FetchUserInfo("access.token.value")
 	if err == nil {
 		t.Fatal("expected error")
 	}

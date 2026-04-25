@@ -184,6 +184,40 @@ func generateSubject() (
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
+func buildAuthCodeRedirectURL(
+	redirect *url.URL,
+	refreshToken string,
+	state string,
+	returnTo string,
+) *url.URL {
+	redirectURL := *redirect
+	q := redirectURL.Query()
+	q.Set("auth_code", refreshToken)
+	if state != "" {
+		q.Set("state", state)
+	}
+	if returnTo != "" {
+		q.Set("return_to", returnTo)
+	}
+	redirectURL.RawQuery = q.Encode()
+	return &redirectURL
+}
+
+func buildAuthorizationErrorRedirectURL(
+	redirect *url.URL,
+	errorCode string,
+	state string,
+) *url.URL {
+	redirectURL := *redirect
+	q := redirectURL.Query()
+	q.Set("error", errorCode)
+	if state != "" {
+		q.Set("state", state)
+	}
+	redirectURL.RawQuery = q.Encode()
+	return &redirectURL
+}
+
 func parseAndValidateRedirectURL(
 	redirect string,
 ) (

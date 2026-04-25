@@ -1,32 +1,23 @@
 package service_test
 
 import (
-	"bytes"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"git.sr.ht/~jakintosh/command-go/pkg/wire"
-	"git.sr.ht/~jakintosh/consent/internal/api"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-var jsonHeader = wire.TestHeader{Key: "Content-Type", Value: "application/json"}
-
-const consentAudience = "test.consent.local"
-
-func TestLogin_Success(t *testing.T) {
+func TestGrantAuthCode_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// valid login returns redirect URL with auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
+	// returns redirect URL with auth_code
+	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -39,15 +30,15 @@ func TestLogin_Success(t *testing.T) {
 	}
 }
 
-func TestLogin_RedirectURL(t *testing.T) {
+func TestGrantAuthCode_RedirectURL(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// login redirects to the integration's configured callback URL
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
+	// redirects to the integration's configured callback URL
+	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -59,7 +50,7 @@ func TestLogin_RedirectURL(t *testing.T) {
 	}
 }
 
-func TestLogin_WrongPassword(t *testing.T) {
+func TestGrantAuthCode_WrongPassword(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -67,24 +58,24 @@ func TestLogin_WrongPassword(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// wrong password returns ErrInvalidCredentials
-	_, err := env.Service.Login("alice", "wrongpassword", service.InternalIntegrationName)
+	_, err := env.Service.GrantAuthCode("alice", "wrongpassword", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
-func TestLogin_UnknownUser(t *testing.T) {
+func TestGrantAuthCode_UnknownUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// unknown user returns ErrAccountNotFound
-	_, err := env.Service.Login("unknown", "password", service.InternalIntegrationName)
+	_, err := env.Service.GrantAuthCode("unknown", "password", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrAccountNotFound) {
 		t.Errorf("expected ErrAccountNotFound, got %v", err)
 	}
 }
 
-func TestLogin_UnknownIntegration(t *testing.T) {
+func TestGrantAuthCode_UnknownIntegration(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -92,21 +83,21 @@ func TestLogin_UnknownIntegration(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// unknown integration returns ErrIntegrationNotFound
-	_, err := env.Service.Login("alice", "password123", "nonexistent-service")
+	_, err := env.Service.GrantAuthCode("alice", "password123", "nonexistent-service")
 	if !errors.Is(err, service.ErrIntegrationNotFound) {
 		t.Errorf("expected ErrIntegrationNotFound, got %v", err)
 	}
 }
 
-func TestLogin_StoresRefreshToken(t *testing.T) {
+func TestGrantAuthCode_StoresRefreshToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
+	// grant auth_code and get redirect
+	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -126,15 +117,15 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 	}
 }
 
-func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
+func TestGrantAuthCode_AuthCodeIsValidJWT(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password123")
 
-	// login and get auth_code
-	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
+	// grant auth_code and get redirect
+	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -145,434 +136,6 @@ func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
 	if len(parts) != 3 {
 		t.Errorf("auth_code not valid JWT format, has %d parts", len(parts))
 	}
-}
-
-func TestAPILogin_JSON_Success(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password123")
-
-	// valid login redirects with auth_code
-	body := `{
-		"handle": "alice",
-		"secret": "password123",
-		"integration": "consent"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusSeeOther)
-	location := result.Headers.Get("Location")
-	if location == "" {
-		t.Fatal("expected Location header in redirect")
-	}
-	if !strings.Contains(location, "auth_code=") {
-		t.Errorf("redirect URL missing auth_code: %s", location)
-	}
-}
-
-func TestAPILogin_JSON_RedirectTarget(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password123")
-
-	// valid login redirects to integration callback URL
-	body := `{
-		"handle": "alice",
-		"secret": "password123",
-		"integration": "consent"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusSeeOther)
-	location := result.Headers.Get("Location")
-	if location == "" {
-		t.Fatal("expected Location header in redirect")
-	}
-	if !strings.Contains(location, "consent.test") {
-		t.Errorf("redirect should be to integration URL, got: %s", location)
-	}
-	if !strings.Contains(location, "/auth/callback") {
-		t.Errorf("redirect should include auth callback path, got: %s", location)
-	}
-}
-
-func TestAPILogin_UnsupportedContentType(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// non-JSON content type is rejected
-	result := wire.TestPost[any](env.Router, "/auth/login", "data", wire.TestHeader{Key: "Content-Type", Value: "text/plain"})
-	result.ExpectStatus(t, http.StatusUnsupportedMediaType)
-	result.ExpectError(t)
-}
-
-func TestAPILogin_InvalidCredentials(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password123")
-
-	// wrong password returns 401
-	body := `{
-		"handle": "alice",
-		"secret": "wrongpassword",
-		"integration": "consent"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusUnauthorized)
-	result.ExpectError(t)
-}
-
-func TestAPILogin_UnknownUser(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// login with non-existent user returns 401
-	body := `{
-		"handle": "unknown",
-		"secret": "password",
-		"integration": "consent"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusUnauthorized)
-	result.ExpectError(t)
-}
-
-func TestAPILogin_UnknownIntegration(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password123")
-
-	// login with unknown integration returns 400
-	body := `{
-		"handle": "alice",
-		"secret": "password123",
-		"integration": "unknown"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/login", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-
-	_, err := env.Service.GetIntegration(service.InternalIntegrationName)
-	if err != nil {
-		t.Fatalf("expected internal integration to exist: %v", err)
-	}
-}
-
-func TestAPILogin_InvalidJSON(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// malformed JSON returns 400
-	result := wire.TestPost[any](env.Router, "/auth/login", "not-json", jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPILogin_MissingFields(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// table-driven test for missing required fields
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"missing handle", `{"secret":"pass","integration":"test-integration"}`},
-		{"missing secret", `{"handle":"user","integration":"test-integration"}`},
-		{"missing integration", `{"handle":"user","secret":"pass"}`},
-		{"empty object", `{}`},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := wire.TestPost[any](env.Router, "/auth/login", tt.body, jsonHeader)
-			// should either fail at login or return auth error
-			if result.Code == http.StatusSeeOther {
-				t.Error("should not redirect with missing fields")
-			}
-		})
-	}
-}
-
-func TestAPILogout_Success(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// happy path token logout succeeds
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/logout", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusOK)
-}
-
-func TestAPILogout_TokenNotFound(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// logout with invalid token fails
-	body := `{
-		"refreshToken": "nonexistent-token"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/logout", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPILogout_InvalidatesToken(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// valid logout succeeds
-	logoutBody := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/logout", logoutBody, jsonHeader)
-	result.ExpectStatus(t, http.StatusOK)
-
-	// refresh should now fail
-	refreshBody := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	refreshResult := wire.TestPost[any](env.Router, "/auth/refresh", refreshBody, jsonHeader)
-	refreshResult.ExpectStatus(t, http.StatusBadRequest)
-	refreshResult.ExpectError(t)
-}
-
-func TestAPILogout_InvalidJSON(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// logout with malformed json fails
-	result := wire.TestPost[any](env.Router, "/auth/logout", "bad-json", jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPILogout_DoubleLogout(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// first logout succeeds
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/logout", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusOK)
-
-	// second logout fails
-	second := wire.TestPost[any](env.Router, "/auth/logout", body, jsonHeader)
-	second.ExpectStatus(t, http.StatusBadRequest)
-	second.ExpectError(t)
-}
-
-func TestAPILogout_EmptyToken(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// logout with empty token fails
-	body := `{
-		"refreshToken": ""
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/logout", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPIRefresh_Success(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// valid refresh returns new access and refresh tokens
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
-	response := result.ExpectOK(t)
-	if response.AccessToken == "" {
-		t.Error("expected non-empty access token")
-	}
-	if response.RefreshToken == "" {
-		t.Error("expected non-empty refresh token")
-	}
-}
-
-func TestAPIRefresh_InvalidToken(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// malformed token returns 400
-	body := `{
-		"refreshToken": "invalid-token"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/refresh", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPIRefresh_TokenNotInStore(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.IssueTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// valid token not in store returns 400
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[any](env.Router, "/auth/refresh", body, jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPIRefresh_InvalidatesOldToken(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// first refresh succeeds
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
-	result.ExpectOK(t)
-
-	// second refresh with same token fails (token was rotated)
-	badResult := wire.TestPost[any](env.Router, "/auth/refresh", body, jsonHeader)
-	badResult.ExpectStatus(t, http.StatusBadRequest)
-	badResult.ExpectError(t)
-}
-
-func TestAPIRefresh_InvalidJSON(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// malformed JSON returns 400
-	result := wire.TestPost[any](env.Router, "/auth/refresh", "bad-json", jsonHeader)
-	result.ExpectStatus(t, http.StatusBadRequest)
-	result.ExpectError(t)
-}
-
-func TestAPIRefresh_NewTokenCanBeUsed(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-
-	// setup env
-	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
-
-	// first refresh returns new tokens
-	body := `{
-		"refreshToken": "` + token.Encoded() + `"
-	}`
-	result := wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body, jsonHeader)
-	response1 := result.ExpectOK(t)
-
-	// new refresh token can be used for another refresh
-	body2 := `{
-		"refreshToken": "` + response1.RefreshToken + `"
-	}`
-	result = wire.TestPost[api.RefreshResponse](env.Router, "/auth/refresh", body2, jsonHeader)
-	response2 := result.ExpectOK(t)
-	if response2.AccessToken == "" {
-		t.Error("second refresh should return access token")
-	}
-}
-
-func TestMe_IdentityOnly(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-	env.RegisterTestUser(t, "alice", "password")
-
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
-	result := testutil.Get(env.Router, "/auth/me", &struct {
-		Data api.MeResponse `json:"data"`
-	}{}, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
-	testutil.ExpectStatus(t, http.StatusOK, result)
-	if string(result.Body) == "" {
-		t.Fatal("expected response body")
-	}
-	if bytes.Contains(result.Body, []byte("profile")) {
-		t.Fatalf("identity-only response should not include profile: %s", string(result.Body))
-	}
-}
-
-func TestMe_ProfileScope(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-	env.RegisterTestUser(t, "alice", "password")
-
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity", "profile"})
-	var response struct {
-		Data api.MeResponse `json:"data"`
-	}
-	result := testutil.Get(env.Router, "/auth/me", &response, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
-	testutil.ExpectStatus(t, http.StatusOK, result)
-	if response.Data.Profile == nil || response.Data.Profile.Handle != "alice" {
-		t.Fatalf("profile handle = %#v, want alice", response.Data.Profile)
-	}
-}
-
-func TestMe_RequiresIdentityScope(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-	env.RegisterTestUser(t, "alice", "password")
-
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"profile"})
-	result := testutil.Get(env.Router, "/auth/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
-	testutil.ExpectStatus(t, http.StatusForbidden, result)
-}
-
-func TestMe_RequiresBearerHeader(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-	env.RegisterTestUser(t, "alice", "password")
-
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
-	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
-	req.AddCookie(&http.Cookie{Name: "accessToken", Value: token.Encoded()})
-	rr := httptest.NewRecorder()
-	env.Router.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d. Body: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
-	}
-}
-
-func TestMe_RequiresConsentAudience(t *testing.T) {
-	t.Parallel()
-	env := testutil.SetupTestEnvWithRouter(t)
-	env.RegisterTestUser(t, "alice", "password")
-
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity"})
-	result := testutil.Get(env.Router, "/auth/me", nil, testutil.Header{Key: "Authorization", Value: "Bearer " + token.Encoded()})
-	testutil.ExpectStatus(t, http.StatusBadRequest, result)
 }
 
 func TestRefreshAccessToken_Success(t *testing.T) {

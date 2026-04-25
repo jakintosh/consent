@@ -315,15 +315,15 @@ func fetchProfileHandle(
 	authClient *client.Client,
 	accessToken string,
 ) string {
-	me, err := authClient.FetchMe(accessToken)
+	userInfo, err := authClient.FetchUserInfo(accessToken)
 	if err != nil {
-		log.Printf("failed to call /api/v1/auth/me: %v", err)
+		log.Printf("failed to fetch userInfo: %v", err)
 		return ""
 	}
-	if me.Profile == nil {
+	if userInfo.Profile == nil {
 		return ""
 	}
-	return me.Profile.Handle
+	return userInfo.Profile.Handle
 }
 
 func decodePublicKey(

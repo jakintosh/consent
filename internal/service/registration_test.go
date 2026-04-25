@@ -29,8 +29,8 @@ func TestRegister_ThenLogin(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	// registered user can login
-	redirectURL, err := env.Service.Login("alice", "securepassword", service.InternalIntegrationName)
+	// registered user can get auth code
+	redirectURL, err := env.Service.GrantAuthCode("alice", "securepassword", service.InternalIntegrationName)
 	if err != nil {
 		t.Errorf("registered user cannot login: %v", err)
 	}
@@ -97,9 +97,9 @@ func TestRegister_MultipleUsers(t *testing.T) {
 		}
 	}
 
-	// all registered users can login
+	// all registered users can get auth code
 	for _, u := range users {
-		_, err := env.Service.Login(u.handle, u.password, service.InternalIntegrationName)
+		_, err := env.Service.GrantAuthCode(u.handle, u.password, service.InternalIntegrationName)
 		if err != nil {
 			t.Errorf("Login %s failed: %v", u.handle, err)
 		}

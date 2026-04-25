@@ -153,20 +153,24 @@ func TestAuthFlow_E2E(t *testing.T) {
 		t.Fatalf("expected opaque sub, got handle %q", appAccessToken.Subject())
 	}
 
-	meResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/me", accessCookie.Value)
-	if meResp.StatusCode != http.StatusOK {
-		t.Fatalf("/api/v1/auth/me status = %d, want %d", meResp.StatusCode, http.StatusOK)
+	userInfoResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/userinfo", accessCookie.Value)
+	if userInfoResp.StatusCode != http.StatusOK {
+		t.Fatalf("/api/v1/auth/userinfo status = %d, want %d", userInfoResp.StatusCode, http.StatusOK)
 	}
-	var meBody struct {
+	var userInfoBody struct {
+		Sub     string `json:"sub"`
 		Profile struct {
 			Handle string `json:"handle"`
 		} `json:"profile"`
 	}
-	decodeWireData(t, meResp, &meBody)
-	if meBody.Profile.Handle != testUserHandle {
-		t.Fatalf("profile.handle = %q, want %q", meBody.Profile.Handle, testUserHandle)
+	decodeWireData(t, userInfoResp, &userInfoBody)
+	if userInfoBody.Sub != appAccessToken.Subject() {
+		t.Fatalf("sub = %q, want %q", userInfoBody.Sub, appAccessToken.Subject())
 	}
-	meResp.Body.Close()
+	if userInfoBody.Profile.Handle != testUserHandle {
+		t.Fatalf("profile.handle = %q, want %q", userInfoBody.Profile.Handle, testUserHandle)
+	}
+	userInfoResp.Body.Close()
 
 	identityOnlyURL := h.consentServer.URL + "/authorize?integration=" + url.QueryEscape(testServiceName) + "&scope=identity&state=identity-only"
 	identityOnlyResp := getNoRedirectWithCookies(t, h.consentServer.Client(), identityOnlyURL, consentAccessCookie, consentRefreshCookie)
@@ -189,14 +193,18 @@ func TestAuthFlow_E2E(t *testing.T) {
 	}
 	identityCallbackResp.Body.Close()
 
-	identityMeResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/me", identityAccessCookie.Value)
-	if identityMeResp.StatusCode != http.StatusOK {
-		t.Fatalf("identity-only /api/v1/auth/me status = %d, want %d", identityMeResp.StatusCode, http.StatusOK)
+	identityUserInfoResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/userinfo", identityAccessCookie.Value)
+	if identityUserInfoResp.StatusCode != http.StatusOK {
+		t.Fatalf("identity-only /api/v1/auth/userinfo status = %d, want %d", identityUserInfoResp.StatusCode, http.StatusOK)
 	}
-	if strings.Contains(readBody(t, identityMeResp), "profile") {
-		t.Fatalf("identity-only /api/v1/auth/me should not include profile data")
+	identityBody := readBody(t, identityUserInfoResp)
+	if !strings.Contains(identityBody, "sub") {
+		t.Fatalf("identity-only /api/v1/auth/userinfo should include sub: %q", identityBody)
 	}
-	identityMeResp.Body.Close()
+	if strings.Contains(identityBody, "profile") {
+		t.Fatalf("identity-only /api/v1/auth/userinfo should not include profile data")
+	}
+	identityUserInfoResp.Body.Close()
 }
 
 func newE2EHarness(t *testing.T) *e2eHarness {

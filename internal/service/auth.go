@@ -13,18 +13,19 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-type SubjectProfile struct {
+type UserInfoProfile struct {
 	Handle string
 }
 
-type Viewer struct {
-	Profile *SubjectProfile
+type UserInfo struct {
+	Sub     string
+	Profile *UserInfoProfile
 }
 
-func (s *Service) GetViewer(
+func (s *Service) GetUserInfo(
 	encodedAccessToken string,
 ) (
-	*Viewer,
+	*UserInfo,
 	error,
 ) {
 	accessToken := new(tokens.AccessToken)
@@ -41,17 +42,17 @@ func (s *Service) GetViewer(
 		return nil, ErrAccountNotFound
 	}
 
-	viewer := &Viewer{}
+	userInfo := &UserInfo{Sub: accessToken.Subject()}
 	if slices.Contains(accessToken.Scopes(), ScopeProfile) {
-		viewer.Profile = &SubjectProfile{
+		userInfo.Profile = &UserInfoProfile{
 			Handle: user.Handle,
 		}
 	}
 
-	return viewer, nil
+	return userInfo, nil
 }
 
-func (s *Service) Login(
+func (s *Service) GrantAuthCode(
 	handle string,
 	secret string,
 	integrationName string,
@@ -174,38 +175,4 @@ func (s *Service) RefreshAccessToken(
 	}
 
 	return accessToken.Encoded(), newRefreshToken.Encoded(), nil
-}
-
-func buildAuthCodeRedirectURL(
-	redirect *url.URL,
-	refreshToken string,
-	state string,
-	returnTo string,
-) *url.URL {
-	redirectURL := *redirect
-	q := redirectURL.Query()
-	q.Set("auth_code", refreshToken)
-	if state != "" {
-		q.Set("state", state)
-	}
-	if returnTo != "" {
-		q.Set("return_to", returnTo)
-	}
-	redirectURL.RawQuery = q.Encode()
-	return &redirectURL
-}
-
-func buildAuthorizationErrorRedirectURL(
-	redirect *url.URL,
-	errorCode string,
-	state string,
-) *url.URL {
-	redirectURL := *redirect
-	q := redirectURL.Query()
-	q.Set("error", errorCode)
-	if state != "" {
-		q.Set("state", state)
-	}
-	redirectURL.RawQuery = q.Encode()
-	return &redirectURL
 }

@@ -43,11 +43,12 @@ var (
 	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
 )
 
-type MeResponse struct {
-	Profile *MeProfile `json:"profile,omitempty"`
+type UserInfo struct {
+	Sub     string           `json:"sub"`
+	Profile *UserInfoProfile `json:"profile,omitempty"`
 }
 
-type MeProfile struct {
+type UserInfoProfile struct {
 	Handle string `json:"handle"`
 }
 
@@ -436,33 +437,33 @@ func (c *Client) ClearTokenCookies(
 	c.log(LogLevelDebug, "cleared token cookies\n")
 }
 
-func (c *Client) FetchMe(
+func (c *Client) FetchUserInfo(
 	accessToken string,
 ) (
-	*MeResponse,
+	*UserInfo,
 	error,
 ) {
-	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/auth/me", nil)
+	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/auth/userinfo", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create /api/v1/auth/me request: %v", err)
+		return nil, fmt.Errorf("failed to create /api/v1/auth/userinfo request: %v", err)
 	}
 	request.Header.Set("Authorization", "Bearer "+accessToken)
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call /api/v1/auth/me: %v", err)
+		return nil, fmt.Errorf("failed to call /api/v1/auth/userinfo: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("/api/v1/auth/me returned status %d", response.StatusCode)
+		return nil, fmt.Errorf("/api/v1/auth/userinfo returned status %d", response.StatusCode)
 	}
 
 	var body struct {
-		Data MeResponse `json:"data"`
+		Data UserInfo `json:"data"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("failed to decode /api/v1/auth/me response: %v", err)
+		return nil, fmt.Errorf("failed to decode /api/v1/auth/userinfo response: %v", err)
 	}
 
 	return &body.Data, nil

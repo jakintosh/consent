@@ -28,20 +28,37 @@ type RefreshResponse struct {
 	AccessToken  string `json:"accessToken"`
 }
 
-type MeResponse struct {
-	Profile *MeProfile `json:"profile,omitempty"`
+type UserInfo struct {
+	Sub     string           `json:"sub"`
+	Profile *UserInfoProfile `json:"profile,omitempty"`
 }
 
-type MeProfile struct {
+type UserInfoProfile struct {
 	Handle string `json:"handle"`
 }
 
-func meResponseFromDomain(viewer *service.Viewer) MeResponse {
-	response := MeResponse{}
-	if viewer != nil && viewer.Profile != nil {
-		response.Profile = &MeProfile{Handle: viewer.Profile.Handle}
+func userInfoFromDomain(
+	userInfo *service.UserInfo,
+) UserInfo {
+	response := UserInfo{}
+	if userInfo != nil {
+		response.Sub = userInfo.Sub
+	}
+	if userInfo != nil && userInfo.Profile != nil {
+		response.Profile = &UserInfoProfile{Handle: userInfo.Profile.Handle}
 	}
 	return response
+}
+
+func (a *API) buildAuthRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("POST /login", a.handleLogin)
+	mux.HandleFunc("POST /logout", a.handleLogout)
+	mux.HandleFunc("POST /refresh", a.handleRefresh)
+	mux.HandleFunc("GET  /userinfo", a.handleUserInfo)
+
+	return mux
 }
 
 func (a *API) handleLogin(
@@ -72,7 +89,7 @@ func (a *API) handleLogin(
 		return
 	}
 
-	redirectURL, err := a.service.Login(req.Handle, req.Secret, req.Integration, req.ReturnTo)
+	redirectURL, err := a.service.GrantAuthCode(req.Handle, req.Secret, req.Integration, req.ReturnTo)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -122,26 +139,27 @@ func (a *API) handleRefresh(
 	})
 }
 
-func (a *API) handleMe(
+func (a *API) handleUserInfo(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	encodedToken, ok := bearerToken(r.Header.Get("Authorization"))
+	authHeader := r.Header.Get("Authorization")
+	encodedToken, ok := parseBearerToken(authHeader)
 	if !ok {
 		wire.WriteError(w, httpStatusFromError(service.ErrTokenInvalid), service.ErrTokenInvalid.Error())
 		return
 	}
 
-	viewer, err := a.service.GetViewer(encodedToken)
+	userInfo, err := a.service.GetUserInfo(encodedToken)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
 	}
 
-	wire.WriteData(w, http.StatusOK, meResponseFromDomain(viewer))
+	wire.WriteData(w, http.StatusOK, userInfoFromDomain(userInfo))
 }
 
-func bearerToken(
+func parseBearerToken(
 	header string,
 ) (
 	string,

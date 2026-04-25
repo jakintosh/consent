@@ -96,7 +96,7 @@ func protectedHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
     // Use accessToken.Subject() as a stable opaque user key
-    // Call Consent's /api/v1/me endpoint for scoped profile data
+    // Call Consent's /api/v1/auth/userinfo endpoint for scoped user data
 }
 
 // Handle authorization code callback
