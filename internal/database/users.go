@@ -21,39 +21,18 @@ func (db *DB) InsertUser(
 	defer tx.Rollback()
 
 	_, err = tx.Exec(`
-		INSERT INTO identity (subject, handle, secret)
-		VALUES (?1, ?2, ?3);`,
+		INSERT INTO user (subject, handle, secret)
+		VALUES (?1, ?2, ?3)`,
 		subject,
 		handle,
 		secret,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't insert user: %w", err)
+		return fmt.Errorf("insert user: %w", err)
 	}
 
-	ensureStmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO role (name, display)
-		VALUES (?1, ?1);`)
-	if err != nil {
-		return fmt.Errorf("prepare role ensure statement: %w", err)
-	}
-	defer ensureStmt.Close()
-
-	assignStmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO user_roles (user_subject, role_name)
-		VALUES (?1, ?2);`)
-	if err != nil {
-		return fmt.Errorf("prepare role assign statement: %w", err)
-	}
-	defer assignStmt.Close()
-
-	for _, role := range roles {
-		if _, err := ensureStmt.Exec(role); err != nil {
-			return fmt.Errorf("ensure role %q: %w", role, err)
-		}
-		if _, err := assignStmt.Exec(subject, role); err != nil {
-			return fmt.Errorf("assign role %q to user %q: %w", role, subject, err)
-		}
+	if err := ensureAndAssignRolesTx(tx, subject, roles); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -70,15 +49,15 @@ func (db *DB) GetUserByHandle(
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, r.name
-		FROM identity i
-		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
+		SELECT u.subject, u.handle, r.name
+		FROM user u
+		LEFT JOIN user_roles ur ON u.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
-		WHERE i.handle=?1;`,
+		WHERE u.handle=?1`,
 		handle,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't query user by handle: %w", err)
+		return nil, fmt.Errorf("query user by handle %q: %w", handle, err)
 	}
 	defer rows.Close()
 
@@ -92,15 +71,15 @@ func (db *DB) GetUserBySubject(
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, r.name
-		FROM identity i
-		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
+		SELECT u.subject, u.handle, r.name
+		FROM user u
+		LEFT JOIN user_roles ur ON u.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
-		WHERE i.subject=?1;`,
+		WHERE u.subject=?1`,
 		subject,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't query user by subject: %w", err)
+		return nil, fmt.Errorf("query user by subject %q: %w", subject, err)
 	}
 	defer rows.Close()
 
@@ -112,13 +91,13 @@ func (db *DB) ListUsers() (
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT i.subject, i.handle, r.name
-		FROM identity i
-		LEFT JOIN user_roles ur ON i.subject = ur.user_subject
+		SELECT u.subject, u.handle, r.name
+		FROM user u
+		LEFT JOIN user_roles ur ON u.subject = ur.user_subject
 		LEFT JOIN role r ON ur.role_name = r.name
-		ORDER BY i.handle;`)
+		ORDER BY u.handle`)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't query users: %w", err)
+		return nil, fmt.Errorf("query users: %w", err)
 	}
 	defer rows.Close()
 
@@ -131,7 +110,7 @@ func (db *DB) ListUsers() (
 
 		err := rows.Scan(&subject, &handle, &roleName)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't scan user row: %w", err)
+			return nil, fmt.Errorf("scan user row: %w", err)
 		}
 
 		record, exists := bySubject[subject]
@@ -178,14 +157,14 @@ func (db *DB) UpdateUser(
 	defer tx.Rollback()
 
 	result, err := tx.Exec(`
-		UPDATE identity
+		UPDATE user
 		SET handle=?1
-		WHERE subject=?2;`,
+		WHERE subject=?2`,
 		handle,
 		subject,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't update user: %w", err)
+		return fmt.Errorf("update user %q: %w", subject, err)
 	}
 	if resultsEmpty(result) {
 		return sql.ErrNoRows
@@ -203,50 +182,24 @@ func (db *DB) UpdateUser(
 
 		_, err = tx.Exec(fmt.Sprintf(`
 			DELETE FROM user_roles
-			WHERE user_subject=?1 AND role_name NOT IN (%s);`, notInClause),
+			WHERE user_subject=?1 AND role_name NOT IN (%s)`, notInClause),
 			args...,
 		)
 		if err != nil {
-			return fmt.Errorf("couldn't remove obsolete user roles: %w", err)
+			return fmt.Errorf("remove obsolete roles for user %q: %w", subject, err)
 		}
 
-		ensureStmt, err := tx.Prepare(`
-			INSERT OR IGNORE INTO role (name, display)
-			VALUES (?1, ?1);`)
-		if err != nil {
-			return fmt.Errorf("prepare role ensure statement: %w", err)
-		}
-		defer ensureStmt.Close()
-
-		assignStmt, err := tx.Prepare(`
-			INSERT OR IGNORE INTO user_roles (user_subject, role_name)
-			VALUES (?1, ?2);`)
-		if err != nil {
-			_ = ensureStmt.Close()
-			return fmt.Errorf("prepare role assign statement: %w", err)
-		}
-		defer assignStmt.Close()
-
-		for _, role := range roles {
-			if _, err := ensureStmt.Exec(role); err != nil {
-				_ = ensureStmt.Close()
-				_ = assignStmt.Close()
-				return fmt.Errorf("ensure role %q: %w", role, err)
-			}
-			if _, err := assignStmt.Exec(subject, role); err != nil {
-				_ = ensureStmt.Close()
-				_ = assignStmt.Close()
-				return fmt.Errorf("assign role %q to user %q: %w", role, subject, err)
-			}
+		if err := ensureAndAssignRolesTx(tx, subject, roles); err != nil {
+			return err
 		}
 	} else {
 		_, err = tx.Exec(`
 			DELETE FROM user_roles
-			WHERE user_subject=?1;`,
+			WHERE user_subject=?1`,
 			subject,
 		)
 		if err != nil {
-			return fmt.Errorf("couldn't remove all user roles: %w", err)
+			return fmt.Errorf("remove all roles for user %q: %w", subject, err)
 		}
 	}
 
@@ -264,12 +217,12 @@ func (db *DB) DeleteUser(
 	error,
 ) {
 	result, err := db.Conn.Exec(`
-		DELETE FROM identity
-		WHERE subject=?1;`,
+		DELETE FROM user
+		WHERE subject=?1`,
 		subject,
 	)
 	if err != nil {
-		return false, fmt.Errorf("couldn't delete user: %w", err)
+		return false, fmt.Errorf("delete user %q: %w", subject, err)
 	}
 
 	deleted := !resultsEmpty(result)
@@ -285,12 +238,12 @@ func (db *DB) GetSecret(
 	var secret []byte
 	err := db.Conn.QueryRow(`
 		SELECT secret
-		FROM identity
-		WHERE handle=?1;`,
+		FROM user
+		WHERE handle=?1`,
 		handle,
 	).Scan(&secret)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get secret: %w", err)
+		return nil, fmt.Errorf("get secret for handle %q: %w", handle, err)
 	}
 	return secret, nil
 }
@@ -313,7 +266,7 @@ func scanUserRows(
 			&handle,
 			&roleName,
 		); err != nil {
-			return nil, fmt.Errorf("couldn't scan user row: %w", err)
+			return nil, fmt.Errorf("scan user row: %w", err)
 		}
 
 		if record == nil {
@@ -339,4 +292,37 @@ func scanUserRows(
 	record.Roles = roleNames
 
 	return record, nil
+}
+
+func ensureAndAssignRolesTx(
+	tx *sql.Tx,
+	subject string,
+	roles []string,
+) error {
+	ensureStmt, err := tx.Prepare(`
+		INSERT OR IGNORE INTO role (name, display)
+		VALUES (?1, ?1)`)
+	if err != nil {
+		return fmt.Errorf("prepare role ensure statement: %w", err)
+	}
+	defer ensureStmt.Close()
+
+	assignStmt, err := tx.Prepare(`
+		INSERT OR IGNORE INTO user_roles (user_subject, role_name)
+		VALUES (?1, ?2)`)
+	if err != nil {
+		return fmt.Errorf("prepare role assign statement: %w", err)
+	}
+	defer assignStmt.Close()
+
+	for _, role := range roles {
+		if _, err := ensureStmt.Exec(role); err != nil {
+			return fmt.Errorf("ensure role %q: %w", role, err)
+		}
+		if _, err := assignStmt.Exec(subject, role); err != nil {
+			return fmt.Errorf("assign role %q to user %q: %w", role, subject, err)
+		}
+	}
+
+	return nil
 }

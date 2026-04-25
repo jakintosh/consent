@@ -16,14 +16,14 @@ func (db *DB) InsertIntegration(
 ) error {
 	_, err := db.Conn.Exec(`
 		INSERT INTO integration (name, display, audience, redirect)
-		VALUES (?1, ?2, ?3, ?4);`,
+		VALUES (?1, ?2, ?3, ?4)`,
 		name,
 		display,
 		audience,
 		redirect,
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't insert into integration: %v", err)
+		return fmt.Errorf("insert integration: %w", err)
 	}
 	return nil
 }
@@ -37,7 +37,7 @@ func (db *DB) UpsertSystemIntegrations(
 
 	tx, err := db.Conn.Begin()
 	if err != nil {
-		return fmt.Errorf("couldn't begin system integration upsert transaction: %v", err)
+		return fmt.Errorf("begin system integration upsert transaction: %w", err)
 	}
 
 	stmt, err := tx.Prepare(`
@@ -46,22 +46,22 @@ func (db *DB) UpsertSystemIntegrations(
 		ON CONFLICT(name) DO UPDATE SET
 			display=?2,
 			audience=?3,
-			redirect=?4;`)
+			redirect=?4`)
 	if err != nil {
 		_ = tx.Rollback()
-		return fmt.Errorf("couldn't prepare system integration upsert statement: %v", err)
+		return fmt.Errorf("prepare system integration upsert statement: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, integration := range integrations {
 		if _, err := stmt.Exec(integration.Name, integration.Display, integration.Audience, integration.Redirect); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("couldn't upsert system integration %q: %v", integration.Name, err)
+			return fmt.Errorf("upsert system integration %q: %w", integration.Name, err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("couldn't commit system integration upserts: %v", err)
+		return fmt.Errorf("commit system integration upserts: %w", err)
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (db *DB) GetIntegration(
 	row := db.Conn.QueryRow(`
 		SELECT name, display, audience, redirect
 		FROM integration
-		WHERE name=?1;`,
+		WHERE name=?1`,
 		name,
 	)
 
@@ -124,7 +124,7 @@ func (db *DB) UpdateIntegration(
 	query := fmt.Sprintf(`
 		UPDATE integration
 		SET %s
-		WHERE name=?%d;`,
+		WHERE name=?%d`,
 		strings.Join(setClauses, ", "),
 		argIdx,
 	)
@@ -132,7 +132,7 @@ func (db *DB) UpdateIntegration(
 
 	result, err := db.Conn.Exec(query, args...)
 	if err != nil {
-		return fmt.Errorf("couldn't update integration: %v", err)
+		return fmt.Errorf("update integration %q: %w", name, err)
 	}
 	if resultsEmpty(result) {
 		return sql.ErrNoRows
@@ -148,11 +148,11 @@ func (db *DB) DeleteIntegration(
 ) {
 	result, err := db.Conn.Exec(`
 		DELETE FROM integration
-		WHERE name=?1;`,
+		WHERE name=?1`,
 		name,
 	)
 	if err != nil {
-		return false, fmt.Errorf("couldn't delete integration: %v", err)
+		return false, fmt.Errorf("delete integration %q: %w", name, err)
 	}
 
 	deleted := !resultsEmpty(result)
@@ -166,9 +166,9 @@ func (db *DB) ListIntegrations() (
 	rows, err := db.Conn.Query(`
 		SELECT name, display, audience, redirect
 		FROM integration
-		ORDER BY name;`)
+		ORDER BY name`)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't query integrations: %v", err)
+		return nil, fmt.Errorf("query integrations: %w", err)
 	}
 	defer rows.Close()
 
@@ -187,7 +187,7 @@ func (db *DB) ListIntegrations() (
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("couldn't iterate integrations: %v", err)
+		return nil, fmt.Errorf("iterate integrations: %w", err)
 	}
 	return records, nil
 }

@@ -251,9 +251,9 @@ func (env *TestEnv) IssueTestAccessTokenWithScopes(
 
 func (env *TestEnv) resolveSubject(t *testing.T, subject string) string {
 	t.Helper()
-	identity, err := env.DB.GetUserByHandle(subject)
+	user, err := env.DB.GetUserByHandle(subject)
 	if err == nil {
-		return identity.Subject
+		return user.Subject
 	}
 	return subject
 }

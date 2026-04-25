@@ -14,7 +14,7 @@ func (db *DB) InsertRole(
 ) error {
 	_, err := db.Conn.Exec(`
 		INSERT INTO role (name, display)
-		VALUES (?1, ?2);`,
+		VALUES (?1, ?2)`,
 		name,
 		display,
 	)
@@ -33,7 +33,7 @@ func (db *DB) GetRole(
 	row := db.Conn.QueryRow(`
 		SELECT name, display
 		FROM role
-		WHERE name=?1;`,
+		WHERE name=?1`,
 		name,
 	)
 
@@ -55,9 +55,9 @@ func (db *DB) ListRoles() (
 	rows, err := db.Conn.Query(`
 		SELECT name, display
 		FROM role
-		ORDER BY name;`)
+		ORDER BY name`)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't query roles: %v", err)
+		return nil, fmt.Errorf("query roles: %w", err)
 	}
 	defer rows.Close()
 
@@ -74,7 +74,7 @@ func (db *DB) ListRoles() (
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("couldn't iterate roles: %v", err)
+		return nil, fmt.Errorf("iterate roles: %w", err)
 	}
 	return records, nil
 }
@@ -100,7 +100,7 @@ func (db *DB) UpdateRole(
 	query := fmt.Sprintf(`
 		UPDATE role
 		SET %s
-		WHERE name=?%d;`,
+		WHERE name=?%d`,
 		strings.Join(setClauses, ", "),
 		argIdx,
 	)
@@ -124,7 +124,7 @@ func (db *DB) DeleteRole(
 ) {
 	result, err := db.Conn.Exec(`
 		DELETE FROM role
-		WHERE name=?1;`,
+		WHERE name=?1`,
 		name,
 	)
 	if err != nil {

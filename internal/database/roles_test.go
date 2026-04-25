@@ -2,6 +2,7 @@ package database_test
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -26,6 +27,16 @@ func TestInsertRole_RoundTrip(t *testing.T) {
 	}
 	if role.Display != "Content Editor" {
 		t.Fatalf("role.Display = %s, want Content Editor", role.Display)
+	}
+}
+
+func TestGetRole_NotFound(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	_, err := store.GetRole("nonexistent")
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected sql.ErrNoRows, got %v", err)
 	}
 }
 

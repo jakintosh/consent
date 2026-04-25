@@ -44,7 +44,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
 	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", user.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -89,11 +89,11 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
 	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if err := env.DB.InsertGrants(identity.Subject, "test-integration", []string{"identity"}); err != nil {
+	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{"identity"}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
@@ -111,7 +111,7 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&scope=profile", user.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -137,12 +137,12 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
 	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
-	authReq, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity", identity.Subject)
+	authReq, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity", user.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}
@@ -182,11 +182,11 @@ func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
 	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if err := env.DB.InsertGrants(identity.Subject, "test-integration", []string{"identity"}); err != nil {
+	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{"identity"}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
 	}
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
@@ -204,7 +204,7 @@ func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 		t.Fatalf("New failed: %v", err)
 	}
 
-	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&state=test", identity.Subject)
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=test-integration&scope=identity&state=test", user.Subject)
 	if err != nil {
 		t.Fatalf("AuthenticatedRequest failed: %v", err)
 	}

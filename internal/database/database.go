@@ -74,3 +74,11 @@ func isFileBackedSQLite(path string) bool {
 	}
 	return true
 }
+
+func resultsEmpty(result sql.Result) bool {
+	count, err := result.RowsAffected()
+	if err != nil {
+		return false
+	}
+	return count == 0
+}

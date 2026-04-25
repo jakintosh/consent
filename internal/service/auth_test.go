@@ -117,12 +117,12 @@ func TestLogin_StoresRefreshToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Token not stored: %v", err)
 	}
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if owner != identity.Subject {
-		t.Errorf("token owner = %s, want %s", owner, identity.Subject)
+	if owner != user.Subject {
+		t.Errorf("token owner = %s, want %s", owner, user.Subject)
 	}
 }
 
@@ -662,12 +662,12 @@ func TestRefreshAccessToken_StoresNewToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new token not stored: %v", err)
 	}
-	identity, err := env.DB.GetUserByHandle("alice")
+	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if owner != identity.Subject {
-		t.Errorf("new token owner = %s, want %s", owner, identity.Subject)
+	if owner != user.Subject {
+		t.Errorf("new token owner = %s, want %s", owner, user.Subject)
 	}
 }
 

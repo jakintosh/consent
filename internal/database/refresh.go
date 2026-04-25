@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -12,15 +11,15 @@ func (db *DB) InsertRefreshToken(
 ) error {
 	_, err := db.Conn.Exec(`
 		INSERT INTO refresh (owner, jwt, expiration)
-		SELECT i.id, ?1, ?2
-		FROM identity i
-		WHERE i.subject=?3;`,
+		SELECT u.id, ?1, ?2
+		FROM user u
+		WHERE u.subject=?3`,
 		token.Encoded(),
 		token.Expiration().Unix(),
 		token.Subject(),
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't insert into refresh: %v", err)
+		return fmt.Errorf("insert refresh token: %w", err)
 	}
 	return nil
 }
@@ -32,17 +31,17 @@ func (db *DB) GetRefreshTokenOwner(
 	error,
 ) {
 	row := db.Conn.QueryRow(`
-		SELECT i.subject
+		SELECT u.subject
 		FROM refresh r
-		JOIN identity i ON r.owner = i.id
-		WHERE r.jwt=?1;`,
+		JOIN user u ON r.owner = u.id
+		WHERE r.jwt=?1`,
 		jwt,
 	)
 
 	var subject string
 	err := row.Scan(&subject)
 	if err != nil {
-		return "", fmt.Errorf("couldn't scan refresh handle: %v", err)
+		return "", fmt.Errorf("query refresh token owner: %w", err)
 	}
 	return subject, nil
 }
@@ -58,23 +57,15 @@ func (db *DB) DeleteRefreshToken(
 		WHERE id IN (
 			SELECT r.id
 			FROM refresh r
-			JOIN identity i ON r.owner=i.id
+			JOIN user u ON r.owner=u.id
 			WHERE jwt=?1
-		);`,
+		)`,
 		jwt,
 	)
 	if err != nil {
-		return false, fmt.Errorf("couldn't delete from refresh: %v", err)
+		return false, fmt.Errorf("delete refresh token: %w", err)
 	}
 
 	deleted := !resultsEmpty(result)
 	return deleted, nil
-}
-
-func resultsEmpty(result sql.Result) bool {
-	count, err := result.RowsAffected()
-	if err != nil {
-		return false
-	}
-	return count == 0
 }

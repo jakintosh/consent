@@ -13,7 +13,7 @@ var migrations = []Migration{
 		Version: 1,
 		Name:    "create initial schema",
 		SQL: `
-			CREATE TABLE IF NOT EXISTS identity (
+			CREATE TABLE IF NOT EXISTS user (
 				id      INTEGER PRIMARY KEY,
 				subject TEXT UNIQUE NOT NULL,
 				handle  TEXT UNIQUE NOT NULL,
@@ -29,7 +29,7 @@ var migrations = []Migration{
 				user_subject TEXT NOT NULL,
 				role_name    TEXT NOT NULL,
 				PRIMARY KEY (user_subject, role_name),
-				FOREIGN KEY (user_subject) REFERENCES identity(subject) ON DELETE CASCADE,
+				FOREIGN KEY (user_subject) REFERENCES user(subject) ON DELETE CASCADE,
 				FOREIGN KEY (role_name)    REFERENCES role(name) ON DELETE CASCADE
 			);
 
@@ -38,7 +38,7 @@ var migrations = []Migration{
 				owner      INTEGER,
 				jwt        TEXT,
 				expiration INTEGER,
-				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE
+				FOREIGN KEY (owner) REFERENCES user(id) ON DELETE CASCADE
 			);
 
 			CREATE TABLE IF NOT EXISTS integration (
@@ -48,16 +48,15 @@ var migrations = []Migration{
 				redirect TEXT NOT NULL
 			);
 
-			CREATE TABLE IF NOT EXISTS "grant" (
+			CREATE TABLE IF NOT EXISTS grant (
 				id         INTEGER PRIMARY KEY,
 				owner      INTEGER NOT NULL,
 				integration TEXT NOT NULL,
 				scope_name TEXT NOT NULL,
 				created_at INTEGER NOT NULL,
-				FOREIGN KEY (owner) REFERENCES identity (id) ON DELETE CASCADE,
-				FOREIGN KEY (integration) REFERENCES integration (name) ON DELETE CASCADE,
+				FOREIGN KEY (owner) REFERENCES user(id) ON DELETE CASCADE,
 				UNIQUE (owner, integration, scope_name)
-			);`,
+			)`,
 	},
 }
 

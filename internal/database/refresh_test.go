@@ -26,6 +26,19 @@ func TestInsertRefreshToken_Success(t *testing.T) {
 	}
 }
 
+func TestInsertRefreshToken_NonExistentUser(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
+
+	// insert token for non-existent user should succeed (subquery returns no rows)
+	token := env.IssueTestRefreshToken(t, "nonexistent-user", testAudience1)
+	err := store.InsertRefreshToken(token)
+	if err != nil {
+		t.Fatalf("InsertRefreshToken should succeed (no rows inserted): %v", err)
+	}
+}
+
 func TestInsertRefreshToken_MultipleTokens(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
@@ -132,12 +145,12 @@ func TestGetRefreshTokenOwner_Exists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner failed: %v", err)
 	}
-	identity, err := store.GetUserByHandle("alice")
+	user, err := store.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
 	}
-	if owner != identity.Subject {
-		t.Errorf("owner = %s, want %s", owner, identity.Subject)
+	if owner != user.Subject {
+		t.Errorf("owner = %s, want %s", owner, user.Subject)
 	}
 }
 
@@ -202,23 +215,23 @@ func TestRefreshToken_MultipleUsers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner alice failed: %v", err)
 	}
-	aliceIdentity, err := store.GetUserByHandle("alice")
+	aliceUser, err := store.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle alice failed: %v", err)
 	}
-	if aliceOwner != aliceIdentity.Subject {
-		t.Errorf("alice owner = %s, want %s", aliceOwner, aliceIdentity.Subject)
+	if aliceOwner != aliceUser.Subject {
+		t.Errorf("alice owner = %s, want %s", aliceOwner, aliceUser.Subject)
 	}
 
 	bobOwner, err := store.GetRefreshTokenOwner(bobToken.Encoded())
 	if err != nil {
 		t.Fatalf("GetRefreshTokenOwner bob failed: %v", err)
 	}
-	bobIdentity, err := store.GetUserByHandle("bob")
+	bobUser, err := store.GetUserByHandle("bob")
 	if err != nil {
 		t.Fatalf("GetUserByHandle bob failed: %v", err)
 	}
-	if bobOwner != bobIdentity.Subject {
-		t.Errorf("bob owner = %s, want %s", bobOwner, bobIdentity.Subject)
+	if bobOwner != bobUser.Subject {
+		t.Errorf("bob owner = %s, want %s", bobOwner, bobUser.Subject)
 	}
 }

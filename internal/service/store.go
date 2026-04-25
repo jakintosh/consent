@@ -4,7 +4,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-// Store handles persistence of identity data, refresh tokens, and integrations.
+// Store handles persistence of user data, refresh tokens, and integrations.
 type Store interface {
 	InsertUser(subject, handle string, secret []byte, roles []string) error
 	GetUserByHandle(handle string) (*User, error)

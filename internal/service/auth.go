@@ -36,7 +36,7 @@ func (s *Service) GetViewer(
 		return nil, ErrInsufficientScope
 	}
 
-	identity, err := s.store.GetUserBySubject(accessToken.Subject())
+	user, err := s.store.GetUserBySubject(accessToken.Subject())
 	if err != nil {
 		return nil, ErrAccountNotFound
 	}
@@ -44,7 +44,7 @@ func (s *Service) GetViewer(
 	viewer := &Viewer{}
 	if slices.Contains(accessToken.Scopes(), ScopeProfile) {
 		viewer.Profile = &SubjectProfile{
-			Handle: identity.Handle,
+			Handle: user.Handle,
 		}
 	}
 
