@@ -38,7 +38,7 @@ type Config struct {
 
 var root = &args.Command{
 	Name: "dev-client",
-	Help: "Development-only OAuth client playground",
+	Help: "development-only OAuth client playground",
 	Config: &args.Config{
 		Author: "jakintosh",
 		HelpOption: &args.HelpOption{
@@ -51,17 +51,17 @@ var root = &args.Command{
 			Short: 'v',
 			Long:  "verbose",
 			Type:  args.OptionTypeFlag,
-			Help:  "Verbose output",
+			Help:  "verbose output",
 		},
 		{
 			Long: "auth-url",
 			Type: args.OptionTypeParameter,
-			Help: "Consent server URL (default: http://localhost:9001)",
+			Help: "consent server URL (default: http://localhost:9001)",
 		},
 		{
 			Long: "authority-domain",
 			Type: args.OptionTypeParameter,
-			Help: "Consent authority domain (default: localhost)",
+			Help: "consent authority domain (default: localhost)",
 		},
 		{
 			Long: "port",
@@ -71,7 +71,7 @@ var root = &args.Command{
 		{
 			Long: "integration",
 			Type: args.OptionTypeParameter,
-			Help: "Integration name for consent login (default: example@localhost)",
+			Help: "integration name for consent login (default: example@localhost)",
 		},
 		{
 			Long: "audience",
@@ -81,12 +81,12 @@ var root = &args.Command{
 		{
 			Long: "config-dir",
 			Type: args.OptionTypeParameter,
-			Help: "Path to consent config directory (default: ./config)",
+			Help: "path to consent config directory (default: ./config)",
 		},
 		{
 			Long: "verification-key",
 			Type: args.OptionTypeParameter,
-			Help: "Path to verification key DER file (default: <config-dir>/secrets/verification_key.der)",
+			Help: "path to verification key DER file (default: <config-dir>/secrets/verification_key.der)",
 		},
 	},
 	Handler: func(i *args.Input) error {

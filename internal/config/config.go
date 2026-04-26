@@ -11,13 +11,14 @@ import (
 )
 
 const (
+	APIKeyFileName     = "api_key"
+	APIUrlPrefix       = "/api/v1"
 	AppName            = "consent"
 	ConfigFileName     = "config.yaml"
+	DatabaseFileName   = "auth.db"
 	SecretsDirName     = "secrets"
 	SigningKeyFileName = "signing_key"
 	VerifyKeyFileName  = "verification_key.der"
-	APIKeyFileName     = "api_key"
-	DatabaseFileName   = "auth.db"
 )
 
 type Config struct {

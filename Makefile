@@ -96,7 +96,10 @@ mock-deployment-init: build
 			fi; \
 			sleep 1; \
 		done; \
-		$(CONSENT_BIN) api register "$(MOCK_DEMO_USER)" "$(MOCK_DEMO_PASSWORD)" --config-dir "$(MOCK_CONFIG_DIR)"; \
+		$(CONSENT_BIN) api users create "$(MOCK_DEMO_USER)" \
+			--config-dir "$(MOCK_CONFIG_DIR)" \
+			--password "$(MOCK_DEMO_PASSWORD)" \
+			--role admin; \
 		register_integration() { \
 			name="$$1"; \
 			display="$$2"; \

@@ -11,7 +11,7 @@ import (
 
 var configCmd = &args.Command{
 	Name:    "config",
-	Help:    "Manage consent configuration",
+	Help:    "manage consent configuration",
 	Options: runtimeOptions,
 	Subcommands: []*args.Command{
 		configInitCmd,
@@ -21,7 +21,7 @@ var configCmd = &args.Command{
 
 var configInitCmd = &args.Command{
 	Name: "init",
-	Help: "Generate baseline config, secrets, and directories",
+	Help: "generate baseline config, secrets, and directories",
 	Options: []args.Option{
 		{
 			Long: "force",
@@ -59,7 +59,7 @@ var configInitCmd = &args.Command{
 
 var configShowCmd = &args.Command{
 	Name: "show",
-	Help: "Show authored or resolved config",
+	Help: "show authored or resolved config",
 	Options: []args.Option{
 		{
 			Long: "resolved",

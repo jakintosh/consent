@@ -12,7 +12,7 @@ import (
 
 var rolesCmd = &args.Command{
 	Name: "roles",
-	Help: "Manage roles",
+	Help: "manage roles",
 	Subcommands: []*args.Command{
 		rolesListCmd,
 		rolesGetCmd,
@@ -24,9 +24,9 @@ var rolesCmd = &args.Command{
 
 var rolesListCmd = &args.Command{
 	Name: "list",
-	Help: "List roles",
+	Help: "list roles",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -42,15 +42,15 @@ var rolesListCmd = &args.Command{
 
 var rolesGetCmd = &args.Command{
 	Name: "get",
-	Help: "Get a role",
+	Help: "get a role",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Role name",
+			Help: "role name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -71,22 +71,22 @@ var rolesGetCmd = &args.Command{
 
 var rolesCreateCmd = &args.Command{
 	Name: "create",
-	Help: "Create a role",
+	Help: "create a role",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Role name",
+			Help: "role name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "Role display name",
+			Help: "role display name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -121,22 +121,22 @@ var rolesCreateCmd = &args.Command{
 
 var rolesUpdateCmd = &args.Command{
 	Name: "update",
-	Help: "Update a role",
+	Help: "update a role",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Role name",
+			Help: "role name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "New display name",
+			Help: "new display name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -170,15 +170,15 @@ var rolesUpdateCmd = &args.Command{
 
 var rolesDeleteCmd = &args.Command{
 	Name: "delete",
-	Help: "Delete a role",
+	Help: "delete a role",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Role name",
+			Help: "role name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}

@@ -12,7 +12,7 @@ import (
 
 var integrationsCmd = &args.Command{
 	Name: "integrations",
-	Help: "Manage integrations",
+	Help: "manage integrations",
 	Subcommands: []*args.Command{
 		integrationsListCmd,
 		integrationsGetCmd,
@@ -24,9 +24,9 @@ var integrationsCmd = &args.Command{
 
 var integrationsListCmd = &args.Command{
 	Name: "list",
-	Help: "List integrations",
+	Help: "list integrations",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -42,15 +42,15 @@ var integrationsListCmd = &args.Command{
 
 var integrationsGetCmd = &args.Command{
 	Name: "get",
-	Help: "Get an integration",
+	Help: "get an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Integration name",
+			Help: "integration name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -71,32 +71,32 @@ var integrationsGetCmd = &args.Command{
 
 var integrationsCreateCmd = &args.Command{
 	Name: "create",
-	Help: "Create an integration",
+	Help: "create an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Integration name",
+			Help: "integration name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "Integration display name",
+			Help: "integration display name",
 		},
 		{
 			Long: "audience",
 			Type: args.OptionTypeParameter,
-			Help: "Integration audience",
+			Help: "integration audience",
 		},
 		{
 			Long: "redirect",
 			Type: args.OptionTypeParameter,
-			Help: "Redirect URL",
+			Help: "redirect URL",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -135,32 +135,32 @@ var integrationsCreateCmd = &args.Command{
 
 var integrationsUpdateCmd = &args.Command{
 	Name: "update",
-	Help: "Update an integration",
+	Help: "update an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Integration name",
+			Help: "integration name",
 		},
 	},
 	Options: []args.Option{
 		{
 			Long: "display",
 			Type: args.OptionTypeParameter,
-			Help: "Integration display name",
+			Help: "integration display name",
 		},
 		{
 			Long: "audience",
 			Type: args.OptionTypeParameter,
-			Help: "Integration audience",
+			Help: "integration audience",
 		},
 		{
 			Long: "redirect",
 			Type: args.OptionTypeParameter,
-			Help: "Redirect URL",
+			Help: "redirect URL",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}
@@ -198,15 +198,15 @@ var integrationsUpdateCmd = &args.Command{
 
 var integrationsDeleteCmd = &args.Command{
 	Name: "delete",
-	Help: "Delete an integration",
+	Help: "delete an integration",
 	Operands: []args.Operand{
 		{
 			Name: "name",
-			Help: "Integration name",
+			Help: "integration name",
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), "/api/v1")
+		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
 		if err != nil {
 			return err
 		}

@@ -11,7 +11,7 @@ import (
 
 var initCmd = &args.Command{
 	Name:    "init",
-	Help:    "Initialize mutable runtime state from resolved config",
+	Help:    "initialize mutable runtime state from resolved config",
 	Options: runtimeOptions,
 	Handler: func(i *args.Input) error {
 		cfgDir := i.GetParameterOr("config-dir", "")

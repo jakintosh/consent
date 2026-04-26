@@ -14,7 +14,7 @@ The **client library** provides server-side functionality for backend applicatio
 
 The authorization process mirrors OAuth's security model while simplifying implementation. When users access a protected service, they're redirected to Consent's `/authorize` endpoint with a service identifier and one or more scopes. Consent first ensures the user has its own Consent session, then reuses or records durable grants before issuing a short-lived refresh token (10 seconds) as an authorization code.
 
-The user is then redirected back to the service with this code, which the client application backend automatically exchanges for long-lived access and refresh tokens through the `/api/v1/refresh` endpoint. This maintains OAuth's security benefits—the authorization code prevents long-lived token exposure in browser history—while streamlining the developer experience.
+The user is then redirected back to the service with this code, which the client application backend automatically exchanges for long-lived access and refresh tokens through the `/api/v1/auth/refresh` endpoint. This maintains OAuth's security benefits—the authorization code prevents long-lived token exposure in browser history—while streamlining the developer experience.
 
 ## Key Design Decisions
 
@@ -182,7 +182,7 @@ consent config show --resolved --config-dir ./config --data-dir ./data
 Create a local user through the API with:
 
 ```sh
-consent api register alice password123 --config-dir ./config
+consent api users create alice --password password123 --role admin --config-dir ./config
 ```
 
 ### Mock Deployment
@@ -193,7 +193,7 @@ Run a full local mock deployment with one real consent server login flow and thr
 make mock-deployment
 ```
 
-This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server with `--insecure-cookies` to seed a demo user and register three mock integrations through the API, and then starts:
+This target resets `./mock`, creates a consent config for `http://localhost:9000` using the default production mode, starts a temporary consent server with `--insecure-cookies` to seed an admin demo user and register three mock integrations through the API, and then starts:
 
 - `http://localhost:9000` for the consent server
 - `http://mock1.localhost:9001`

@@ -12,7 +12,7 @@ var apiCmd = &args.Command{
 	Help:    "API utilities",
 	Options: wire.ClientOptions,
 	Subcommands: []*args.Command{
-		registerCmd,
+		usersCmd,
 		integrationsCmd,
 		rolesCmd,
 		keys.Command(config.DefaultConfigDir(), "/api/v1/admin/keys"),

@@ -11,7 +11,7 @@ import (
 
 var serveCmd = &args.Command{
 	Name: "serve",
-	Help: "Run the OAuth authorization server",
+	Help: "run the OAuth authorization server",
 	Options: append(
 		runtimeOptions,
 		args.Option{
