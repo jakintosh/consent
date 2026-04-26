@@ -113,14 +113,14 @@ func (server *Server) IssueAccessToken(
 // Validator interface
 
 func (server *Server) VerifySignature(
-	encHeader string,
-	encClaims string,
-	encSignature string,
+	encodedHeader string,
+	encodedClaims string,
+	encodedSignature string,
 ) error {
 	return verifySignature(
-		encHeader,
-		encClaims,
-		encSignature,
+		encodedHeader,
+		encodedClaims,
+		encodedSignature,
 		server.verificationKey,
 	)
 }

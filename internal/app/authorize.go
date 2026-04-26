@@ -24,7 +24,7 @@ func (a *App) handleGetAuthorize(
 	r *http.Request,
 ) *appError {
 	// parse query params
-	svcName := r.URL.Query().Get("integration")
+	integration := r.URL.Query().Get("integration")
 	scopes := r.URL.Query()["scope"]
 	state := r.URL.Query().Get("state")
 
@@ -40,13 +40,13 @@ func (a *App) handleGetAuthorize(
 	sub := accessToken.Subject()
 
 	// get a review of what needs to be authorized
-	review, err := a.service.ReviewAuthorizationRequest(sub, svcName, scopes, state)
+	review, err := a.service.ReviewAuthorizationRequest(sub, integration, scopes, state)
 	if err != nil {
 		return appErr(errAuthorizePrepare, err)
 	}
 
-	switch review.NeedsApproval() {
-	case true: // render authorize page
+	// show authorize page if review needs approval
+	if !review.IsAuthorized() {
 		a.returnTemplate(w, r, http.StatusOK, "authorize.html", authorizePageData{
 			IntegrationName:    review.Request.Integration.Name,
 			IntegrationDisplay: review.Request.Integration.Display,
@@ -56,14 +56,15 @@ func (a *App) handleGetAuthorize(
 			State:              review.Request.State,
 			CSRF:               csrf,
 		})
-
-	case false: // try auto-approve and redirect
-		redirectURL, err := a.service.ApproveAuthorization(sub, review)
-		if err != nil {
-			return appErr(errAuthorizeAutoApprove, err)
-		}
-		http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
+		return nil
 	}
+
+	// finalize immediately when the request is already fully authorized
+	redirectURL, err := a.service.FinalizeAuthorization(sub, review)
+	if err != nil {
+		return appErr(errAuthorizeAutoApprove, err)
+	}
+	http.Redirect(w, r, redirectURL.String(), http.StatusSeeOther)
 
 	return nil
 }
@@ -76,11 +77,11 @@ func (a *App) handlePostAuthorize(
 	if err := r.ParseForm(); err != nil {
 		return appErr(errAuthorizeFormInvalid, err)
 	}
-	csrf := r.FormValue("csrf")
 	action := r.FormValue("action")
+	csrf := r.FormValue("csrf")
+	integration := r.FormValue("integration")
 	scopes := r.Form["scope"]
 	state := r.FormValue("state")
-	svc := r.FormValue("integration")
 
 	// validate user
 	accessToken, _, err := a.auth.Verifier.VerifyAuthorizationCheckCSRF(w, r, csrf)
@@ -97,7 +98,7 @@ func (a *App) handlePostAuthorize(
 	sub := accessToken.Subject()
 
 	// review auth request
-	review, err := a.service.ReviewAuthorizationRequest(sub, svc, scopes, state)
+	review, err := a.service.ReviewAuthorizationRequest(sub, integration, scopes, state)
 	if err != nil {
 		return appErr(errAuthorizeSubmitInvalid, err)
 	}
@@ -105,7 +106,7 @@ func (a *App) handlePostAuthorize(
 	// handle action and redirect
 	switch action {
 	case "approve":
-		redirectURL, err := a.service.ApproveAuthorization(sub, review)
+		redirectURL, err := a.service.FinalizeAuthorization(sub, review)
 		if err != nil {
 			return appErr(errAuthorizeApprove, err)
 		}

@@ -6,15 +6,15 @@ import (
 
 // Store handles persistence of user data, refresh tokens, and integrations.
 type Store interface {
-	InsertUser(subject, handle string, secret []byte, roles []string) error
+	InsertUser(subject string, handle string, secret []byte, roles []string) error
 	GetUserByHandle(handle string) (*User, error)
 	GetUserBySubject(subject string) (*User, error)
 	ListUsers() ([]User, error)
-	UpdateUser(subject, handle string, roles []string) error
+	UpdateUser(subject string, handle string, roles []string) error
 	DeleteUser(subject string) (deleted bool, err error)
 	GetSecret(handle string) ([]byte, error)
 
-	InsertRole(name, display string) error
+	InsertRole(name string, display string) error
 	GetRole(name string) (Role, error)
 	UpdateRole(name string, updates *RoleUpdate) error
 	DeleteRole(name string) (deleted bool, err error)
@@ -24,10 +24,10 @@ type Store interface {
 	DeleteRefreshToken(jwt string) (deleted bool, err error)
 	GetRefreshTokenOwner(jwt string) (subject string, err error)
 
-	ListGrantedScopeNames(subject, integration string) ([]string, error)
-	InsertGrants(subject, integration string, scopes []string) error
+	ListGrantedScopeNames(subject string, integration string) ([]string, error)
+	InsertGrants(subject string, integration string, scopes []string) error
 
-	InsertIntegration(name, display, audience, redirect string) error
+	InsertIntegration(name string, display string, audience string, redirect string) error
 	UpsertSystemIntegrations(integrations []Integration) error
 	GetIntegration(name string) (Integration, error)
 	UpdateIntegration(name string, updates *IntegrationUpdate) error

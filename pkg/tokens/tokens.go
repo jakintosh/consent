@@ -55,9 +55,30 @@ func ErrTokenNotIssued() error { return errTokenNotIssued }
 // Issuer can issue new tokens by signing them with a private key.
 // This interface is implemented by Server, which has access to the signing key.
 type Issuer interface {
-	SignHash([]byte) (string, error)
-	IssueRefreshToken(string, []string, []string, time.Duration) (*RefreshToken, error)
-	IssueAccessToken(string, []string, []string, time.Duration) (*AccessToken, error)
+	SignHash(
+		hash []byte,
+	) (
+		string,
+		error,
+	)
+	IssueRefreshToken(
+		subject string,
+		audience []string,
+		scopes []string,
+		lifetime time.Duration,
+	) (
+		*RefreshToken,
+		error,
+	)
+	IssueAccessToken(
+		subject string,
+		audience []string,
+		scopes []string,
+		lifetime time.Duration,
+	) (
+		*AccessToken,
+		error,
+	)
 }
 
 // Validator can validate tokens by verifying signatures with a public key.
@@ -66,9 +87,17 @@ type Issuer interface {
 // Client validates tokens and enforces audience matching.
 type Validator interface {
 	ShouldValidateAudience() bool
-	ValidateDomain(string) bool
-	ValidateAudiences(string) bool
-	VerifySignature(string, string, string) error
+	ValidateDomain(
+		issuerDomain string,
+	) bool
+	ValidateAudiences(
+		audiences string,
+	) bool
+	VerifySignature(
+		encodedHeader string,
+		encodedClaims string,
+		encodedSignature string,
+	) error
 }
 
 // ServerOptions configures the token server.

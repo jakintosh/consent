@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -135,6 +136,301 @@ func TestGrantAuthCode_AuthCodeIsValidJWT(t *testing.T) {
 	parts := strings.Split(authCode, ".")
 	if len(parts) != 3 {
 		t.Errorf("auth_code not valid JWT format, has %d parts", len(parts))
+	}
+}
+
+func TestGrantAuthCode_ReturnTo(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password123")
+
+	returnTo := "/authorize?integration=test-integration&scope=identity"
+	redirectURL, err := env.Service.GrantAuthCode(
+		"alice",
+		"password123",
+		service.InternalIntegrationName,
+		returnTo,
+	)
+	if err != nil {
+		t.Fatalf("GrantAuthCode failed: %v", err)
+	}
+
+	query := redirectURL.Query()
+	if query.Get("auth_code") == "" {
+		t.Fatal("redirect URL missing auth_code parameter")
+	}
+	if query.Get("return_to") != returnTo {
+		t.Fatalf("return_to = %q, want %q", query.Get("return_to"), returnTo)
+	}
+	if query.Get("state") != "" {
+		t.Fatalf("state = %q, want empty", query.Get("state"))
+	}
+}
+
+func TestReviewAuthorizationRequest_MissingScopes(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	user := getTestUser(t, env, "alice")
+	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
+		t.Fatalf("InsertGrants failed: %v", err)
+	}
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		user.Subject,
+		"test-integration",
+		[]string{service.ScopeProfile, service.ScopeIdentity},
+		"state-123",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+
+	if review.Request.Integration.Name != "test-integration" {
+		t.Fatalf("integration = %q, want test-integration", review.Request.Integration.Name)
+	}
+	if review.Request.State != "state-123" {
+		t.Fatalf("state = %q, want state-123", review.Request.State)
+	}
+	assertStringsEqual(t, review.Request.Scopes, []string{service.ScopeIdentity, service.ScopeProfile})
+	assertScopeDefinitions(t, review.RequestedScopes, []string{service.ScopeIdentity, service.ScopeProfile})
+	assertScopeDefinitions(t, review.GrantedScopes, []string{service.ScopeIdentity})
+	assertScopeDefinitions(t, review.MissingScopes, []string{service.ScopeProfile})
+	if review.IsAuthorized() {
+		t.Fatal("expected review to require authorization")
+	}
+}
+
+func TestReviewAuthorizationRequest_AuthorizedWhenAllScopesGranted(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	user := getTestUser(t, env, "alice")
+	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
+		t.Fatalf("InsertGrants failed: %v", err)
+	}
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		user.Subject,
+		"test-integration",
+		[]string{service.ScopeIdentity},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+
+	assertScopeDefinitions(t, review.MissingScopes, nil)
+	if !review.IsAuthorized() {
+		t.Fatal("expected review to already be authorized")
+	}
+}
+
+func TestFinalizeAuthorization_RedirectIncludesAuthCodeStateAndPreservesQuery(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1")
+	user := getTestUser(t, env, "alice")
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		user.Subject,
+		"test-integration",
+		[]string{service.ScopeIdentity},
+		"state-123",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+	redirectURL, err := env.Service.FinalizeAuthorization(user.Subject, review)
+	if err != nil {
+		t.Fatalf("FinalizeAuthorization failed: %v", err)
+	}
+
+	if redirectURL.Host != "app.test" {
+		t.Fatalf("redirect host = %q, want app.test", redirectURL.Host)
+	}
+	if redirectURL.Path != "/callback" {
+		t.Fatalf("redirect path = %q, want /callback", redirectURL.Path)
+	}
+	query := redirectURL.Query()
+	if query.Get("existing") != "1" {
+		t.Fatalf("existing = %q, want 1", query.Get("existing"))
+	}
+	if query.Get("auth_code") == "" {
+		t.Fatal("redirect URL missing auth_code parameter")
+	}
+	if query.Get("state") != "state-123" {
+		t.Fatalf("state = %q, want state-123", query.Get("state"))
+	}
+	if query.Get("return_to") != "" {
+		t.Fatalf("return_to = %q, want empty", query.Get("return_to"))
+	}
+}
+
+func TestFinalizeAuthorization_StoresAuthCodeAndGrantsMissingScopes(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	user := getTestUser(t, env, "alice")
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		user.Subject,
+		"test-integration",
+		[]string{service.ScopeProfile, service.ScopeIdentity},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+	redirectURL, err := env.Service.FinalizeAuthorization(user.Subject, review)
+	if err != nil {
+		t.Fatalf("FinalizeAuthorization failed: %v", err)
+	}
+
+	authCode := redirectURL.Query().Get("auth_code")
+	if authCode == "" {
+		t.Fatal("redirect URL missing auth_code parameter")
+	}
+	owner, err := env.DB.GetRefreshTokenOwner(authCode)
+	if err != nil {
+		t.Fatalf("GetRefreshTokenOwner failed: %v", err)
+	}
+	if owner != user.Subject {
+		t.Fatalf("auth code owner = %q, want %q", owner, user.Subject)
+	}
+
+	grants, err := env.DB.ListGrantedScopeNames(user.Subject, "test-integration")
+	if err != nil {
+		t.Fatalf("ListGrantedScopeNames failed: %v", err)
+	}
+	assertStringsEqual(t, grants, []string{service.ScopeIdentity, service.ScopeProfile})
+}
+
+func TestFinalizeAuthorization_OmitsEmptyState(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	user := getTestUser(t, env, "alice")
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		user.Subject,
+		"test-integration",
+		[]string{service.ScopeIdentity},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+	redirectURL, err := env.Service.FinalizeAuthorization(user.Subject, review)
+	if err != nil {
+		t.Fatalf("FinalizeAuthorization failed: %v", err)
+	}
+
+	query := redirectURL.Query()
+	if query.Get("auth_code") == "" {
+		t.Fatal("redirect URL missing auth_code parameter")
+	}
+	if query.Get("state") != "" {
+		t.Fatalf("state = %q, want empty", query.Get("state"))
+	}
+}
+
+func TestFinalizeAuthorization_InvalidRedirect(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	user := getTestUser(t, env, "alice")
+	review := &service.AuthorizationReview{
+		Request: service.AuthorizationRequest{
+			Integration: service.Integration{
+				Name:     "test-integration",
+				Audience: "test-audience",
+				Redirect: "bad-url",
+			},
+			Scopes: []string{service.ScopeIdentity},
+		},
+	}
+
+	_, err := env.Service.FinalizeAuthorization(user.Subject, review)
+	if !errors.Is(err, service.ErrInternal) {
+		t.Fatalf("expected ErrInternal, got %v", err)
+	}
+}
+
+func TestDenyAuthorization_RedirectIncludesAccessDeniedStateAndPreservesQuery(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	review := &service.AuthorizationReview{
+		Request: service.AuthorizationRequest{
+			Integration: service.Integration{
+				Redirect: "https://app.test/callback?existing=1",
+			},
+			State: "state-123",
+		},
+	}
+
+	redirectURL, err := env.Service.DenyAuthorization(review)
+	if err != nil {
+		t.Fatalf("DenyAuthorization failed: %v", err)
+	}
+
+	query := redirectURL.Query()
+	if query.Get("existing") != "1" {
+		t.Fatalf("existing = %q, want 1", query.Get("existing"))
+	}
+	if query.Get("error") != "access_denied" {
+		t.Fatalf("error = %q, want access_denied", query.Get("error"))
+	}
+	if query.Get("state") != "state-123" {
+		t.Fatalf("state = %q, want state-123", query.Get("state"))
+	}
+	if query.Get("auth_code") != "" {
+		t.Fatalf("auth_code = %q, want empty", query.Get("auth_code"))
+	}
+}
+
+func TestDenyAuthorization_OmitsEmptyState(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	review := &service.AuthorizationReview{
+		Request: service.AuthorizationRequest{
+			Integration: service.Integration{
+				Redirect: "https://app.test/callback",
+			},
+		},
+	}
+
+	redirectURL, err := env.Service.DenyAuthorization(review)
+	if err != nil {
+		t.Fatalf("DenyAuthorization failed: %v", err)
+	}
+
+	query := redirectURL.Query()
+	if query.Get("error") != "access_denied" {
+		t.Fatalf("error = %q, want access_denied", query.Get("error"))
+	}
+	if query.Get("state") != "" {
+		t.Fatalf("state = %q, want empty", query.Get("state"))
+	}
+}
+
+func TestDenyAuthorization_InvalidRedirect(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	review := &service.AuthorizationReview{
+		Request: service.AuthorizationRequest{
+			Integration: service.Integration{Redirect: "bad-url"},
+		},
+	}
+
+	_, err := env.Service.DenyAuthorization(review)
+	if !errors.Is(err, service.ErrInternal) {
+		t.Fatalf("expected ErrInternal, got %v", err)
 	}
 }
 
@@ -321,5 +617,42 @@ func TestRevokeRefreshToken_DoubleRevoke(t *testing.T) {
 	err := env.Service.RevokeRefreshToken(token.Encoded())
 	if !errors.Is(err, service.ErrTokenNotFound) {
 		t.Errorf("expected ErrTokenNotFound on second revoke, got %v", err)
+	}
+}
+
+func getTestUser(
+	t *testing.T,
+	env *testutil.TestEnv,
+	handle string,
+) *service.User {
+	t.Helper()
+	user, err := env.DB.GetUserByHandle(handle)
+	if err != nil {
+		t.Fatalf("GetUserByHandle failed: %v", err)
+	}
+	return user
+}
+
+func assertScopeDefinitions(
+	t *testing.T,
+	definitions []service.ScopeDefinition,
+	want []string,
+) {
+	t.Helper()
+	got := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		got = append(got, definition.Name)
+	}
+	assertStringsEqual(t, got, want)
+}
+
+func assertStringsEqual(
+	t *testing.T,
+	got []string,
+	want []string,
+) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
 	}
 }

@@ -2,10 +2,8 @@ package service
 
 import (
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
-	"time"
 )
 
 const (
@@ -21,105 +19,6 @@ type ScopeDefinition struct {
 	Requires    []string
 }
 
-// AuthorizationRequest is a validated authorization request for an integration.
-type AuthorizationRequest struct {
-	Integration Integration
-	Scopes      []string
-	State       string
-}
-
-// AuthorizationReview summarizes a request against the subject's existing grants.
-type AuthorizationReview struct {
-	Request         AuthorizationRequest
-	RequestedScopes []ScopeDefinition
-	GrantedScopes   []ScopeDefinition
-	MissingScopes   []ScopeDefinition
-}
-
-// NeedsApproval reports whether the request includes any scopes not already granted.
-func (r AuthorizationReview) NeedsApproval() bool {
-	return len(r.MissingScopes) > 0
-}
-
-// ReviewAuthorizationRequest validates a request and returns a review of requested,
-// granted, and missing scopes for the subject.
-func (s *Service) ReviewAuthorizationRequest(
-	subject string,
-	integrationName string,
-	requestedScopes []string,
-	state string,
-) (
-	*AuthorizationReview,
-	error,
-) {
-	integration, err := s.GetIntegration(integrationName)
-	if err != nil {
-		return nil, err
-	}
-
-	if integration.Name == InternalIntegrationName {
-		return nil, ErrInvalidIntegration
-	}
-
-	scopes, err := validateRequestedScopes(requestedScopes)
-	if err != nil {
-		return nil, err
-	}
-
-	grantedScopeNames, err := s.store.ListGrantedScopeNames(subject, integration.Name)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to list granted scopes: %v", ErrInternal, err)
-	}
-
-	request := &AuthorizationRequest{
-		Integration: *integration,
-		Scopes:      scopes,
-		State:       state,
-	}
-
-	return &AuthorizationReview{
-		Request:         *request,
-		RequestedScopes: scopeDefinitions(scopes),
-		GrantedScopes:   scopeDefinitions(grantedScopeNames),
-		MissingScopes:   missingScopes(scopes, grantedScopeNames),
-	}, nil
-}
-
-// ApproveAuthorization stores any missing grants and returns an authorization code redirect.
-func (s *Service) ApproveAuthorization(
-	subject string,
-	review *AuthorizationReview,
-) (
-	*url.URL,
-	error,
-) {
-	missingScopeNames := scopeNames(review.MissingScopes)
-	if err := s.store.InsertGrants(
-		subject,
-		review.Request.Integration.Name,
-		missingScopeNames,
-	); err != nil {
-		return nil, fmt.Errorf("%w: failed to store grants: %v", ErrInternal, err)
-	}
-
-	return s.issueAuthorizationCodeRedirect(subject, review.Request)
-}
-
-// DenyAuthorization returns an access_denied redirect for the reviewed request.
-func (s *Service) DenyAuthorization(
-	review *AuthorizationReview,
-) (
-	*url.URL,
-	error,
-) {
-	redirectURL, err := parseAndValidateRedirectURL(review.Request.Integration.Redirect)
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
-	}
-
-	return buildAuthorizationErrorRedirectURL(redirectURL, "access_denied", review.Request.State), nil
-}
-
 var scopeRegistry = map[string]ScopeDefinition{
 	ScopeIdentity: {
 		Name:        ScopeIdentity,
@@ -132,36 +31,6 @@ var scopeRegistry = map[string]ScopeDefinition{
 		Description: "Read your profile handle from Consent's user data API.",
 		Requires:    []string{ScopeIdentity},
 	},
-}
-
-// issueAuthorizationCodeRedirect issues a short-lived auth code and builds the callback redirect.
-func (s *Service) issueAuthorizationCodeRedirect(
-	subject string,
-	req AuthorizationRequest,
-) (
-	*url.URL,
-	error,
-) {
-	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
-		subject,
-		[]string{req.Integration.Audience, s.consentAPIAudience},
-		req.Scopes,
-		10*time.Second,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
-	}
-
-	if err := s.store.InsertRefreshToken(refreshToken); err != nil {
-		return nil, fmt.Errorf("%w: failed to store auth code: %v", ErrInternal, err)
-	}
-
-	redirectURL, err := parseAndValidateRedirectURL(req.Integration.Redirect)
-	if err != nil {
-		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
-	}
-
-	return buildAuthCodeRedirectURL(redirectURL, refreshToken.Encoded(), req.State, ""), nil
 }
 
 func scopeDefinitions(

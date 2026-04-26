@@ -184,40 +184,6 @@ func generateSubject() (
 	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
 
-func buildAuthCodeRedirectURL(
-	redirect *url.URL,
-	refreshToken string,
-	state string,
-	returnTo string,
-) *url.URL {
-	redirectURL := *redirect
-	q := redirectURL.Query()
-	q.Set("auth_code", refreshToken)
-	if state != "" {
-		q.Set("state", state)
-	}
-	if returnTo != "" {
-		q.Set("return_to", returnTo)
-	}
-	redirectURL.RawQuery = q.Encode()
-	return &redirectURL
-}
-
-func buildAuthorizationErrorRedirectURL(
-	redirect *url.URL,
-	errorCode string,
-	state string,
-) *url.URL {
-	redirectURL := *redirect
-	q := redirectURL.Query()
-	q.Set("error", errorCode)
-	if state != "" {
-		q.Set("state", state)
-	}
-	redirectURL.RawQuery = q.Encode()
-	return &redirectURL
-}
-
 func parseAndValidateRedirectURL(
 	redirect string,
 ) (
@@ -232,4 +198,56 @@ func parseAndValidateRedirectURL(
 		return nil, ErrInvalidUrl
 	}
 	return parsed, nil
+}
+
+func buildAuthCodeRedirectURL(
+	redirect string,
+	refreshToken string,
+	state string,
+	returnTo string,
+) (
+	*url.URL,
+	error,
+) {
+	redirectURL, err := parseAndValidateRedirectURL(redirect)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
+	}
+
+	// update url queries
+	q := redirectURL.Query()
+	q.Set("auth_code", refreshToken)
+	if state != "" {
+		q.Set("state", state)
+	}
+	if returnTo != "" {
+		q.Set("return_to", returnTo)
+	}
+	redirectURL.RawQuery = q.Encode()
+
+	return redirectURL, nil
+}
+
+func buildAuthorizationErrorRedirectURL(
+	redirect string,
+	errorCode string,
+	state string,
+) (
+	*url.URL,
+	error,
+) {
+	redirectURL, err := parseAndValidateRedirectURL(redirect)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid redirect URL: %v", ErrInternal, ErrInvalidRedirect)
+	}
+
+	// update url queries
+	q := redirectURL.Query()
+	q.Set("error", errorCode)
+	if state != "" {
+		q.Set("state", state)
+	}
+	redirectURL.RawQuery = q.Encode()
+
+	return redirectURL, nil
 }
