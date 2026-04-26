@@ -299,8 +299,8 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	}
 	appHandler = appServer.Router()
 
-	if err := svc.Register(testUserHandle, testUserPassword); err != nil {
-		t.Fatalf("Register failed: %v", err)
+	if _, err := svc.CreateUser(testUserHandle, testUserPassword, nil); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
 	}
 	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback"); err != nil {
 		t.Fatalf("CreateIntegration failed: %v", err)

@@ -199,3 +199,92 @@ func TestDeleteUser_Success(t *testing.T) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
+
+func TestCreateUser_NoRoles(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	_, err := env.Service.CreateUser("alice", "securepassword", nil)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+}
+
+func TestCreateUser_ThenLogin(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	_, err := env.Service.CreateUser("alice", "securepassword", nil)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	redirectURL, err := env.Service.GrantAuthCode("alice", "securepassword", service.InternalIntegrationName)
+	if err != nil {
+		t.Errorf("user cannot login: %v", err)
+	}
+	if redirectURL == nil {
+		t.Error("expected redirect URL")
+	}
+}
+
+func TestCreateUser_DuplicateHandle(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	_, _ = env.Service.CreateUser("alice", "password1", nil)
+
+	_, err := env.Service.CreateUser("alice", "password2", nil)
+	if err == nil {
+		t.Error("expected error for duplicate handle")
+	}
+	if !errors.Is(err, service.ErrHandleExists) {
+		t.Errorf("expected ErrHandleExists, got %v", err)
+	}
+}
+
+func TestCreateUser_PasswordHashed(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	password := "mypassword"
+
+	_, _ = env.Service.CreateUser("alice", password, nil)
+
+	secret, err := env.DB.GetSecret("alice")
+	if err != nil {
+		t.Fatalf("GetSecret failed: %v", err)
+	}
+	if string(secret) == password {
+		t.Error("password stored in plain text")
+	}
+	if len(secret) < 50 {
+		t.Errorf("hash seems too short: %d bytes", len(secret))
+	}
+}
+
+func TestCreateUser_MultipleUsers(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	users := []struct {
+		handle   string
+		password string
+	}{
+		{"alice", "password-a"},
+		{"bob", "password-b"},
+		{"charlie", "password-c"},
+	}
+
+	for _, u := range users {
+		if _, err := env.Service.CreateUser(u.handle, u.password, nil); err != nil {
+			t.Fatalf("CreateUser %s failed: %v", u.handle, err)
+		}
+	}
+
+	for _, u := range users {
+		_, err := env.Service.GrantAuthCode(u.handle, u.password, service.InternalIntegrationName)
+		if err != nil {
+			t.Errorf("Login %s failed: %v", u.handle, err)
+		}
+	}
+}

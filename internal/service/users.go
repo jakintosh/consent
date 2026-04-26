@@ -157,14 +157,6 @@ func (s *Service) DeleteUser(
 	return nil
 }
 
-func (s *Service) Register(
-	handle string,
-	password string,
-) error {
-	_, err := s.CreateUser(handle, password, nil)
-	return err
-}
-
 func isUniqueConstraintError(err error) bool {
 	if err == nil {
 		return false
