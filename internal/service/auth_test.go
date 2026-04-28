@@ -10,7 +10,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
-func TestGrantAuthCode_Success(t *testing.T) {
+func TestLogin_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -18,7 +18,7 @@ func TestGrantAuthCode_Success(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// returns redirect URL with auth_code
-	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestGrantAuthCode_Success(t *testing.T) {
 	}
 }
 
-func TestGrantAuthCode_RedirectURL(t *testing.T) {
+func TestLogin_RedirectURL(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -39,7 +39,7 @@ func TestGrantAuthCode_RedirectURL(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// redirects to the integration's configured callback URL
-	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestGrantAuthCode_RedirectURL(t *testing.T) {
 	}
 }
 
-func TestGrantAuthCode_WrongPassword(t *testing.T) {
+func TestLogin_WrongPassword(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -59,24 +59,24 @@ func TestGrantAuthCode_WrongPassword(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// wrong password returns ErrInvalidCredentials
-	_, err := env.Service.GrantAuthCode("alice", "wrongpassword", service.InternalIntegrationName)
+	_, err := env.Service.Login("alice", "wrongpassword", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrInvalidCredentials) {
 		t.Errorf("expected ErrInvalidCredentials, got %v", err)
 	}
 }
 
-func TestGrantAuthCode_UnknownUser(t *testing.T) {
+func TestLogin_UnknownUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
 	// unknown user returns ErrAccountNotFound
-	_, err := env.Service.GrantAuthCode("unknown", "password", service.InternalIntegrationName)
+	_, err := env.Service.Login("unknown", "password", service.InternalIntegrationName)
 	if !errors.Is(err, service.ErrAccountNotFound) {
 		t.Errorf("expected ErrAccountNotFound, got %v", err)
 	}
 }
 
-func TestGrantAuthCode_UnknownIntegration(t *testing.T) {
+func TestLogin_UnknownIntegration(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -84,13 +84,13 @@ func TestGrantAuthCode_UnknownIntegration(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// unknown integration returns ErrIntegrationNotFound
-	_, err := env.Service.GrantAuthCode("alice", "password123", "nonexistent-service")
+	_, err := env.Service.Login("alice", "password123", "nonexistent-service")
 	if !errors.Is(err, service.ErrIntegrationNotFound) {
 		t.Errorf("expected ErrIntegrationNotFound, got %v", err)
 	}
 }
 
-func TestGrantAuthCode_StoresRefreshToken(t *testing.T) {
+func TestLogin_StoresRefreshToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -98,7 +98,7 @@ func TestGrantAuthCode_StoresRefreshToken(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// grant auth_code and get redirect
-	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestGrantAuthCode_StoresRefreshToken(t *testing.T) {
 	}
 }
 
-func TestGrantAuthCode_AuthCodeIsValidJWT(t *testing.T) {
+func TestLogin_AuthCodeIsValidJWT(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
@@ -126,7 +126,7 @@ func TestGrantAuthCode_AuthCodeIsValidJWT(t *testing.T) {
 	env.RegisterTestUser(t, "alice", "password123")
 
 	// grant auth_code and get redirect
-	redirectURL, err := env.Service.GrantAuthCode("alice", "password123", service.InternalIntegrationName)
+	redirectURL, err := env.Service.Login("alice", "password123", service.InternalIntegrationName)
 	if err != nil {
 		t.Fatalf("Login failed: %v", err)
 	}
@@ -139,20 +139,20 @@ func TestGrantAuthCode_AuthCodeIsValidJWT(t *testing.T) {
 	}
 }
 
-func TestGrantAuthCode_ReturnTo(t *testing.T) {
+func TestLogin_ReturnTo(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password123")
 
 	returnTo := "/authorize?integration=test-integration&scope=identity"
-	redirectURL, err := env.Service.GrantAuthCode(
+	redirectURL, err := env.Service.Login(
 		"alice",
 		"password123",
 		service.InternalIntegrationName,
 		returnTo,
 	)
 	if err != nil {
-		t.Fatalf("GrantAuthCode failed: %v", err)
+		t.Fatalf("Login failed: %v", err)
 	}
 
 	query := redirectURL.Query()
@@ -171,7 +171,7 @@ func TestReviewAuthorizationRequest_MissingScopes(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -206,7 +206,7 @@ func TestReviewAuthorizationRequest_AuthorizedWhenAllScopesGranted(t *testing.T)
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -232,7 +232,7 @@ func TestFinalizeAuthorization_RedirectIncludesAuthCodeStateAndPreservesQuery(t 
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1", "https://app.test", "https://app.test/logo.png")
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -274,7 +274,7 @@ func TestFinalizeAuthorization_StoresAuthCodeAndGrantsMissingScopes(t *testing.T
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -314,7 +314,7 @@ func TestFinalizeAuthorization_OmitsEmptyState(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(

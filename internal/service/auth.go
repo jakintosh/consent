@@ -22,6 +22,14 @@ type UserInfo struct {
 	Profile *UserInfoProfile
 }
 
+type UserGrant struct {
+	Name          string
+	Display       string
+	Homepage      string
+	Logo          string
+	GrantedScopes []string
+}
+
 // AuthorizationRequest is a validated authorization request for an integration.
 type AuthorizationRequest struct {
 	Integration Integration
@@ -72,107 +80,43 @@ func (s *Service) GetUserInfo(
 	return userInfo, nil
 }
 
-// ReviewAuthorizationRequest validates a request and returns a review of requested,
-// granted, and missing scopes for the subject.
-func (s *Service) ReviewAuthorizationRequest(
+// ListUserGrants returns all integrations registered with the server and the
+// scopes the given subject has granted to each.
+func (s *Service) ListUserGrants(
 	subject string,
-	integrationName string,
-	requestedScopes []string,
-	state string,
 ) (
-	*AuthorizationReview,
+	[]UserGrant,
 	error,
 ) {
-	integration, err := s.GetIntegration(integrationName)
+	integrations, err := s.ListIntegrations()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: failed to list integrations: %v", ErrInternal, err)
 	}
 
-	if integration.Name == InternalIntegrationName {
-		return nil, ErrInvalidIntegration
+	grants := make([]UserGrant, 0, len(integrations))
+	for _, integration := range integrations {
+		if integration.Name == InternalIntegrationName {
+			continue
+		}
+
+		granted, err := s.store.ListGrantedScopeNames(subject, integration.Name)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to list grants for %q: %v", ErrInternal, integration.Name, err)
+		}
+
+		grants = append(grants, UserGrant{
+			Name:          integration.Name,
+			Display:       integration.Display,
+			Homepage:      integration.Homepage,
+			Logo:          integration.Logo,
+			GrantedScopes: granted,
+		})
 	}
 
-	scopes, err := validateRequestedScopes(requestedScopes)
-	if err != nil {
-		return nil, err
-	}
-
-	grantedScopeNames, err := s.store.ListGrantedScopeNames(subject, integration.Name)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to list granted scopes: %v", ErrInternal, err)
-	}
-
-	request := &AuthorizationRequest{
-		Integration: *integration,
-		Scopes:      scopes,
-		State:       state,
-	}
-
-	return &AuthorizationReview{
-		Request:         *request,
-		RequestedScopes: scopeDefinitions(scopes),
-		GrantedScopes:   scopeDefinitions(grantedScopeNames),
-		MissingScopes:   missingScopes(scopes, grantedScopeNames),
-	}, nil
+	return grants, nil
 }
 
-// FinalizeAuthorization stores any missing grants and returns an authorization code redirect.
-func (s *Service) FinalizeAuthorization(
-	subject string,
-	review *AuthorizationReview,
-) (
-	*url.URL,
-	error,
-) {
-	missingScopeNames := scopeNames(review.MissingScopes)
-	if err := s.store.InsertGrants(
-		subject,
-		review.Request.Integration.Name,
-		missingScopeNames,
-	); err != nil {
-		return nil, fmt.Errorf("%w: failed to store grants: %v", ErrInternal, err)
-	}
-
-	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
-		subject,
-		[]string{
-			s.consentAPIAudience,
-			review.Request.Integration.Audience,
-		},
-		review.Request.Scopes,
-		10*time.Second,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
-	}
-
-	if err := s.store.InsertRefreshToken(refreshToken); err != nil {
-		return nil, fmt.Errorf("%w: failed to store auth code: %v", ErrInternal, err)
-	}
-
-	return buildAuthCodeRedirectURL(
-		review.Request.Integration.Redirect,
-		refreshToken.Encoded(),
-		review.Request.State,
-		"",
-	)
-}
-
-// DenyAuthorization returns an access_denied redirect for the reviewed request.
-func (s *Service) DenyAuthorization(
-	review *AuthorizationReview,
-) (
-	*url.URL,
-	error,
-) {
-	return buildAuthorizationErrorRedirectURL(
-		review.Request.Integration.Redirect,
-		"access_denied",
-		review.Request.State,
-	)
-}
-
-func (s *Service) GrantAuthCode(
+func (s *Service) Login(
 	handle string,
 	secret string,
 	integrationName string,
@@ -233,6 +177,106 @@ func (s *Service) GrantAuthCode(
 		refreshToken.Encoded(),
 		"",
 		redirectReturnTo,
+	)
+}
+
+// ReviewAuthorizationRequest validates a request and returns a review of requested,
+// granted, and missing scopes for the subject.
+func (s *Service) ReviewAuthorizationRequest(
+	subject string,
+	integrationName string,
+	requestedScopes []string,
+	state string,
+) (
+	*AuthorizationReview,
+	error,
+) {
+	integration, err := s.GetIntegration(integrationName)
+	if err != nil {
+		return nil, err
+	}
+
+	if integration.Name == InternalIntegrationName {
+		return nil, ErrInvalidIntegration
+	}
+
+	scopes, err := validateRequestedScopes(requestedScopes)
+	if err != nil {
+		return nil, err
+	}
+
+	grantedScopeNames, err := s.store.ListGrantedScopeNames(subject, integration.Name)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to list granted scopes: %v", ErrInternal, err)
+	}
+
+	request := &AuthorizationRequest{
+		Integration: *integration,
+		Scopes:      scopes,
+		State:       state,
+	}
+
+	return &AuthorizationReview{
+		Request:         *request,
+		RequestedScopes: ScopeDefinitions(scopes),
+		GrantedScopes:   ScopeDefinitions(grantedScopeNames),
+		MissingScopes:   missingScopes(scopes, grantedScopeNames),
+	}, nil
+}
+
+// FinalizeAuthorization stores any missing grants and returns an authorization code redirect.
+func (s *Service) FinalizeAuthorization(
+	subject string,
+	review *AuthorizationReview,
+) (
+	*url.URL,
+	error,
+) {
+	missingScopeNames := scopeNames(review.MissingScopes)
+	if err := s.store.InsertGrants(
+		subject,
+		review.Request.Integration.Name,
+		missingScopeNames,
+	); err != nil {
+		return nil, fmt.Errorf("%w: failed to store grants: %v", ErrInternal, err)
+	}
+
+	refreshToken, err := s.tokenIssuer.IssueRefreshToken(
+		subject,
+		[]string{
+			s.consentAPIAudience,
+			review.Request.Integration.Audience,
+		},
+		review.Request.Scopes,
+		10*time.Second,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
+	}
+
+	if err := s.store.InsertRefreshToken(refreshToken); err != nil {
+		return nil, fmt.Errorf("%w: failed to store auth code: %v", ErrInternal, err)
+	}
+
+	return buildAuthCodeRedirectURL(
+		review.Request.Integration.Redirect,
+		refreshToken.Encoded(),
+		review.Request.State,
+		"",
+	)
+}
+
+// DenyAuthorization returns an access_denied redirect for the reviewed request.
+func (s *Service) DenyAuthorization(
+	review *AuthorizationReview,
+) (
+	*url.URL,
+	error,
+) {
+	return buildAuthorizationErrorRedirectURL(
+		review.Request.Integration.Redirect,
+		"access_denied",
+		review.Request.State,
 	)
 }
 

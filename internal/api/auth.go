@@ -89,7 +89,7 @@ func (a *API) handleLogin(
 		return
 	}
 
-	redirectURL, err := a.service.GrantAuthCode(req.Handle, req.Secret, req.Integration, req.ReturnTo)
+	redirectURL, err := a.service.Login(req.Handle, req.Secret, req.Integration, req.ReturnTo)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return

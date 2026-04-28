@@ -5,13 +5,17 @@ import (
 	"net/http"
 	"net/url"
 
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/pkg/client"
 )
 
 type homePageData struct {
-	Authenticated bool
-	LoginURL      string
-	LogoutURL     string
+	Authenticated    bool
+	Handle           string
+	Integrations     []service.UserGrant
+	ScopeDefinitions []service.ScopeDefinition
+	LoginURL         string
+	LogoutURL        string
 }
 
 func (a *App) handleGetHome(
@@ -33,10 +37,26 @@ func (a *App) handleGetHome(
 		if err != nil {
 			return appErr(errHomeSessionUI, err)
 		}
+
+		user, err := a.service.GetUser(accessToken.Subject())
+		if err != nil {
+			logAppErr(r, "failed to get user: "+err.Error())
+		} else if user != nil {
+			data.Handle = user.Handle
+		}
+
+		grants, err := a.service.ListUserGrants(accessToken.Subject())
+		if err != nil {
+			logAppErr(r, "failed to list user grants: "+err.Error())
+		}
+
 		data = homePageData{
-			Authenticated: true,
-			LoginURL:      a.auth.LoginURL,
-			LogoutURL:     logoutUrl,
+			Authenticated:    true,
+			Handle:           data.Handle,
+			Integrations:     grants,
+			ScopeDefinitions: service.ScopeDefinitions([]string{"identity", "profile"}),
+			LoginURL:         a.auth.LoginURL,
+			LogoutURL:        logoutUrl,
 		}
 	} else {
 		data = homePageData{

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -155,6 +156,22 @@ func (s *Service) DeleteUser(
 		return fmt.Errorf("%w: %s", ErrUserNotFound, subject)
 	}
 	return nil
+}
+
+func (s *Service) UserHasRole(
+	subject string,
+	role string,
+) bool {
+	if subject == "" || role == "" {
+		return false
+	}
+
+	user, err := s.store.GetUserBySubject(subject)
+	if err != nil {
+		return false
+	}
+
+	return slices.Contains(user.Roles, role)
 }
 
 func isUniqueConstraintError(err error) bool {

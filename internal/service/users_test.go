@@ -219,7 +219,7 @@ func TestCreateUser_ThenLogin(t *testing.T) {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
-	redirectURL, err := env.Service.GrantAuthCode("alice", "securepassword", service.InternalIntegrationName)
+	redirectURL, err := env.Service.Login("alice", "securepassword", service.InternalIntegrationName)
 	if err != nil {
 		t.Errorf("user cannot login: %v", err)
 	}
@@ -282,9 +282,68 @@ func TestCreateUser_MultipleUsers(t *testing.T) {
 	}
 
 	for _, u := range users {
-		_, err := env.Service.GrantAuthCode(u.handle, u.password, service.InternalIntegrationName)
+		_, err := env.Service.Login(u.handle, u.password, service.InternalIntegrationName)
 		if err != nil {
 			t.Errorf("Login %s failed: %v", u.handle, err)
 		}
+	}
+}
+
+func TestUserHasRole_Exists(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "ops", "Operations")
+
+	user, err := env.Service.CreateUser("alice", "securepassword", []string{"admin", "ops"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	if !env.Service.UserHasRole(user.Subject, "admin") {
+		t.Errorf("expected UserHasRole to be true for admin")
+	}
+	if !env.Service.UserHasRole(user.Subject, "ops") {
+		t.Errorf("expected UserHasRole to be true for ops")
+	}
+	if env.Service.UserHasRole(user.Subject, "billing") {
+		t.Errorf("expected UserHasRole to be false for billing")
+	}
+}
+
+func TestUserHasRole_NilRoles(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	user, err := env.Service.CreateUser("alice", "securepassword", nil)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	if env.Service.UserHasRole(user.Subject, "admin") {
+		t.Errorf("expected UserHasRole to be false for user with nil roles")
+	}
+}
+
+func TestUserHasRole_UserNotFound(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	if env.Service.UserHasRole("nonexistent-subject", "admin") {
+		t.Errorf("expected UserHasRole to be false for non-existent user")
+	}
+}
+
+func TestUserHasRole_EmptyInputs(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	if env.Service.UserHasRole("", "admin") {
+		t.Errorf("expected UserHasRole to be false for empty subject")
+	}
+	if env.Service.UserHasRole("some-subject", "") {
+		t.Errorf("expected UserHasRole to be false for empty role")
+	}
+	if env.Service.UserHasRole("", "") {
+		t.Errorf("expected UserHasRole to be false for both empty")
 	}
 }

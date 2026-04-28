@@ -18,7 +18,9 @@ func TestAPICreateIntegration_Success(t *testing.T) {
 		"name":"svc-a",
 		"display":"Service A",
 		"audience":"aud-a",
-		"redirect":"https://svc-a.test/callback"
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
@@ -30,19 +32,27 @@ func TestAPICreateIntegration_Success(t *testing.T) {
 	if integration.Display != "Service A" {
 		t.Errorf("Display = %s, want Service A", integration.Display)
 	}
+	if integration.Homepage != "https://svc-a.test" {
+		t.Errorf("Homepage = %s, want https://svc-a.test", integration.Homepage)
+	}
+	if integration.Logo != "https://svc-a.test/logo.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo.png", integration.Logo)
+	}
 }
 
 func TestAPICreateIntegration_DuplicateName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
 		"audience":"aud-a",
-		"redirect":"https://svc-a.test/callback"
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 	result.ExpectStatusError(t, http.StatusConflict)
@@ -57,7 +67,9 @@ func TestAPICreateIntegration_InvalidRedirect(t *testing.T) {
 		"name":"svc-a",
 		"display":"Service A",
 		"audience":"aud-a",
-		"redirect":"not-a-url"
+		"redirect":"not-a-url",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -72,7 +84,9 @@ func TestAPICreateIntegration_MissingName(t *testing.T) {
 	body := `{
 		"display":"Service A",
 		"audience":"aud-a",
-		"redirect":"https://svc-a.test/callback"
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -87,7 +101,9 @@ func TestAPICreateIntegration_MissingDisplay(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"audience":"aud-a",
-		"redirect":"https://svc-a.test/callback"
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -102,7 +118,9 @@ func TestAPICreateIntegration_MissingAudience(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"redirect":"https://svc-a.test/callback"
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -117,7 +135,43 @@ func TestAPICreateIntegration_MissingRedirect(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a"
+		"audience":"aud-a",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
+
+	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
+func TestAPICreateIntegration_MissingHomepage(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"name":"svc-a",
+		"display":"Service A",
+		"audience":"aud-a",
+		"redirect":"https://svc-a.test/callback",
+		"logo":"https://svc-a.test/logo.png"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
+
+	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
+func TestAPICreateIntegration_MissingLogo(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"name":"svc-a",
+		"display":"Service A",
+		"audience":"aud-a",
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://svc-a.test"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -133,7 +187,9 @@ func TestAPICreateIntegration_ProtectedName(t *testing.T) {
 		"name":"consent",
 		"display":"Consent",
 		"audience":"consent.test",
-		"redirect":"https://consent.test/auth/callback"
+		"redirect":"https://consent.test/auth/callback",
+		"homepage":"https://consent.test",
+		"logo":"https://consent.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 
@@ -144,7 +200,7 @@ func TestAPIGetIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 
 	result := wire.TestGet[map[string]string](env.Router, "/admin/integrations/svc-a", authHeader)
 	response := result.ExpectOK(t)
@@ -153,6 +209,12 @@ func TestAPIGetIntegration_Success(t *testing.T) {
 	}
 	if response["display"] != "Service A" {
 		t.Errorf("display = %s, want Service A", response["display"])
+	}
+	if response["homepage"] != "https://svc-a.test" {
+		t.Errorf("homepage = %s, want https://svc-a.test", response["homepage"])
+	}
+	if response["logo"] != "https://svc-a.test/logo.png" {
+		t.Errorf("logo = %s, want https://svc-a.test/logo.png", response["logo"])
 	}
 }
 
@@ -169,12 +231,14 @@ func TestAPIUpdateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 
 	body := `{
 		"display":"Service A2",
 		"audience":"aud-b",
-		"redirect":"https://svc-a.test/new"
+		"redirect":"https://svc-a.test/new",
+		"homepage":"https://svc-a-v2.test",
+		"logo":"https://svc-a.test/logo-v2.png"
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusOK)
@@ -186,6 +250,12 @@ func TestAPIUpdateIntegration_Success(t *testing.T) {
 	if integration.Display != "Service A2" {
 		t.Errorf("Display = %s, want Service A2", integration.Display)
 	}
+	if integration.Homepage != "https://svc-a-v2.test" {
+		t.Errorf("Homepage = %s, want https://svc-a-v2.test", integration.Homepage)
+	}
+	if integration.Logo != "https://svc-a.test/logo-v2.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", integration.Logo)
+	}
 }
 
 func TestAPIUpdateIntegration_NotFound(t *testing.T) {
@@ -196,7 +266,9 @@ func TestAPIUpdateIntegration_NotFound(t *testing.T) {
 	body := `{
 		"display":"Service A2",
 		"audience":"aud-b",
-		"redirect":"https://svc-a.test/new"
+		"redirect":"https://svc-a.test/new",
+		"homepage":"https://svc-a-v2.test",
+		"logo":"https://svc-a.test/logo-v2.png"
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/missing", body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusBadRequest)
@@ -206,7 +278,7 @@ func TestAPIUpdateIntegration_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 
 	body := `{
 		"display":"Service A2",
@@ -223,7 +295,9 @@ func TestAPIUpdateIntegration_ProtectedName(t *testing.T) {
 	authHeader := env.APIKeyHeader(t)
 
 	body := `{
-		"display":"Consent 2"
+		"display":"Consent 2",
+		"homepage":"https://consent.test",
+		"logo":"https://consent.test/logo.png"
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/"+service.InternalIntegrationName, body, jsonHeader, authHeader)
 	result.ExpectStatus(t, http.StatusForbidden)
@@ -233,7 +307,7 @@ func TestAPIDeleteIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 
 	result := wire.TestDelete[any](env.Router, "/admin/integrations/svc-a", authHeader)
 	result.ExpectStatus(t, http.StatusOK)
@@ -251,6 +325,34 @@ func TestAPIDeleteIntegration_NotFound(t *testing.T) {
 
 	result := wire.TestDelete[any](env.Router, "/admin/integrations/missing", authHeader)
 	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
+func TestAPIUpdateIntegration_MissingHomepage(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+
+	body := `{
+		"display":"Service A2",
+		"homepage":""
+	}`
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
+}
+
+func TestAPIUpdateIntegration_MissingLogo(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+
+	body := `{
+		"display":"Service A2",
+		"logo":""
+	}`
+	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
+	result.ExpectStatus(t, http.StatusBadRequest)
 }
 
 func TestAPIDeleteIntegration_ProtectedName(t *testing.T) {
@@ -279,14 +381,20 @@ func TestAPIListIntegrations_Seeded(t *testing.T) {
 	if response[1]["name"] != "test-integration" {
 		t.Fatalf("expected seeded test-integration second, got %s", response[1]["name"])
 	}
+	if response[1]["homepage"] != "http://test-integration.local" {
+		t.Errorf("homepage = %s, want http://test-integration.local", response[1]["homepage"])
+	}
+	if response[1]["logo"] != "http://test-integration.local/logo.png" {
+		t.Errorf("logo = %s, want http://test-integration.local/logo.png", response[1]["logo"])
+	}
 }
 
 func TestAPIListIntegrations_Multiple(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
-	env.CreateTestIntegration(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback")
+	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	env.CreateTestIntegration(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png")
 
 	result := wire.TestGet[[]map[string]string](env.Router, "/admin/integrations", authHeader)
 	response := result.ExpectOK(t)
@@ -298,5 +406,8 @@ func TestAPIListIntegrations_Multiple(t *testing.T) {
 	}
 	if response[1]["name"] != "svc-a" {
 		t.Errorf("expected svc-a second, got %s", response[1]["name"])
+	}
+	if response[1]["homepage"] != "https://svc-a.test" {
+		t.Errorf("svc-a homepage = %s, want https://svc-a.test", response[1]["homepage"])
 	}
 }

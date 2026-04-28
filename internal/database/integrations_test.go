@@ -13,7 +13,7 @@ func TestInsertIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -23,11 +23,11 @@ func TestInsertIntegration_DuplicateName(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	if err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback"); err != nil {
+	if err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png"); err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
 
-	err := store.InsertIntegration("svc-a", "Service A2", "aud-a", "https://svc-a.test/redirect")
+	err := store.InsertIntegration("svc-a", "Service A2", "aud-a", "https://svc-a.test/redirect", "https://svc-a.test", "https://svc-a.test/logo.png")
 	if err == nil {
 		t.Fatal("expected error for duplicate integration name")
 	}
@@ -53,6 +53,8 @@ func TestUpsertSystemIntegrations_Insert(t *testing.T) {
 			Display:  "Consent",
 			Audience: "consent.test",
 			Redirect: "https://consent.test/auth/callback",
+			Homepage: "https://consent.test",
+			Logo:     "",
 		},
 	})
 	if err != nil {
@@ -66,13 +68,16 @@ func TestUpsertSystemIntegrations_Insert(t *testing.T) {
 	if record.Display != "Consent" {
 		t.Fatalf("Display = %s, want Consent", record.Display)
 	}
+	if record.Homepage != "https://consent.test" {
+		t.Fatalf("Homepage = %s, want https://consent.test", record.Homepage)
+	}
 }
 
 func TestUpsertSystemIntegrations_MixedBatch(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	if err := store.InsertIntegration("svc-a", "Old", "old-aud", "https://old.test/callback"); err != nil {
+	if err := store.InsertIntegration("svc-a", "Old", "old-aud", "https://old.test/callback", "https://old.test", "https://old.test/logo.png"); err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
 
@@ -82,12 +87,16 @@ func TestUpsertSystemIntegrations_MixedBatch(t *testing.T) {
 			Display:  "Service A",
 			Audience: "aud-a",
 			Redirect: "https://svc-a.test/callback",
+			Homepage: "https://svc-a.test",
+			Logo:     "https://svc-a.test/logo.png",
 		},
 		{
 			Name:     "consent",
 			Display:  "Consent",
 			Audience: "consent.test",
 			Redirect: "https://consent.test/auth/callback",
+			Homepage: "https://consent.test",
+			Logo:     "",
 		},
 	})
 	if err != nil {
@@ -101,6 +110,9 @@ func TestUpsertSystemIntegrations_MixedBatch(t *testing.T) {
 	if record.Display != "Service A" {
 		t.Fatalf("Display = %s, want Service A", record.Display)
 	}
+	if record.Homepage != "https://svc-a.test" {
+		t.Fatalf("Homepage = %s, want https://svc-a.test", record.Homepage)
+	}
 
 	_, err = store.GetIntegration("consent")
 	if err != nil {
@@ -112,7 +124,7 @@ func TestGetIntegration_Exists(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -133,6 +145,12 @@ func TestGetIntegration_Exists(t *testing.T) {
 	if record.Redirect != "https://svc-a.test/callback" {
 		t.Errorf("Redirect = %s, want https://svc-a.test/callback", record.Redirect)
 	}
+	if record.Homepage != "https://svc-a.test" {
+		t.Errorf("Homepage = %s, want https://svc-a.test", record.Homepage)
+	}
+	if record.Logo != "https://svc-a.test/logo.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo.png", record.Logo)
+	}
 }
 
 func TestGetIntegration_NotFound(t *testing.T) {
@@ -149,7 +167,7 @@ func TestUpdateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -157,7 +175,9 @@ func TestUpdateIntegration_Success(t *testing.T) {
 	display := "Service A2"
 	audience := "aud-b"
 	redirect := "https://svc-a.test/new"
-	err = store.UpdateIntegration("svc-a", &service.IntegrationUpdate{Display: &display, Audience: &audience, Redirect: &redirect})
+	homepage := "https://svc-a-v2.test"
+	logo := "https://svc-a.test/logo-v2.png"
+	err = store.UpdateIntegration("svc-a", &service.IntegrationUpdate{Display: &display, Audience: &audience, Redirect: &redirect, Homepage: &homepage, Logo: &logo})
 	if err != nil {
 		t.Fatalf("UpdateIntegration failed: %v", err)
 	}
@@ -175,6 +195,12 @@ func TestUpdateIntegration_Success(t *testing.T) {
 	if record.Redirect != "https://svc-a.test/new" {
 		t.Errorf("Redirect = %s, want https://svc-a.test/new", record.Redirect)
 	}
+	if record.Homepage != "https://svc-a-v2.test" {
+		t.Errorf("Homepage = %s, want https://svc-a-v2.test", record.Homepage)
+	}
+	if record.Logo != "https://svc-a.test/logo-v2.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", record.Logo)
+	}
 }
 
 func TestUpdateIntegration_NotFound(t *testing.T) {
@@ -188,11 +214,39 @@ func TestUpdateIntegration_NotFound(t *testing.T) {
 	}
 }
 
+func TestUpdateIntegration_HomepageLogo(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	homepage := "https://svc-a-v2.test"
+	logo := "https://svc-a.test/logo-v2.png"
+	err = store.UpdateIntegration("svc-a", &service.IntegrationUpdate{Homepage: &homepage, Logo: &logo})
+	if err != nil {
+		t.Fatalf("UpdateIntegration failed: %v", err)
+	}
+
+	record, err := store.GetIntegration("svc-a")
+	if err != nil {
+		t.Fatalf("GetIntegration failed: %v", err)
+	}
+	if record.Homepage != "https://svc-a-v2.test" {
+		t.Errorf("Homepage = %s, want https://svc-a-v2.test", record.Homepage)
+	}
+	if record.Logo != "https://svc-a.test/logo-v2.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", record.Logo)
+	}
+}
+
 func TestDeleteIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -224,6 +278,30 @@ func TestDeleteIntegration_NotFound(t *testing.T) {
 	}
 }
 
+func TestListIntegrations_ReturnsHomepageAndLogo(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	records, err := store.ListIntegrations()
+	if err != nil {
+		t.Fatalf("ListIntegrations failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 integration, got %d", len(records))
+	}
+	if records[0].Homepage != "https://svc-a.test" {
+		t.Errorf("Homepage = %s, want https://svc-a.test", records[0].Homepage)
+	}
+	if records[0].Logo != "https://svc-a.test/logo.png" {
+		t.Errorf("Logo = %s, want https://svc-a.test/logo.png", records[0].Logo)
+	}
+}
+
 func TestListIntegrations_Empty(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
@@ -247,16 +325,20 @@ func TestListIntegrations_Multiple(t *testing.T) {
 			Display:  "Service B",
 			Audience: "aud-b",
 			Redirect: "https://svc-b.test/callback",
+			Homepage: "https://svc-b.test",
+			Logo:     "https://svc-b.test/logo.png",
 		},
 		{
 			Name:     "svc-a",
 			Display:  "Service A",
 			Audience: "aud-a",
 			Redirect: "https://svc-a.test/callback",
+			Homepage: "https://svc-a.test",
+			Logo:     "https://svc-a.test/logo.png",
 		},
 	}
 	for _, integration := range integrations {
-		if err := store.InsertIntegration(integration.Name, integration.Display, integration.Audience, integration.Redirect); err != nil {
+		if err := store.InsertIntegration(integration.Name, integration.Display, integration.Audience, integration.Redirect, integration.Homepage, integration.Logo); err != nil {
 			t.Fatalf("InsertIntegration failed: %v", err)
 		}
 	}
@@ -265,9 +347,9 @@ func TestListIntegrations_Multiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListIntegrations failed: %v", err)
 	}
-		if len(records) != 2 {
-			t.Fatalf("expected 2 integrations, got %d", len(records))
-		}
+	if len(records) != 2 {
+		t.Fatalf("expected 2 integrations, got %d", len(records))
+	}
 	if records[0].Name != "svc-a" {
 		t.Errorf("expected svc-a first, got %s", records[0].Name)
 	}

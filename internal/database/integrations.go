@@ -13,14 +13,18 @@ func (db *DB) InsertIntegration(
 	display string,
 	audience string,
 	redirect string,
+	homepage string,
+	logo string,
 ) error {
 	_, err := db.Conn.Exec(`
-		INSERT INTO integration (name, display, audience, redirect)
-		VALUES (?1, ?2, ?3, ?4)`,
+		INSERT INTO integration (name, display, audience, redirect, homepage, logo)
+		VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
 		name,
 		display,
 		audience,
 		redirect,
+		homepage,
+		logo,
 	)
 	if err != nil {
 		return fmt.Errorf("insert integration: %w", err)
@@ -41,12 +45,14 @@ func (db *DB) UpsertSystemIntegrations(
 	}
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO integration (name, display, audience, redirect)
-		VALUES (?1, ?2, ?3, ?4)
+		INSERT INTO integration (name, display, audience, redirect, homepage, logo)
+		VALUES (?1, ?2, ?3, ?4, ?5, ?6)
 		ON CONFLICT(name) DO UPDATE SET
 			display=?2,
 			audience=?3,
-			redirect=?4`)
+			redirect=?4,
+			homepage=?5,
+			logo=?6`)
 	if err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("prepare system integration upsert statement: %w", err)
@@ -54,7 +60,7 @@ func (db *DB) UpsertSystemIntegrations(
 	defer stmt.Close()
 
 	for _, integration := range integrations {
-		if _, err := stmt.Exec(integration.Name, integration.Display, integration.Audience, integration.Redirect); err != nil {
+		if _, err := stmt.Exec(integration.Name, integration.Display, integration.Audience, integration.Redirect, integration.Homepage, integration.Logo); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("upsert system integration %q: %w", integration.Name, err)
 		}
@@ -74,7 +80,7 @@ func (db *DB) GetIntegration(
 	error,
 ) {
 	row := db.Conn.QueryRow(`
-		SELECT name, display, audience, redirect
+		SELECT name, display, audience, redirect, homepage, logo
 		FROM integration
 		WHERE name=?1`,
 		name,
@@ -86,6 +92,8 @@ func (db *DB) GetIntegration(
 		&record.Display,
 		&record.Audience,
 		&record.Redirect,
+		&record.Homepage,
+		&record.Logo,
 	)
 	if err != nil {
 		return service.Integration{}, fmt.Errorf("couldn't scan integration: %w", err)
@@ -114,6 +122,16 @@ func (db *DB) UpdateIntegration(
 	if updates.Redirect != nil {
 		setClauses = append(setClauses, fmt.Sprintf("redirect=?%d", argIdx))
 		args = append(args, *updates.Redirect)
+		argIdx++
+	}
+	if updates.Homepage != nil {
+		setClauses = append(setClauses, fmt.Sprintf("homepage=?%d", argIdx))
+		args = append(args, *updates.Homepage)
+		argIdx++
+	}
+	if updates.Logo != nil {
+		setClauses = append(setClauses, fmt.Sprintf("logo=?%d", argIdx))
+		args = append(args, *updates.Logo)
 		argIdx++
 	}
 
@@ -164,7 +182,7 @@ func (db *DB) ListIntegrations() (
 	error,
 ) {
 	rows, err := db.Conn.Query(`
-		SELECT name, display, audience, redirect
+		SELECT name, display, audience, redirect, homepage, logo
 		FROM integration
 		ORDER BY name`)
 	if err != nil {
@@ -180,6 +198,8 @@ func (db *DB) ListIntegrations() (
 			&record.Display,
 			&record.Audience,
 			&record.Redirect,
+			&record.Homepage,
+			&record.Logo,
 		); err != nil {
 			return nil, fmt.Errorf("couldn't scan integration: %w", err)
 		}

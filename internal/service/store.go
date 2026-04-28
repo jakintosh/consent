@@ -27,7 +27,7 @@ type Store interface {
 	ListGrantedScopeNames(subject string, integration string) ([]string, error)
 	InsertGrants(subject string, integration string, scopes []string) error
 
-	InsertIntegration(name string, display string, audience string, redirect string) error
+	InsertIntegration(name string, display string, audience string, redirect string, homepage string, logo string) error
 	UpsertSystemIntegrations(integrations []Integration) error
 	GetIntegration(name string) (Integration, error)
 	UpdateIntegration(name string, updates *IntegrationUpdate) error

@@ -18,12 +18,16 @@ type Integration struct {
 	Display  string
 	Audience string
 	Redirect string
+	Homepage string
+	Logo     string
 }
 
 type IntegrationUpdate struct {
 	Display  *string
 	Audience *string
 	Redirect *string
+	Homepage *string
+	Logo     *string
 }
 
 func BuildInternalIntegration(
@@ -49,6 +53,8 @@ func BuildInternalIntegration(
 		Display:  internalIntegrationDisplay,
 		Audience: baseUrl.Host,
 		Redirect: redirectURL.String(),
+		Homepage: publicUrl,
+		Logo:     "",
 	}, nil
 }
 
@@ -77,6 +83,8 @@ func (s *Service) CreateIntegration(
 	display string,
 	audience string,
 	redirect string,
+	homepage string,
+	logo string,
 ) error {
 	if name == "" {
 		return ErrInvalidIntegration
@@ -85,7 +93,7 @@ func (s *Service) CreateIntegration(
 		return ErrIntegrationProtected
 	}
 
-	if display == "" || audience == "" || redirect == "" {
+	if display == "" || audience == "" || redirect == "" || homepage == "" || logo == "" {
 		return ErrInvalidIntegration
 	}
 
@@ -93,7 +101,7 @@ func (s *Service) CreateIntegration(
 		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
 
-	err := s.store.InsertIntegration(name, display, audience, redirect)
+	err := s.store.InsertIntegration(name, display, audience, redirect, homepage, logo)
 	if err != nil {
 		if isUniqueConstraintError(err) {
 			return ErrIntegrationExists
@@ -157,8 +165,14 @@ func (s *Service) UpdateIntegration(
 	if updates.Redirect != nil {
 		current.Redirect = *updates.Redirect
 	}
+	if updates.Homepage != nil {
+		current.Homepage = *updates.Homepage
+	}
+	if updates.Logo != nil {
+		current.Logo = *updates.Logo
+	}
 
-	if current.Display == "" || current.Audience == "" || current.Redirect == "" {
+	if current.Display == "" || current.Audience == "" || current.Redirect == "" || current.Homepage == "" || current.Logo == "" {
 		return ErrInvalidIntegration
 	}
 

@@ -33,7 +33,7 @@ var scopeRegistry = map[string]ScopeDefinition{
 	},
 }
 
-func scopeDefinitions(
+func ScopeDefinitions(
 	scopeNames []string,
 ) []ScopeDefinition {
 	definitions := make([]ScopeDefinition, 0, len(scopeNames))
@@ -118,5 +118,5 @@ func missingScopes(
 		}
 	}
 
-	return scopeDefinitions(missing)
+	return ScopeDefinitions(missing)
 }

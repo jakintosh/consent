@@ -12,12 +12,16 @@ type Integration struct {
 	Display  string `json:"display"`
 	Audience string `json:"audience"`
 	Redirect string `json:"redirect"`
+	Homepage string `json:"homepage"`
+	Logo     string `json:"logo"`
 }
 
 type UpdateIntegrationRequest struct {
 	Display  *string `json:"display,omitempty"`
 	Audience *string `json:"audience,omitempty"`
 	Redirect *string `json:"redirect,omitempty"`
+	Homepage *string `json:"homepage,omitempty"`
+	Logo     *string `json:"logo,omitempty"`
 }
 
 func integrationFromDomain(
@@ -28,6 +32,8 @@ func integrationFromDomain(
 		Display:  integration.Display,
 		Audience: integration.Audience,
 		Redirect: integration.Redirect,
+		Homepage: integration.Homepage,
+		Logo:     integration.Logo,
 	}
 }
 
@@ -39,6 +45,16 @@ func integrationsFromDomain(
 		apiIntegrations = append(apiIntegrations, integrationFromDomain(integration))
 	}
 	return apiIntegrations
+}
+
+func (req UpdateIntegrationRequest) intoDomain() service.IntegrationUpdate {
+	return service.IntegrationUpdate{
+		Display:  req.Display,
+		Audience: req.Audience,
+		Redirect: req.Redirect,
+		Homepage: req.Homepage,
+		Logo:     req.Logo,
+	}
 }
 
 func (a *API) buildIntegrationsRouter() http.Handler {
@@ -64,7 +80,14 @@ func (a *API) handleCreateIntegration(
 		return
 	}
 
-	err = a.service.CreateIntegration(req.Name, req.Display, req.Audience, req.Redirect)
+	err = a.service.CreateIntegration(
+		req.Name,
+		req.Display,
+		req.Audience,
+		req.Redirect,
+		req.Homepage,
+		req.Logo,
+	)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return
@@ -108,11 +131,8 @@ func (a *API) handleUpdateIntegration(
 		return
 	}
 
-	err = a.service.UpdateIntegration(name, &service.IntegrationUpdate{
-		Display:  req.Display,
-		Audience: req.Audience,
-		Redirect: req.Redirect,
-	})
+	update := req.intoDomain()
+	err = a.service.UpdateIntegration(name, &update)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())
 		return

@@ -37,6 +37,12 @@ func getSharedSigningKey() *ecdsa.PrivateKey {
 	return sharedSigningKey
 }
 
+// TestUser provides credentials for seeding users in tests.
+type TestUser struct {
+	Handle   string
+	Password string
+}
+
 // TestEnv provides all dependencies needed for testing
 type TestEnv struct {
 	DB             *database.DB
@@ -44,12 +50,6 @@ type TestEnv struct {
 	Router         http.Handler
 	TokenIssuer    tokens.Issuer
 	TokenValidator tokens.Validator
-}
-
-// APIKeyHeader returns a valid auth header for API key protected routes.
-func (env *TestEnv) APIKeyHeader(t *testing.T) wire.TestHeader {
-	t.Helper()
-	return wire.TestHeader{Key: "Authorization", Value: "Bearer " + testBootstrapAPIKey}
 }
 
 // SetupTestDB creates an in-memory SQLite database with cleanup.
@@ -67,12 +67,6 @@ func SetupTestDB(t *testing.T) *database.DB {
 		_ = db.Close()
 	})
 	return db
-}
-
-// TestUser provides credentials for seeding users in tests.
-type TestUser struct {
-	Handle   string
-	Password string
 }
 
 // SetupTestEnv creates an isolated test environment with in-memory SQLite.
@@ -136,34 +130,6 @@ func SetupTestEnv(
 	}
 }
 
-// CreateTestIntegration seeds an integration definition for tests.
-func (env *TestEnv) CreateTestIntegration(
-	t *testing.T,
-	name string,
-	display string,
-	audience string,
-	redirect string,
-) {
-	t.Helper()
-	if err := env.Service.CreateIntegration(name, display, audience, redirect); err != nil {
-		t.Fatalf("failed to create test integration: %v", err)
-	}
-}
-
-// CreateTestRole creates a role for tests.
-func (env *TestEnv) CreateTestRole(
-	t *testing.T,
-	name string,
-	display string,
-) *service.Role {
-	t.Helper()
-	role, err := env.Service.CreateRole(name, display)
-	if err != nil {
-		t.Fatalf("failed to create test role %q: %v", name, err)
-	}
-	return role
-}
-
 // SetupTestEnvWithUsers creates TestEnv and registers the provided users.
 func SetupTestEnvWithUsers(
 	t *testing.T,
@@ -183,8 +149,44 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback", "http://test-integration.local", "http://test-integration.local/logo.png")
 	return env
+}
+
+// APIKeyHeader returns a valid auth header for API key protected routes.
+func (env *TestEnv) APIKeyHeader(t *testing.T) wire.TestHeader {
+	t.Helper()
+	return wire.TestHeader{Key: "Authorization", Value: "Bearer " + testBootstrapAPIKey}
+}
+
+// CreateTestIntegration seeds an integration definition for tests.
+func (env *TestEnv) CreateTestIntegration(
+	t *testing.T,
+	name string,
+	display string,
+	audience string,
+	redirect string,
+	homepage string,
+	logo string,
+) {
+	t.Helper()
+	if err := env.Service.CreateIntegration(name, display, audience, redirect, homepage, logo); err != nil {
+		t.Fatalf("failed to create test integration: %v", err)
+	}
+}
+
+// CreateTestRole creates a role for tests.
+func (env *TestEnv) CreateTestRole(
+	t *testing.T,
+	name string,
+	display string,
+) *service.Role {
+	t.Helper()
+	role, err := env.Service.CreateRole(name, display)
+	if err != nil {
+		t.Fatalf("failed to create test role %q: %v", name, err)
+	}
+	return role
 }
 
 // RegisterTestUser creates a test user in the database
@@ -270,4 +272,8 @@ func (env *TestEnv) StoreTestRefreshToken(
 		t.Fatalf("failed to store test refresh token: %v", err)
 	}
 	return token
+}
+
+func strPtr(s string) *string {
+	return &s
 }

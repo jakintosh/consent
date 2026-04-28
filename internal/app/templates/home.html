@@ -1,15 +1,59 @@
 {{ define "style" }}
 .home .actions { margin-block-start: 1.25rem; }
+.home .integrations-list { margin-block-start: 1.5rem; }
+.home .integration-item + .integration-item { margin-block-start: 0.5rem; }
+.home .integration-item details { padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
+.home .integration-item details:hover { background: var(--color-bg-notice); }
+.home .integration-item summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+.home .integration-item summary::-webkit-details-marker { display: none; }
+.home .integration-item .indicator { font-size: 0.85rem; width: 1.25rem; text-align: center; flex-shrink: 0; }
+.home .integration-item .indicator.all-granted { color: var(--color-primary); }
+.home .integration-item .indicator.partial { color: var(--color-text-muted); }
+.home .integration-item .integration-header { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+.home .integration-item .integration-logo { width: 1.25rem; height: 1.25rem; border-radius: var(--radius-sm); flex-shrink: 0; }
+.home .integration-item .integration-name { font-weight: 600; }
+.home .integration-item .visit-link { font-size: 0.85rem; color: var(--color-text-muted); text-decoration: none; flex-shrink: 0; }
+.home .integration-item .visit-link:hover { color: var(--color-primary); }
+.home .integration-item .scope-list { margin-block-start: 0.5rem; padding-inline-start: 2rem; }
+.home .integration-item .scope-list li { margin: 0.25rem 0; font-size: 0.92rem; }
 {{ end }}
 {{ define "content" }}
 <section class="page home stack">
     <p class="eyebrow">Consent</p>
     {{ if .Authenticated }}
-    <h2>Welcome</h2>
+    <h2>Hello, {{ .Handle }}</h2>
     <p>
         You are logged in and ready to approve access requests for connected
         integrations.
     </p>
+    {{ if .Integrations }}
+    <div class="integrations-list">
+        {{ range .Integrations }}
+        <div class="integration-item">
+            <details>
+                <summary>
+                    <span class="indicator {{ if gt (len .GrantedScopes) 0 }}{{ if eq (len .GrantedScopes) (len $.ScopeDefinitions) }}all-granted{{ else }}partial{{ end }}{{ end }}">
+                        {{ if eq (len .GrantedScopes) (len $.ScopeDefinitions) }}✓{{ else if gt (len .GrantedScopes) 0 }}•{{ else }}—{{ end }}
+                    </span>
+                    <span class="integration-header">
+                        {{ if .Logo }}<img class="integration-logo" src="{{ .Logo }}" alt=""> {{ end }}
+                        <span class="integration-name">{{ .Display }}</span>
+                    </span>
+                    {{ if .Homepage }}<a class="visit-link" href="{{ .Homepage }}" target="_blank" rel="noopener noreferrer">Visit</a>{{ end }}
+                </summary>
+                {{ if .GrantedScopes }}
+                <ul class="scope-list">
+                    {{ range .GrantedScopes }}
+                    {{ $scopeName := . }}
+                    <li>{{ range $.ScopeDefinitions }}{{ if eq .Name $scopeName }}{{ .Label }}{{ end }}{{ end }}</li>
+                    {{ end }}
+                </ul>
+                {{ end }}
+            </details>
+        </div>
+        {{ end }}
+    </div>
+    {{ end }}
     <div class="actions">
         <a class="button" href="{{ .LogoutURL }}">Log Out</a>
     </div>

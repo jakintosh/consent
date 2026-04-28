@@ -94,6 +94,16 @@ var integrationsCreateCmd = &args.Command{
 			Type: args.OptionTypeParameter,
 			Help: "redirect URL",
 		},
+		{
+			Long: "homepage",
+			Type: args.OptionTypeParameter,
+			Help: "integration homepage URL",
+		},
+		{
+			Long: "logo",
+			Type: args.OptionTypeParameter,
+			Help: "integration logo URL",
+		},
 	},
 	Handler: func(i *args.Input) error {
 		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
@@ -109,8 +119,10 @@ var integrationsCreateCmd = &args.Command{
 		display := i.GetParameter("display")
 		audience := i.GetParameter("audience")
 		redirect := i.GetParameter("redirect")
-		if display == nil || audience == nil || redirect == nil {
-			return fmt.Errorf("--display, --audience, and --redirect are required")
+		homepage := i.GetParameter("homepage")
+		logo := i.GetParameter("logo")
+		if display == nil || audience == nil || redirect == nil || homepage == nil || logo == nil {
+			return fmt.Errorf("--display, --audience, --redirect, --homepage, and --logo are required")
 		}
 
 		payload := api.Integration{
@@ -118,6 +130,8 @@ var integrationsCreateCmd = &args.Command{
 			Display:  *display,
 			Audience: *audience,
 			Redirect: *redirect,
+			Homepage: *homepage,
+			Logo:     *logo,
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
@@ -158,6 +172,16 @@ var integrationsUpdateCmd = &args.Command{
 			Type: args.OptionTypeParameter,
 			Help: "redirect URL",
 		},
+		{
+			Long: "homepage",
+			Type: args.OptionTypeParameter,
+			Help: "integration homepage URL",
+		},
+		{
+			Long: "logo",
+			Type: args.OptionTypeParameter,
+			Help: "integration logo URL",
+		},
 	},
 	Handler: func(i *args.Input) error {
 		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
@@ -173,14 +197,18 @@ var integrationsUpdateCmd = &args.Command{
 		display := i.GetParameter("display")
 		audience := i.GetParameter("audience")
 		redirect := i.GetParameter("redirect")
-		if display == nil && audience == nil && redirect == nil {
-			return fmt.Errorf("at least one of --display, --audience, or --redirect is required")
+		homepage := i.GetParameter("homepage")
+		logo := i.GetParameter("logo")
+		if display == nil && audience == nil && redirect == nil && homepage == nil && logo == nil {
+			return fmt.Errorf("at least one of --display, --audience, --redirect, --homepage, or --logo is required")
 		}
 
 		payload := api.UpdateIntegrationRequest{
 			Display:  display,
 			Audience: audience,
 			Redirect: redirect,
+			Homepage: homepage,
+			Logo:     logo,
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {

@@ -12,7 +12,7 @@ import (
 
 func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png")
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
 	appServer, err := New(Options{
@@ -43,7 +43,7 @@ func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png")
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -88,7 +88,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png")
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -136,7 +136,7 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png")
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -181,7 +181,7 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png")
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)

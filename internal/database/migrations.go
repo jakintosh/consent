@@ -45,7 +45,9 @@ var migrations = []Migration{
 				name     TEXT PRIMARY KEY,
 				display  TEXT NOT NULL,
 				audience TEXT NOT NULL,
-				redirect TEXT NOT NULL
+				redirect TEXT NOT NULL,
+				homepage TEXT NOT NULL,
+				logo     TEXT NOT NULL
 			);
 
 			CREATE TABLE IF NOT EXISTS grant (
