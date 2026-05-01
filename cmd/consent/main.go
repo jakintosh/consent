@@ -12,8 +12,6 @@ import (
 	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
-const BIN_AUTHOR = "jakintosh"
-
 var envsOpts = envs.CommandOptions{
 	DefaultConfigDir: config.DefaultConfigDir(),
 	KeyBackend: keys.EnvBackend{
@@ -54,7 +52,7 @@ var root = &args.Command{
 	Name: "consent",
 	Help: "OAuth authorization server",
 	Config: &args.Config{
-		Author: BIN_AUTHOR,
+		Author: "jakintosh",
 		HelpOption: &args.HelpOption{
 			Short: 'h',
 			Long:  "help",

@@ -101,31 +101,13 @@ mock-deployment-init: build
 			--password "$(MOCK_DEMO_PASSWORD)" \
 			--role admin; \
 		register_integration() { \
-			name="$$1"; \
-			display="$$2"; \
-			host="$$3"; \
-			port="$$4"; \
-			audience="$$3:$$4"; \
-			redirect="http://$$3:$$4/auth/callback"; \
-			homepage="http://$$3:$$4"; \
-			logo="http://$$3:$$4/logo.png"; \
-			if $(CONSENT_BIN) api integrations get "$$name" --config-dir "$(MOCK_CONFIG_DIR)" >/dev/null 2>&1; then \
-				$(CONSENT_BIN) api integrations update "$$name" \
-					--config-dir "$(MOCK_CONFIG_DIR)" \
-					--display "$$display" \
-					--audience "$$audience" \
-					--redirect "$$redirect" \
-					--homepage "$$homepage" \
-					--logo "$$logo"; \
-			else \
-				$(CONSENT_BIN) api integrations create "$$name" \
-					--config-dir "$(MOCK_CONFIG_DIR)" \
-					--display "$$display" \
-					--audience "$$audience" \
-					--redirect "$$redirect" \
-					--homepage "$$homepage" \
-					--logo "$$logo"; \
-			fi; \
+			$(CONSENT_BIN) api integrations create "$$1" \
+				--config-dir "$(MOCK_CONFIG_DIR)" \
+				--display "$$2" \
+				--audience "$$3:$$4" \
+				--redirect "http://$$3:$$4/auth/callback" \
+				--homepage "http://$$3:$$4" \
+				--logo "http://$$3:$$4/logo.png"; \
 		}; \
 		register_integration "$(MOCK_CLIENT_1_INTEGRATION)" "Mock Client 1" "$(MOCK_CLIENT_1_HOST)" "$(MOCK_CLIENT_1_PORT)"; \
 		register_integration "$(MOCK_CLIENT_2_INTEGRATION)" "Mock Client 2" "$(MOCK_CLIENT_2_HOST)" "$(MOCK_CLIENT_2_PORT)"; \
