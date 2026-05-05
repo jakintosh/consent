@@ -14,20 +14,22 @@ const (
 )
 
 type Integration struct {
-	Name     string
-	Display  string
-	Audience string
-	Redirect string
-	Homepage string
-	Logo     string
+	Name          string
+	Display       string
+	Audience      string
+	Redirect      string
+	Homepage      string
+	Logo          string
+	RequiredRoles []string
 }
 
 type IntegrationUpdate struct {
-	Display  *string
-	Audience *string
-	Redirect *string
-	Homepage *string
-	Logo     *string
+	Display       *string
+	Audience      *string
+	Redirect      *string
+	Homepage      *string
+	Logo          *string
+	RequiredRoles *[]string
 }
 
 func BuildInternalIntegration(
@@ -49,12 +51,13 @@ func BuildInternalIntegration(
 	}
 
 	return Integration{
-		Name:     InternalIntegrationName,
-		Display:  internalIntegrationDisplay,
-		Audience: baseUrl.Host,
-		Redirect: redirectURL.String(),
-		Homepage: publicUrl,
-		Logo:     "",
+		Name:          InternalIntegrationName,
+		Display:       internalIntegrationDisplay,
+		Audience:      baseUrl.Host,
+		Redirect:      redirectURL.String(),
+		Homepage:      publicUrl,
+		Logo:          "",
+		RequiredRoles: []string{},
 	}, nil
 }
 
@@ -85,6 +88,7 @@ func (s *Service) CreateIntegration(
 	redirect string,
 	homepage string,
 	logo string,
+	requiredRoles []string,
 ) error {
 	if name == "" {
 		return ErrInvalidIntegration
@@ -100,8 +104,11 @@ func (s *Service) CreateIntegration(
 	if _, err := parseAndValidateRedirectURL(redirect); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
+	if err := s.validateRequiredRoles(requiredRoles); err != nil {
+		return err
+	}
 
-	err := s.store.InsertIntegration(name, display, audience, redirect, homepage, logo)
+	err := s.store.InsertIntegration(name, display, audience, redirect, homepage, logo, requiredRoles)
 	if err != nil {
 		if isUniqueConstraintError(err) {
 			return ErrIntegrationExists
@@ -171,6 +178,9 @@ func (s *Service) UpdateIntegration(
 	if updates.Logo != nil {
 		current.Logo = *updates.Logo
 	}
+	if updates.RequiredRoles != nil {
+		current.RequiredRoles = *updates.RequiredRoles
+	}
 
 	if current.Display == "" || current.Audience == "" || current.Redirect == "" || current.Homepage == "" || current.Logo == "" {
 		return ErrInvalidIntegration
@@ -179,11 +189,17 @@ func (s *Service) UpdateIntegration(
 	if _, err := parseAndValidateRedirectURL(current.Redirect); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
 	}
+	if err := s.validateRequiredRoles(current.RequiredRoles); err != nil {
+		return err
+	}
 
 	err = s.store.UpdateIntegration(name, updates)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s", ErrIntegrationNotFound, name)
+		}
+		if isUniqueConstraintError(err) {
+			return ErrIntegrationExists
 		}
 		return fmt.Errorf("%w: failed to update integration: %v", ErrInternal, err)
 	}
@@ -220,4 +236,25 @@ func (s *Service) ListIntegrations() (
 		return nil, fmt.Errorf("%w: failed to list integrations: %v", ErrInternal, err)
 	}
 	return records, nil
+}
+
+func (s *Service) validateRequiredRoles(
+	roles []string,
+) error {
+	seen := make(map[string]bool, len(roles))
+	for _, role := range roles {
+		if role == "" || seen[role] {
+			return ErrInvalidRole
+		}
+		seen[role] = true
+
+		if _, err := s.store.GetRole(role); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("%w: %s", ErrRoleNotFound, role)
+			}
+			return fmt.Errorf("%w: failed to get role: %v", ErrInternal, err)
+		}
+	}
+
+	return nil
 }

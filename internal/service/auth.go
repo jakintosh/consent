@@ -80,6 +80,28 @@ func (s *Service) GetUserInfo(
 	return userInfo, nil
 }
 
+// IntegrationsAccessibleTo returns integrations the user is allowed to see (has at least one required role).
+func (s *Service) IntegrationsAccessibleTo(
+	subject string,
+) (
+	[]Integration,
+	error,
+) {
+	integrations, err := s.ListIntegrations()
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to list integrations: %v", ErrInternal, err)
+	}
+
+	accessible := make([]Integration, 0, len(integrations))
+	for _, integration := range integrations {
+		if s.UserHasAnyRole(subject, integration.RequiredRoles) {
+			accessible = append(accessible, integration)
+		}
+	}
+
+	return accessible, nil
+}
+
 // ListUserGrants returns all integrations registered with the server and the
 // scopes the given subject has granted to each.
 func (s *Service) ListUserGrants(
@@ -88,7 +110,7 @@ func (s *Service) ListUserGrants(
 	[]UserGrant,
 	error,
 ) {
-	integrations, err := s.ListIntegrations()
+	integrations, err := s.IntegrationsAccessibleTo(subject)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to list integrations: %v", ErrInternal, err)
 	}
@@ -198,6 +220,10 @@ func (s *Service) ReviewAuthorizationRequest(
 
 	if integration.Name == InternalIntegrationName {
 		return nil, ErrInvalidIntegration
+	}
+
+	if !s.UserHasAnyRole(subject, integration.RequiredRoles) {
+		return nil, ErrAccessDenied
 	}
 
 	scopes, err := validateRequestedScopes(requestedScopes)
@@ -313,6 +339,10 @@ func (s *Service) RefreshAccessToken(
 		return "", "", ErrTokenNotFound
 	}
 
+	if err := s.validateRefreshTokenIntegrationAccess(token.Subject(), token.Audience()); err != nil {
+		return "", "", err
+	}
+
 	accessToken, err := s.tokenIssuer.IssueAccessToken(
 		token.Subject(),
 		token.Audience(),
@@ -339,4 +369,31 @@ func (s *Service) RefreshAccessToken(
 	}
 
 	return accessToken.Encoded(), newRefreshToken.Encoded(), nil
+}
+
+func (s *Service) validateRefreshTokenIntegrationAccess(
+	subject string,
+	audiences []string,
+) error {
+	for _, audience := range audiences {
+		if audience == s.consentAPIAudience {
+			continue
+		}
+
+		integration, err := s.store.GetIntegrationByAudience(audience)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return fmt.Errorf("%w: failed to get integration by audience: %v", ErrInternal, err)
+		}
+		if integration.Name == InternalIntegrationName {
+			continue
+		}
+		if !s.UserHasAnyRole(subject, integration.RequiredRoles) {
+			return ErrAccessDenied
+		}
+	}
+
+	return nil
 }

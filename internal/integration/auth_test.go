@@ -302,7 +302,7 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if _, err := svc.CreateUser(testUserHandle, testUserPassword, nil); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
-	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback", h.appServerURL(), "https://example-app.local/logo.png"); err != nil {
+	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback", h.appServerURL(), "https://example-app.local/logo.png", nil); err != nil {
 		t.Fatalf("CreateIntegration failed: %v", err)
 	}
 

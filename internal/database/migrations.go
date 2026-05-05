@@ -44,10 +44,18 @@ var migrations = []Migration{
 			CREATE TABLE IF NOT EXISTS integration (
 				name     TEXT PRIMARY KEY,
 				display  TEXT NOT NULL,
-				audience TEXT NOT NULL,
+				audience TEXT UNIQUE NOT NULL,
 				redirect TEXT NOT NULL,
 				homepage TEXT NOT NULL,
 				logo     TEXT NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS integration_roles (
+				integration_name TEXT NOT NULL,
+				role_name        TEXT NOT NULL,
+				PRIMARY KEY (integration_name, role_name),
+				FOREIGN KEY (integration_name) REFERENCES integration(name) ON DELETE CASCADE,
+				FOREIGN KEY (role_name)        REFERENCES role(name)
 			);
 
 			CREATE TABLE IF NOT EXISTS grant (

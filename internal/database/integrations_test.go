@@ -13,7 +13,7 @@ func TestInsertIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -23,13 +23,27 @@ func TestInsertIntegration_DuplicateName(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	if err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png"); err != nil {
+	if err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil); err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
 
-	err := store.InsertIntegration("svc-a", "Service A2", "aud-a", "https://svc-a.test/redirect", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A2", "aud-a", "https://svc-a.test/redirect", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err == nil {
 		t.Fatal("expected error for duplicate integration name")
+	}
+}
+
+func TestInsertIntegration_DuplicateAudience(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	if err := store.InsertIntegration("svc-a", "Service A", "shared-audience", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil); err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	err := store.InsertIntegration("svc-b", "Service B", "shared-audience", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil)
+	if err == nil {
+		t.Fatal("expected error for duplicate integration audience")
 	}
 }
 
@@ -77,7 +91,7 @@ func TestUpsertSystemIntegrations_MixedBatch(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	if err := store.InsertIntegration("svc-a", "Old", "old-aud", "https://old.test/callback", "https://old.test", "https://old.test/logo.png"); err != nil {
+	if err := store.InsertIntegration("svc-a", "Old", "old-aud", "https://old.test/callback", "https://old.test", "https://old.test/logo.png", nil); err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
 
@@ -124,7 +138,7 @@ func TestGetIntegration_Exists(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -151,6 +165,9 @@ func TestGetIntegration_Exists(t *testing.T) {
 	if record.Logo != "https://svc-a.test/logo.png" {
 		t.Errorf("Logo = %s, want https://svc-a.test/logo.png", record.Logo)
 	}
+	if record.RequiredRoles == nil {
+		t.Error("RequiredRoles should be an empty slice, got nil")
+	}
 }
 
 func TestGetIntegration_NotFound(t *testing.T) {
@@ -167,7 +184,7 @@ func TestUpdateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -214,11 +231,40 @@ func TestUpdateIntegration_NotFound(t *testing.T) {
 	}
 }
 
+func TestUpdateIntegration_RequiredRolesNotFound(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	roles := []string{"viewer"}
+	err := store.UpdateIntegration("missing", &service.IntegrationUpdate{RequiredRoles: &roles})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected sql.ErrNoRows, got %v", err)
+	}
+}
+
+func TestUpdateIntegration_DuplicateAudience(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	if err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil); err != nil {
+		t.Fatalf("InsertIntegration svc-a failed: %v", err)
+	}
+	if err := store.InsertIntegration("svc-b", "Service B", "aud-b", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil); err != nil {
+		t.Fatalf("InsertIntegration svc-b failed: %v", err)
+	}
+
+	audience := "aud-a"
+	err := store.UpdateIntegration("svc-b", &service.IntegrationUpdate{Audience: &audience})
+	if err == nil {
+		t.Fatal("expected error for duplicate integration audience")
+	}
+}
+
 func TestUpdateIntegration_HomepageLogo(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -246,7 +292,7 @@ func TestDeleteIntegration_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -282,7 +328,7 @@ func TestListIntegrations_ReturnsHomepageAndLogo(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png")
+	err := store.InsertIntegration("svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 	if err != nil {
 		t.Fatalf("InsertIntegration failed: %v", err)
 	}
@@ -338,7 +384,7 @@ func TestListIntegrations_Multiple(t *testing.T) {
 		},
 	}
 	for _, integration := range integrations {
-		if err := store.InsertIntegration(integration.Name, integration.Display, integration.Audience, integration.Redirect, integration.Homepage, integration.Logo); err != nil {
+		if err := store.InsertIntegration(integration.Name, integration.Display, integration.Audience, integration.Redirect, integration.Homepage, integration.Logo, nil); err != nil {
 			t.Fatalf("InsertIntegration failed: %v", err)
 		}
 	}
@@ -355,5 +401,195 @@ func TestListIntegrations_Multiple(t *testing.T) {
 	}
 	if records[1].Name != "svc-b" {
 		t.Errorf("expected svc-b second, got %s", records[1].Name)
+	}
+}
+
+func TestIntegrations_RequiredRoles(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertRole("superadmin", "Super Admin")
+	if err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+	err = store.InsertRole("editor", "Editor")
+	if err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+
+	err = store.InsertIntegration(
+		"role-app",
+		"Role App",
+		"role-audience",
+		"https://role.test/callback",
+		"https://role.test",
+		"https://role.test/logo.png",
+		[]string{"superadmin", "editor"},
+	)
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	got, err := store.GetIntegration("role-app")
+	if err != nil {
+		t.Fatalf("GetIntegration failed: %v", err)
+	}
+	if got.Name != "role-app" {
+		t.Errorf("Name = %s, want role-app", got.Name)
+	}
+	if len(got.RequiredRoles) != 2 {
+		t.Fatalf("RequiredRoles length = %d, want 2", len(got.RequiredRoles))
+	}
+	if got.RequiredRoles[0] != "editor" || got.RequiredRoles[1] != "superadmin" {
+		t.Errorf("RequiredRoles = %v, want [editor superadmin]", got.RequiredRoles)
+	}
+}
+
+func TestIntegrations_UpdateRequiredRoles(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertRole("viewer", "Viewer")
+	if err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+
+	err = store.InsertIntegration(
+		"role-app",
+		"Role App",
+		"role-audience",
+		"https://role.test/callback",
+		"https://role.test",
+		"https://role.test/logo.png",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	roles := []string{"viewer"}
+	err = store.UpdateIntegration("role-app", &service.IntegrationUpdate{RequiredRoles: &roles})
+	if err != nil {
+		t.Fatalf("UpdateIntegration failed: %v", err)
+	}
+
+	got, err := store.GetIntegration("role-app")
+	if err != nil {
+		t.Fatalf("GetIntegration failed: %v", err)
+	}
+	if len(got.RequiredRoles) != 1 || got.RequiredRoles[0] != "viewer" {
+		t.Errorf("RequiredRoles = %v, want [viewer]", got.RequiredRoles)
+	}
+}
+
+func TestIntegrations_ClearRequiredRoles(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertRole("superadmin", "Super Admin")
+	if err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+
+	err = store.InsertIntegration(
+		"role-app",
+		"Role App",
+		"role-audience",
+		"https://role.test/callback",
+		"https://role.test",
+		"https://role.test/logo.png",
+		[]string{"superadmin"},
+	)
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	got, err := store.GetIntegration("role-app")
+	if err != nil {
+		t.Fatalf("GetIntegration failed: %v", err)
+	}
+	if len(got.RequiredRoles) != 1 || got.RequiredRoles[0] != "superadmin" {
+		t.Fatalf("RequiredRoles = %v, want [superadmin]", got.RequiredRoles)
+	}
+
+	var emptyRoles []string
+	err = store.UpdateIntegration("role-app", &service.IntegrationUpdate{RequiredRoles: &emptyRoles})
+	if err != nil {
+		t.Fatalf("UpdateIntegration failed: %v", err)
+	}
+
+	got, err = store.GetIntegration("role-app")
+	if err != nil {
+		t.Fatalf("GetIntegration failed: %v", err)
+	}
+	if len(got.RequiredRoles) != 0 {
+		t.Errorf("RequiredRoles = %v, want []", got.RequiredRoles)
+	}
+}
+
+func TestIntegrations_ListRequiredRoles(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	err := store.InsertRole("superadmin", "Super Admin")
+	if err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+
+	err = store.InsertIntegration(
+		"role-app",
+		"Role App",
+		"role-audience",
+		"https://role.test/callback",
+		"https://role.test",
+		"https://role.test/logo.png",
+		[]string{"superadmin"},
+	)
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	records, err := store.ListIntegrations()
+	if err != nil {
+		t.Fatalf("ListIntegrations failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 integration, got %d", len(records))
+	}
+	if len(records[0].RequiredRoles) != 1 || records[0].RequiredRoles[0] != "superadmin" {
+		t.Errorf("RequiredRoles = %v, want [superadmin]", records[0].RequiredRoles)
+	}
+}
+
+func TestGetIntegrationByAudience_RequiredRoles(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	if err := store.InsertRole("editor", "Editor"); err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+
+	err := store.InsertIntegration(
+		"role-app",
+		"Role App",
+		"role-audience",
+		"https://role.test/callback",
+		"https://role.test",
+		"https://role.test/logo.png",
+		[]string{"editor"},
+	)
+	if err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	got, err := store.GetIntegrationByAudience("role-audience")
+	if err != nil {
+		t.Fatalf("GetIntegrationByAudience failed: %v", err)
+	}
+	if got.Name != "role-app" {
+		t.Fatalf("Name = %s, want role-app", got.Name)
+	}
+	if len(got.RequiredRoles) != 1 || got.RequiredRoles[0] != "editor" {
+		t.Fatalf("RequiredRoles = %v, want [editor]", got.RequiredRoles)
 	}
 }

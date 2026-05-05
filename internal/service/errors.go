@@ -32,4 +32,5 @@ var (
 	ErrRoleProtected          = errors.New("role is protected")
 	ErrRoleInUse              = errors.New("role is in use")
 	ErrInvalidUpdate          = errors.New("invalid update")
+	ErrAccessDenied           = errors.New("access denied: insufficient role for integration")
 )

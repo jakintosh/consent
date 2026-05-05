@@ -233,6 +233,27 @@ func TestDeleteRole_InUse(t *testing.T) {
 	}
 }
 
+func TestDeleteRole_RequiredByIntegration(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "editor", "Editor")
+	env.CreateTestIntegration(
+		t,
+		"editor-app",
+		"Editor App",
+		"editor-audience",
+		"https://editor.test/callback",
+		"https://editor.test",
+		"https://editor.test/logo.png",
+		[]string{"editor"},
+	)
+
+	err := env.Service.DeleteRole("editor")
+	if !errors.Is(err, service.ErrRoleInUse) {
+		t.Fatalf("expected ErrRoleInUse, got %v", err)
+	}
+}
+
 func TestDeleteRole_EmptyName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)

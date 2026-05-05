@@ -8,32 +8,35 @@ import (
 )
 
 type Integration struct {
-	Name     string `json:"name"`
-	Display  string `json:"display"`
-	Audience string `json:"audience"`
-	Redirect string `json:"redirect"`
-	Homepage string `json:"homepage"`
-	Logo     string `json:"logo"`
+	Name          string   `json:"name"`
+	Display       string   `json:"display"`
+	Audience      string   `json:"audience"`
+	Redirect      string   `json:"redirect"`
+	Homepage      string   `json:"homepage"`
+	Logo          string   `json:"logo"`
+	RequiredRoles []string `json:"required_roles"`
 }
 
 type UpdateIntegrationRequest struct {
-	Display  *string `json:"display,omitempty"`
-	Audience *string `json:"audience,omitempty"`
-	Redirect *string `json:"redirect,omitempty"`
-	Homepage *string `json:"homepage,omitempty"`
-	Logo     *string `json:"logo,omitempty"`
+	Display       *string   `json:"display,omitempty"`
+	Audience      *string   `json:"audience,omitempty"`
+	Redirect      *string   `json:"redirect,omitempty"`
+	Homepage      *string   `json:"homepage,omitempty"`
+	Logo          *string   `json:"logo,omitempty"`
+	RequiredRoles *[]string `json:"required_roles,omitempty"`
 }
 
 func integrationFromDomain(
 	integration service.Integration,
 ) Integration {
 	return Integration{
-		Name:     integration.Name,
-		Display:  integration.Display,
-		Audience: integration.Audience,
-		Redirect: integration.Redirect,
-		Homepage: integration.Homepage,
-		Logo:     integration.Logo,
+		Name:          integration.Name,
+		Display:       integration.Display,
+		Audience:      integration.Audience,
+		Redirect:      integration.Redirect,
+		Homepage:      integration.Homepage,
+		Logo:          integration.Logo,
+		RequiredRoles: integration.RequiredRoles,
 	}
 }
 
@@ -49,11 +52,12 @@ func integrationsFromDomain(
 
 func (req UpdateIntegrationRequest) intoDomain() service.IntegrationUpdate {
 	return service.IntegrationUpdate{
-		Display:  req.Display,
-		Audience: req.Audience,
-		Redirect: req.Redirect,
-		Homepage: req.Homepage,
-		Logo:     req.Logo,
+		Display:       req.Display,
+		Audience:      req.Audience,
+		Redirect:      req.Redirect,
+		Homepage:      req.Homepage,
+		Logo:          req.Logo,
+		RequiredRoles: req.RequiredRoles,
 	}
 }
 
@@ -87,6 +91,7 @@ func (a *API) handleCreateIntegration(
 		req.Redirect,
 		req.Homepage,
 		req.Logo,
+		req.RequiredRoles,
 	)
 	if err != nil {
 		wire.WriteError(w, httpStatusFromError(err), err.Error())

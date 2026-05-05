@@ -171,7 +171,7 @@ func TestReviewAuthorizationRequest_MissingScopes(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -206,7 +206,7 @@ func TestReviewAuthorizationRequest_AuthorizedWhenAllScopesGranted(t *testing.T)
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -232,7 +232,7 @@ func TestFinalizeAuthorization_RedirectIncludesAuthCodeStateAndPreservesQuery(t 
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1", "https://app.test", "https://app.test/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -274,7 +274,7 @@ func TestFinalizeAuthorization_StoresAuthCodeAndGrantsMissingScopes(t *testing.T
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -314,7 +314,7 @@ func TestFinalizeAuthorization_OmitsEmptyState(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -554,6 +554,53 @@ func TestRefreshAccessToken_CanBeRefreshedAgain(t *testing.T) {
 	}
 }
 
+func TestRefreshAccessToken_AccessDeniedWhenRequiredRoleLost(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "admin-app-user", "Admin App User")
+	env.CreateTestIntegration(
+		t,
+		"admin-app",
+		"Admin App",
+		"admin-audience",
+		"https://admin.test/callback",
+		"https://admin.test",
+		"https://admin.test/logo.png",
+		[]string{"admin-app-user"},
+	)
+	user, err := env.Service.CreateUser("alice", "password", []string{"admin-app-user"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	roles := []string{}
+	if _, err := env.Service.UpdateUser(user.Subject, &service.UserUpdate{Roles: &roles}); err != nil {
+		t.Fatalf("UpdateUser failed: %v", err)
+	}
+	token := env.StoreTestRefreshToken(t, user.Subject, []string{"test.consent.local", "admin-audience"})
+
+	_, _, err = env.Service.RefreshAccessToken(token.Encoded())
+	if !errors.Is(err, service.ErrAccessDenied) {
+		t.Fatalf("expected ErrAccessDenied, got %v", err)
+	}
+
+	_, err = env.DB.GetRefreshTokenOwner(token.Encoded())
+	if err == nil {
+		t.Fatal("expected denied refresh token to be consumed")
+	}
+}
+
+func TestRefreshAccessToken_AllowsUnknownAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.RegisterTestUser(t, "alice", "password")
+	token := env.StoreTestRefreshToken(t, "alice", []string{"external-audience"})
+
+	_, _, err := env.Service.RefreshAccessToken(token.Encoded())
+	if err != nil {
+		t.Fatalf("RefreshAccessToken failed: %v", err)
+	}
+}
+
 func TestRevokeRefreshToken_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -654,5 +701,113 @@ func assertStringsEqual(
 	t.Helper()
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func TestReviewAuthorizationRequest_AccessDenied(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "editor", "Editor")
+	env.CreateTestRole(t, "superadmin", "Admin")
+
+	// Create integration requiring "superadmin" role
+	err := env.Service.CreateIntegration(
+		"admin-app",
+		"Admin App",
+		"admin-audience",
+		"https://admin.test/callback",
+		"https://admin.test",
+		"https://admin.test/logo.png",
+		[]string{"superadmin"},
+	)
+	if err != nil {
+		t.Fatalf("CreateIntegration failed: %v", err)
+	}
+
+	// Create user with "editor" role (not "superadmin")
+	editorUser, err := env.Service.CreateUser("editor-user", "password", []string{"editor"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Review should fail with ErrAccessDenied
+	_, err = env.Service.ReviewAuthorizationRequest(
+		editorUser.Subject,
+		"admin-app",
+		[]string{service.ScopeIdentity},
+		"state123",
+	)
+	if !errors.Is(err, service.ErrAccessDenied) {
+		t.Fatalf("expected ErrAccessDenied, got %v", err)
+	}
+}
+
+func TestReviewAuthorizationRequest_AccessAllowed(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "superadmin", "Admin")
+
+	// Create integration requiring "superadmin" role
+	err := env.Service.CreateIntegration(
+		"admin-app",
+		"Admin App",
+		"admin-audience",
+		"https://admin.test/callback",
+		"https://admin.test",
+		"https://admin.test/logo.png",
+		[]string{"superadmin"},
+	)
+	if err != nil {
+		t.Fatalf("CreateIntegration failed: %v", err)
+	}
+
+	// Create user with "superadmin" role
+	adminUser, err := env.Service.CreateUser("admin-user", "password", []string{"superadmin"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Review should succeed
+	review, err := env.Service.ReviewAuthorizationRequest(
+		adminUser.Subject,
+		"admin-app",
+		[]string{service.ScopeIdentity},
+		"state123",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+	if review == nil {
+		t.Fatal("expected non-nil review")
+	}
+	if review.Request.Integration.Name != "admin-app" {
+		t.Errorf("Integration.Name = %s, want admin-app", review.Request.Integration.Name)
+	}
+}
+
+func TestReviewAuthorizationRequest_NoRequiredRoles(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	// Integration with no required roles should be accessible to any user
+	env.CreateTestIntegration(t, "open-app", "Open App", "open-audience", "https://open.test/callback", "https://open.test", "https://open.test/logo.png", nil)
+
+	// User without any roles should still be able to review
+	noRoleUser, err := env.Service.CreateUser("no-role-user", "password", nil)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	review, err := env.Service.ReviewAuthorizationRequest(
+		noRoleUser.Subject,
+		"open-app",
+		[]string{service.ScopeIdentity},
+		"state123",
+	)
+	if err != nil {
+		t.Fatalf("ReviewAuthorizationRequest failed: %v", err)
+	}
+	if review == nil {
+		t.Fatal("expected non-nil review")
 	}
 }

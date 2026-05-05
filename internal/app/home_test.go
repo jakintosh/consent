@@ -95,7 +95,7 @@ func TestHome_AuthenticatedShowsIntegrations(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-app", "Test App", "test-audience", "https://test.test/callback", "https://test-app.local", "https://test-app.local/logo.png")
+	env.CreateTestIntegration(t, "test-app", "Test App", "test-audience", "https://test.test/callback", "https://test-app.local", "https://test-app.local/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -158,7 +158,7 @@ func TestHome_AuthenticatedShowsPartialGrants(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "partial-app", "Partial App", "partial-audience", "https://partial.test/callback", "https://partial-app.local", "https://partial-app.local/logo.png")
+	env.CreateTestIntegration(t, "partial-app", "Partial App", "partial-audience", "https://partial.test/callback", "https://partial-app.local", "https://partial-app.local/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)

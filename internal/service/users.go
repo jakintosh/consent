@@ -174,6 +174,36 @@ func (s *Service) UserHasRole(
 	return slices.Contains(user.Roles, role)
 }
 
+// UserHasAnyRole returns true if the user has at least one of the given roles,
+// or if no roles are passed.
+func (s *Service) UserHasAnyRole(
+	subject string,
+	roles []string,
+) bool {
+
+	// must have subject
+	if subject == "" {
+		return false
+	}
+
+	// but if roles are empty, is true
+	if len(roles) == 0 {
+		return true
+	}
+
+	user, err := s.store.GetUserBySubject(subject)
+	if err != nil {
+		return false
+	}
+
+	for _, role := range roles {
+		if slices.Contains(user.Roles, role) {
+			return true
+		}
+	}
+	return false
+}
+
 func isUniqueConstraintError(err error) bool {
 	if err == nil {
 		return false

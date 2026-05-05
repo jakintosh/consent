@@ -104,6 +104,11 @@ var integrationsCreateCmd = &args.Command{
 			Type: args.OptionTypeParameter,
 			Help: "integration logo URL",
 		},
+		{
+			Long: "required-roles",
+			Type: args.OptionTypeArray,
+			Help: "required role to access this integration (can be specified multiple times)",
+		},
 	},
 	Handler: func(i *args.Input) error {
 		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
@@ -121,17 +126,19 @@ var integrationsCreateCmd = &args.Command{
 		redirect := i.GetParameter("redirect")
 		homepage := i.GetParameter("homepage")
 		logo := i.GetParameter("logo")
+		requiredRoles := i.GetArray("required-roles")
 		if display == nil || audience == nil || redirect == nil || homepage == nil || logo == nil {
 			return fmt.Errorf("--display, --audience, --redirect, --homepage, and --logo are required")
 		}
 
 		payload := api.Integration{
-			Name:     name,
-			Display:  *display,
-			Audience: *audience,
-			Redirect: *redirect,
-			Homepage: *homepage,
-			Logo:     *logo,
+			Name:          name,
+			Display:       *display,
+			Audience:      *audience,
+			Redirect:      *redirect,
+			Homepage:      *homepage,
+			Logo:          *logo,
+			RequiredRoles: requiredRoles,
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
@@ -182,6 +189,16 @@ var integrationsUpdateCmd = &args.Command{
 			Type: args.OptionTypeParameter,
 			Help: "integration logo URL",
 		},
+		{
+			Long: "required-roles",
+			Type: args.OptionTypeArray,
+			Help: "required role to access this integration (can be specified multiple times)",
+		},
+		{
+			Long: "clear-required-roles",
+			Type: args.OptionTypeFlag,
+			Help: "clear all required roles for this integration",
+		},
 	},
 	Handler: func(i *args.Input) error {
 		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
@@ -199,8 +216,14 @@ var integrationsUpdateCmd = &args.Command{
 		redirect := i.GetParameter("redirect")
 		homepage := i.GetParameter("homepage")
 		logo := i.GetParameter("logo")
-		if display == nil && audience == nil && redirect == nil && homepage == nil && logo == nil {
-			return fmt.Errorf("at least one of --display, --audience, --redirect, --homepage, or --logo is required")
+		requiredRoles := i.GetArray("required-roles")
+		clearRequiredRoles := i.GetFlag("clear-required-roles")
+		hasRequiredRoles := len(requiredRoles) > 0
+		if hasRequiredRoles && clearRequiredRoles {
+			return fmt.Errorf("--required-roles and --clear-required-roles cannot be used together")
+		}
+		if display == nil && audience == nil && redirect == nil && homepage == nil && logo == nil && !hasRequiredRoles && !clearRequiredRoles {
+			return fmt.Errorf("at least one of --display, --audience, --redirect, --homepage, --logo, --required-roles, or --clear-required-roles is required")
 		}
 
 		payload := api.UpdateIntegrationRequest{
@@ -209,6 +232,12 @@ var integrationsUpdateCmd = &args.Command{
 			Redirect: redirect,
 			Homepage: homepage,
 			Logo:     logo,
+		}
+		if hasRequiredRoles {
+			payload.RequiredRoles = &requiredRoles
+		} else if clearRequiredRoles {
+			emptyRoles := []string{}
+			payload.RequiredRoles = &emptyRoles
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {

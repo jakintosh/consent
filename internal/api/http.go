@@ -39,7 +39,8 @@ func httpStatusFromError(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, service.ErrIntegrationProtected),
 		errors.Is(err, service.ErrRoleProtected),
-		errors.Is(err, service.ErrInsufficientScope):
+		errors.Is(err, service.ErrInsufficientScope),
+		errors.Is(err, service.ErrAccessDenied):
 		return http.StatusForbidden
 	case errors.Is(err, service.ErrInvalidRedirect),
 		errors.Is(err, service.ErrInvalidIntegration):

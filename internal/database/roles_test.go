@@ -143,6 +143,39 @@ func TestDeleteRole_NotFound(t *testing.T) {
 	}
 }
 
+func TestDeleteRole_RequiredByIntegration(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	if err := store.InsertRole("editor", "Editor"); err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
+	}
+	if err := store.InsertIntegration(
+		"editor-app",
+		"Editor App",
+		"editor-audience",
+		"https://editor.test/callback",
+		"https://editor.test",
+		"https://editor.test/logo.png",
+		[]string{"editor"},
+	); err != nil {
+		t.Fatalf("InsertIntegration failed: %v", err)
+	}
+
+	deleted, err := store.DeleteRole("editor")
+	if err == nil {
+		t.Fatal("expected DeleteRole to fail")
+	}
+	if deleted {
+		t.Fatal("expected deleted = false")
+	}
+
+	_, err = store.GetRole("editor")
+	if err != nil {
+		t.Fatalf("role should still exist after failed delete: %v", err)
+	}
+}
+
 func TestInsertUser_RolesRoundTrip(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)

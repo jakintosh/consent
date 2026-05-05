@@ -149,7 +149,7 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback", "http://test-integration.local", "http://test-integration.local/logo.png")
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback", "http://test-integration.local", "http://test-integration.local/logo.png", nil)
 	return env
 }
 
@@ -168,9 +168,10 @@ func (env *TestEnv) CreateTestIntegration(
 	redirect string,
 	homepage string,
 	logo string,
+	requiredRoles []string,
 ) {
 	t.Helper()
-	if err := env.Service.CreateIntegration(name, display, audience, redirect, homepage, logo); err != nil {
+	if err := env.Service.CreateIntegration(name, display, audience, redirect, homepage, logo, requiredRoles); err != nil {
 		t.Fatalf("failed to create test integration: %v", err)
 	}
 }
