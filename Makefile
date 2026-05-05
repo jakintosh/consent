@@ -33,6 +33,8 @@ MOCK_CLIENT_3_INTEGRATION?=mock3
 
 MOCK_DEMO_USER?=alice
 MOCK_DEMO_PASSWORD?=alice123
+MOCK_SECOND_USER?=bob
+MOCK_SECOND_PASSWORD?=bob123
 
 .PHONY: build init run-local mock-deployment-init mock-deployment test
 
@@ -100,6 +102,9 @@ mock-deployment-init: build
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--password "$(MOCK_DEMO_PASSWORD)" \
 			--role admin; \
+		$(CONSENT_BIN) api users create "$(MOCK_SECOND_USER)" \
+			--config-dir "$(MOCK_CONFIG_DIR)" \
+			--password "$(MOCK_SECOND_PASSWORD)"; \
 		register_integration() { \
 			$(CONSENT_BIN) api integrations create "$$1" \
 				--config-dir "$(MOCK_CONFIG_DIR)" \
@@ -107,11 +112,12 @@ mock-deployment-init: build
 				--audience "$$3:$$4" \
 				--redirect "http://$$3:$$4/auth/callback" \
 				--homepage "http://$$3:$$4" \
-				--logo "http://$$3:$$4/logo.png"; \
+				--logo "$(MOCK_CONSENT_URL)/assets/default-integration-logo.png" \
+				$$5; \
 		}; \
-		register_integration "$(MOCK_CLIENT_1_INTEGRATION)" "Mock Client 1" "$(MOCK_CLIENT_1_HOST)" "$(MOCK_CLIENT_1_PORT)"; \
-		register_integration "$(MOCK_CLIENT_2_INTEGRATION)" "Mock Client 2" "$(MOCK_CLIENT_2_HOST)" "$(MOCK_CLIENT_2_PORT)"; \
-		register_integration "$(MOCK_CLIENT_3_INTEGRATION)" "Mock Client 3" "$(MOCK_CLIENT_3_HOST)" "$(MOCK_CLIENT_3_PORT)"; \
+		register_integration "$(MOCK_CLIENT_1_INTEGRATION)" "Mock Client 1" "$(MOCK_CLIENT_1_HOST)" "$(MOCK_CLIENT_1_PORT)" ""; \
+		register_integration "$(MOCK_CLIENT_2_INTEGRATION)" "Mock Client 2" "$(MOCK_CLIENT_2_HOST)" "$(MOCK_CLIENT_2_PORT)" "--required-roles admin"; \
+		register_integration "$(MOCK_CLIENT_3_INTEGRATION)" "Mock Client 3" "$(MOCK_CLIENT_3_HOST)" "$(MOCK_CLIENT_3_PORT)" ""; \
 		kill $$server_pid; \
 		wait $$server_pid || true; \
 		trap - EXIT INT TERM
@@ -123,7 +129,8 @@ mock-deployment: mock-deployment-init
 		"Mock 1:  http://$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
 		"Mock 2:  http://$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
 		"Mock 3:  http://$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \
-		"Demo user: $(MOCK_DEMO_USER) / $(MOCK_DEMO_PASSWORD)"
+		"Admin demo user: $(MOCK_DEMO_USER) / $(MOCK_DEMO_PASSWORD)" \
+		"Regular demo user: $(MOCK_SECOND_USER) / $(MOCK_SECOND_PASSWORD)"
 	@set -eu; \
 		$(CONSENT_BIN) serve \
 			--config-dir "$(MOCK_CONFIG_DIR)" \

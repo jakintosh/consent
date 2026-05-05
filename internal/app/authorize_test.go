@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 	consenttesting "git.sr.ht/~jakintosh/consent/pkg/testing"
@@ -133,6 +134,49 @@ func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	}
 }
 
+func TestAuthorize_AuthenticatedAccessDeniedRendersForbiddenStatusPage(t *testing.T) {
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "editor", "Editor")
+	env.CreateTestRole(t, "admin-app-user", "Admin App User")
+	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin-audience", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
+	user, err := env.Service.CreateUser("alice", "password", []string{"editor"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
+
+	appServer, err := New(Options{
+		Service: env.Service,
+		Auth: AuthConfig{
+			Verifier:  tv,
+			LoginURL:  "/login",
+			LogoutURL: "/logout",
+			Routes:    map[string]http.HandlerFunc{},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	req, err := tv.AuthenticatedRequest(http.MethodGet, "/authorize?integration=admin-app&scope=identity", user.Subject)
+	if err != nil {
+		t.Fatalf("AuthenticatedRequest failed: %v", err)
+	}
+	rr := httptest.NewRecorder()
+	appServer.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Access Denied") {
+		t.Fatalf("expected access denied title, got: %s", body)
+	}
+	if !strings.Contains(body, "does not have access to authorize this integration") {
+		t.Fatalf("expected access denied message, got: %s", body)
+	}
+}
+
 func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
@@ -175,6 +219,54 @@ func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "This approval form is no longer valid") {
 		t.Fatalf("expected csrf status page content")
+	}
+}
+
+func TestAuthorizeSubmit_AccessDeniedRendersForbiddenStatusPage(t *testing.T) {
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestRole(t, "editor", "Editor")
+	env.CreateTestRole(t, "admin-app-user", "Admin App User")
+	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin-audience", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
+	user, err := env.Service.CreateUser("alice", "password", []string{"editor"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
+	accessToken, err := tv.TestEnv().IssueAccessToken(user.Subject, time.Minute)
+	if err != nil {
+		t.Fatalf("IssueAccessToken failed: %v", err)
+	}
+	refreshToken, err := tv.TestEnv().IssueRefreshToken(user.Subject, time.Minute)
+	if err != nil {
+		t.Fatalf("IssueRefreshToken failed: %v", err)
+	}
+
+	appServer, err := New(Options{
+		Service: env.Service,
+		Auth: AuthConfig{
+			Verifier:  tv,
+			LoginURL:  "/login",
+			LogoutURL: "/logout",
+			Routes:    map[string]http.HandlerFunc{},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	body := strings.NewReader("integration=admin-app&scope=identity&action=approve&csrf=" + refreshToken.Secret())
+	req := httptest.NewRequest(http.MethodPost, "/authorize", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tv.TestEnv().AddAuthCookies(req, accessToken, refreshToken)
+	rr := httptest.NewRecorder()
+
+	appServer.Router().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(rr.Body.String(), "does not have access to authorize this integration") {
+		t.Fatalf("expected access denied status page content")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 const (
 	InternalIntegrationName    = "consent"
 	internalIntegrationDisplay = "Consent"
+	DefaultIntegrationLogoPath = "/assets/default-integration-logo.png"
 )
 
 type Integration struct {
@@ -56,7 +57,7 @@ func BuildInternalIntegration(
 		Audience:      baseUrl.Host,
 		Redirect:      redirectURL.String(),
 		Homepage:      publicUrl,
-		Logo:          "",
+		Logo:          strings.TrimRight(publicUrl, "/") + DefaultIntegrationLogoPath,
 		RequiredRoles: []string{},
 	}, nil
 }

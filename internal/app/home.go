@@ -10,12 +10,27 @@ import (
 )
 
 type homePageData struct {
-	Authenticated    bool
-	Handle           string
-	Integrations     []service.UserGrant
-	ScopeDefinitions []service.ScopeDefinition
-	LoginURL         string
-	LogoutURL        string
+	Authenticated bool
+	Handle        string
+	Roles         []homeRole
+	Integrations  []homeIntegration
+	LoginURL      string
+	LogoutURL     string
+}
+
+type homeRole struct {
+	Name    string
+	Display string
+}
+
+type homeIntegration struct {
+	Name            string
+	Display         string
+	Homepage        string
+	Logo            string
+	Status          string
+	GrantedScopes   []service.ScopeDefinition
+	UngrantedScopes []service.ScopeDefinition
 }
 
 func (a *App) handleGetHome(
@@ -43,20 +58,22 @@ func (a *App) handleGetHome(
 			logAppErr(r, "failed to get user: "+err.Error())
 		} else if user != nil {
 			data.Handle = user.Handle
+			data.Roles = a.homeRoles(r, user.Roles)
 		}
 
 		grants, err := a.service.ListUserGrants(accessToken.Subject())
 		if err != nil {
 			logAppErr(r, "failed to list user grants: "+err.Error())
 		}
+		scopeDefinitions := allHomeScopeDefinitions()
 
 		data = homePageData{
-			Authenticated:    true,
-			Handle:           data.Handle,
-			Integrations:     grants,
-			ScopeDefinitions: service.ScopeDefinitions([]string{"identity", "profile"}),
-			LoginURL:         a.auth.LoginURL,
-			LogoutURL:        logoutUrl,
+			Authenticated: true,
+			Handle:        data.Handle,
+			Roles:         data.Roles,
+			Integrations:  buildHomeIntegrations(grants, scopeDefinitions),
+			LoginURL:      a.auth.LoginURL,
+			LogoutURL:     logoutUrl,
 		}
 	} else {
 		data = homePageData{
@@ -68,6 +85,82 @@ func (a *App) handleGetHome(
 	// render page
 	a.returnTemplate(w, r, http.StatusOK, "home.html", data)
 	return nil
+}
+
+func (a *App) homeRoles(
+	r *http.Request,
+	roleNames []string,
+) []homeRole {
+	roles := make([]homeRole, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		role := homeRole{Name: roleName, Display: roleName}
+		if definition, err := a.service.GetRole(roleName); err != nil {
+			logAppErr(r, "failed to get role "+roleName+": "+err.Error())
+		} else if definition.Display != "" {
+			role.Display = definition.Display
+		}
+		roles = append(roles, role)
+	}
+	return roles
+}
+
+func buildHomeIntegrations(
+	grants []service.UserGrant,
+	scopeDefinitions []service.ScopeDefinition,
+) []homeIntegration {
+	integrations := make([]homeIntegration, 0, len(grants))
+	for _, grant := range grants {
+		logo := grant.Logo
+		if logo == "" {
+			logo = service.DefaultIntegrationLogoPath
+		}
+
+		grantedScopes := service.ScopeDefinitions(grant.GrantedScopes)
+		ungrantedScopes := ungrantedHomeScopes(scopeDefinitions, grant.GrantedScopes)
+
+		status := "No scopes granted"
+		if len(grantedScopes) == len(scopeDefinitions) {
+			status = "All scopes granted"
+		} else if len(grantedScopes) > 0 {
+			status = "Some scopes granted"
+		}
+
+		integrations = append(integrations, homeIntegration{
+			Name:            grant.Name,
+			Display:         grant.Display,
+			Homepage:        grant.Homepage,
+			Logo:            logo,
+			Status:          status,
+			GrantedScopes:   grantedScopes,
+			UngrantedScopes: ungrantedScopes,
+		})
+	}
+	return integrations
+}
+
+func ungrantedHomeScopes(
+	scopeDefinitions []service.ScopeDefinition,
+	grantedScopeNames []string,
+) []service.ScopeDefinition {
+	granted := make(map[string]struct{}, len(grantedScopeNames))
+	for _, name := range grantedScopeNames {
+		granted[name] = struct{}{}
+	}
+
+	ungranted := make([]service.ScopeDefinition, 0, len(scopeDefinitions))
+	for _, definition := range scopeDefinitions {
+		if _, ok := granted[definition.Name]; !ok {
+			ungranted = append(ungranted, definition)
+		}
+	}
+	return ungranted
+}
+
+func allHomeScopeDefinitions() []service.ScopeDefinition {
+	return service.ScopeDefinitions([]string{
+		service.ScopeIdentity,
+		service.ScopeProfile,
+	})
 }
 
 func buildLogoutURL(

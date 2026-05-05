@@ -107,10 +107,6 @@ var usersCreateCmd = &args.Command{
 		}
 
 		roles := i.GetArray("role")
-		if len(roles) == 0 {
-			return fmt.Errorf("--role is required")
-		}
-
 		payload := api.CreateUserRequest{
 			Handle:   handle,
 			Password: *password,

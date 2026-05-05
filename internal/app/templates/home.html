@@ -1,59 +1,119 @@
 {{ define "style" }}
-.home .actions { margin-block-start: 1.25rem; }
-.home .integrations-list { margin-block-start: 1.5rem; }
-.home .integration-item + .integration-item { margin-block-start: 0.5rem; }
-.home .integration-item details { padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
-.home .integration-item details:hover { background: var(--color-bg-notice); }
-.home .integration-item summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+.home .account-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.home .account-copy h2 { margin-block-end: 0.3rem; }
+.home .account-copy p { margin: 0; color: var(--color-text-muted); }
+.home .role-list { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-block-start: 0.85rem; }
+.home .role-chip { display: inline-flex; align-items: center; padding: 0.32rem 0.55rem; border: 1px solid var(--color-border-light); border-radius: 999px; background: white; color: var(--color-text); font-size: 0.86rem; font-weight: 600; }
+.home .integration-section { margin-block-start: 1.75rem; }
+.home .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-block-end: 0.75rem; }
+.home .section-heading h3 { margin: 0; color: var(--color-text); font-size: 1.05rem; }
+.home .integration-count { color: var(--color-text-muted); font-size: 0.9rem; white-space: nowrap; }
+.home .integrations-list { display: grid; gap: 0.75rem; }
+.home .integration-item { border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: white; overflow: hidden; }
+.home .integration-item details { padding: 0; }
+.home .integration-item summary { cursor: pointer; list-style: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.9rem; }
 .home .integration-item summary::-webkit-details-marker { display: none; }
-.home .integration-item .indicator { font-size: 0.85rem; width: 1.25rem; text-align: center; flex-shrink: 0; }
-.home .integration-item .indicator.all-granted { color: var(--color-primary); }
-.home .integration-item .indicator.partial { color: var(--color-text-muted); }
-.home .integration-item .integration-header { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
-.home .integration-item .integration-logo { width: 1.25rem; height: 1.25rem; border-radius: var(--radius-sm); flex-shrink: 0; }
-.home .integration-item .integration-name { font-weight: 600; }
-.home .integration-item .visit-link { font-size: 0.85rem; color: var(--color-text-muted); text-decoration: none; flex-shrink: 0; }
-.home .integration-item .visit-link:hover { color: var(--color-primary); }
-.home .integration-item .scope-list { margin-block-start: 0.5rem; padding-inline-start: 2rem; }
-.home .integration-item .scope-list li { margin: 0.25rem 0; font-size: 0.92rem; }
+.home .integration-logo { width: 2.5rem; height: 2.5rem; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--color-border-light); background: var(--color-bg-notice); }
+.home .integration-header { min-width: 0; }
+.home .integration-name { display: block; font-weight: 700; overflow-wrap: anywhere; }
+.home .integration-status { display: inline-flex; margin-block-start: 0.22rem; color: var(--color-text-muted); font-size: 0.88rem; }
+.home .integration-actions { display: flex; align-items: center; gap: 0.5rem; }
+.home .visit-link { font-size: 0.85rem; color: var(--color-text-muted); text-decoration: none; flex-shrink: 0; }
+.home .visit-link:hover { color: var(--color-primary); }
+.home .expand-indicator { color: var(--color-text-muted); font-size: 0.85rem; }
+.home .scope-details { border-block-start: 1px solid var(--color-border-light); padding: 0.85rem 0.9rem 1rem; display: grid; gap: 0.8rem; }
+.home .scope-group-title { margin: 0 0 0.45rem; color: var(--color-text-muted); font-size: 0.84rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.home .scope-list { display: grid; gap: 0.45rem; padding: 0; list-style: none; }
+.home .scope-list li { display: grid; gap: 0.12rem; padding-inline-start: 0.85rem; border-inline-start: 3px solid var(--color-border-light); }
+.home .scope-list.granted li { border-inline-start-color: var(--color-primary); }
+.home .scope-list strong { font-size: 0.93rem; }
+.home .scope-list span { color: var(--color-text-muted); font-size: 0.88rem; line-height: 1.4; }
+.home .empty-state { margin-block-start: 0.75rem; }
+@media screen and (max-width: 560px) {
+    .home .integration-item summary { grid-template-columns: auto minmax(0, 1fr); }
+    .home .integration-actions { grid-column: 1 / -1; justify-content: space-between; }
+}
 {{ end }}
 {{ define "content" }}
 <section class="page home stack">
     <p class="eyebrow">Consent</p>
     {{ if .Authenticated }}
-    <h2>Hello, {{ .Handle }}</h2>
-    <p>
-        You are logged in and ready to approve access requests for connected
-        integrations.
-    </p>
-    {{ if .Integrations }}
-    <div class="integrations-list">
+    <div class="account-summary">
+        <div class="account-copy">
+            <h2>Hello, {{ .Handle }}</h2>
+            <p>You are signed in as <strong>{{ .Handle }}</strong>.</p>
+            <div class="role-list" aria-label="Your roles">
+                {{ if .Roles }}
+                {{ range .Roles }}
+                <span class="role-chip" title="{{ .Name }}">{{ .Display }}</span>
+                {{ end }}
+                {{ else }}
+                <span class="role-chip">No roles assigned</span>
+                {{ end }}
+            </div>
+        </div>
+    </div>
+    <div class="integration-section">
+        <div class="section-heading">
+            <h3>Available integrations</h3>
+            <span class="integration-count">{{ len .Integrations }} available</span>
+        </div>
+        {{ if .Integrations }}
+        <div class="integrations-list">
         {{ range .Integrations }}
         <div class="integration-item">
             <details>
                 <summary>
-                    <span class="indicator {{ if gt (len .GrantedScopes) 0 }}{{ if eq (len .GrantedScopes) (len $.ScopeDefinitions) }}all-granted{{ else }}partial{{ end }}{{ end }}">
-                        {{ if eq (len .GrantedScopes) (len $.ScopeDefinitions) }}✓{{ else if gt (len .GrantedScopes) 0 }}•{{ else }}—{{ end }}
-                    </span>
+                    <img class="integration-logo" src="{{ .Logo }}" alt="">
                     <span class="integration-header">
-                        {{ if .Logo }}<img class="integration-logo" src="{{ .Logo }}" alt=""> {{ end }}
                         <span class="integration-name">{{ .Display }}</span>
+                        <span class="integration-status">{{ .Status }}</span>
                     </span>
-                    {{ if .Homepage }}<a class="visit-link" href="{{ .Homepage }}" target="_blank" rel="noopener noreferrer">Visit</a>{{ end }}
+                    <span class="integration-actions">
+                        {{ if .Homepage }}<a class="visit-link" href="{{ .Homepage }}" target="_blank" rel="noopener noreferrer">Visit</a>{{ end }}
+                        <span class="expand-indicator" aria-hidden="true">Details</span>
+                    </span>
                 </summary>
-                {{ if .GrantedScopes }}
-                <ul class="scope-list">
-                    {{ range .GrantedScopes }}
-                    {{ $scopeName := . }}
-                    <li>{{ range $.ScopeDefinitions }}{{ if eq .Name $scopeName }}{{ .Label }}{{ end }}{{ end }}</li>
-                    {{ end }}
-                </ul>
-                {{ end }}
+                <div class="scope-details">
+                    <div>
+                        <p class="scope-group-title">Granted scopes</p>
+                        {{ if .GrantedScopes }}
+                        <ul class="scope-list granted">
+                            {{ range .GrantedScopes }}
+                            <li>
+                                <strong>{{ .Label }}</strong>
+                                <span>{{ .Description }}</span>
+                            </li>
+                            {{ end }}
+                        </ul>
+                        {{ else }}
+                        <p>No scopes granted yet.</p>
+                        {{ end }}
+                    </div>
+                    <div>
+                        <p class="scope-group-title">Not granted</p>
+                        {{ if .UngrantedScopes }}
+                        <ul class="scope-list">
+                            {{ range .UngrantedScopes }}
+                            <li>
+                                <strong>{{ .Label }}</strong>
+                                <span>{{ .Description }}</span>
+                            </li>
+                            {{ end }}
+                        </ul>
+                        {{ else }}
+                        <p>All known scopes are granted.</p>
+                        {{ end }}
+                    </div>
+                </div>
             </details>
         </div>
         {{ end }}
+        </div>
+        {{ else }}
+        <p class="notice empty-state">No integrations are available to your account right now.</p>
+        {{ end }}
     </div>
-    {{ end }}
     <div class="actions">
         <a class="button" href="{{ .LogoutURL }}">Log Out</a>
     </div>

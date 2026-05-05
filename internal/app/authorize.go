@@ -42,6 +42,9 @@ func (a *App) handleGetAuthorize(
 	// get a review of what needs to be authorized
 	review, err := a.service.ReviewAuthorizationRequest(sub, integration, scopes, state)
 	if err != nil {
+		if errors.Is(err, service.ErrAccessDenied) {
+			return appErr(errAuthorizeAccessDenied, err)
+		}
 		return appErr(errAuthorizePrepare, err)
 	}
 
@@ -100,6 +103,9 @@ func (a *App) handlePostAuthorize(
 	// review auth request
 	review, err := a.service.ReviewAuthorizationRequest(sub, integration, scopes, state)
 	if err != nil {
+		if errors.Is(err, service.ErrAccessDenied) {
+			return appErr(errAuthorizeAccessDenied, err)
+		}
 		return appErr(errAuthorizeSubmitInvalid, err)
 	}
 

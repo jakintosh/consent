@@ -81,6 +81,7 @@ func New(
 
 func (a *App) Router() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+service.DefaultIntegrationLogoPath, a.handleDefaultIntegrationLogo)
 	mux.HandleFunc("/", a.serve(a.handleGetHome))
 	mux.HandleFunc("GET /login", a.serve(a.handleGetLogin))
 	mux.HandleFunc("POST /login", a.serve(a.handlePostLogin))

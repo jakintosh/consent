@@ -15,6 +15,7 @@ const (
 	errAuthorizeActionMissing
 	errAuthorizeDecision
 	errAuthorizeApprove
+	errAuthorizeAccessDenied
 	errLoginFormInvalid
 	errLoginFailed
 	errHomeSessionUI
@@ -101,6 +102,12 @@ var appErrorSpecs = map[appErrorKind]appErrorSpec{
 		message:    "The authorization approval could not be completed right now.",
 		logMessage: "failed to approve authorization",
 		loggable:   true,
+	},
+	errAuthorizeAccessDenied: {
+		status:   http.StatusForbidden,
+		title:    "Access Denied",
+		message:  "Your account does not have access to authorize this integration.",
+		loggable: false,
 	},
 	errLoginFormInvalid: {
 		status:     http.StatusBadRequest,
