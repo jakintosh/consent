@@ -31,6 +31,7 @@ var (
 	ErrRoleExists             = errors.New("role already exists")
 	ErrRoleProtected          = errors.New("role is protected")
 	ErrRoleInUse              = errors.New("role is in use")
+	ErrLastAdmin              = errors.New("last admin cannot be removed")
 	ErrInvalidUpdate          = errors.New("invalid update")
 	ErrAccessDenied           = errors.New("access denied: insufficient role for integration")
 )

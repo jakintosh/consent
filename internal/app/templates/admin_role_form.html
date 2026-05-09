@@ -1,0 +1,45 @@
+{{ define "style" }}
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>{{ if .New }}New Role{{ else }}Edit Role{{ end }}</h2>
+            {{ if not .New }}<p class="mono">{{ .Role.Name }}</p>{{ end }}
+        </div>
+    </div>
+    {{ if .Error }}<p class="notice error">{{ .Error }}</p>{{ end }}
+    <form id="role-form" method="post" action="{{ .SaveURL }}" class="admin-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <div class="admin-form-grid">
+        <div>
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" value="{{ .Role.Name }}" {{ if not .New }}disabled{{ end }} required>
+        </div>
+        <div>
+            <label for="display">Display</label>
+            <input id="display" name="display" type="text" value="{{ .Role.Display }}" required>
+        </div>
+        </div>
+        <div class="form-actions">
+            <div class="primary-actions">
+                <button class="primary" type="submit">Save Role</button>
+                <a class="button subtle" href="/admin/roles">Cancel</a>
+            </div>
+            {{ if not .New }}
+            <div class="danger-actions">
+                <button class="danger" type="submit" form="delete-role-form">Delete Role</button>
+            </div>
+            {{ end }}
+        </div>
+    </form>
+    {{ if not .New }}
+    <form id="delete-role-form" method="post" action="{{ .DeleteURL }}">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+    </form>
+    {{ end }}
+</section>
+{{ end }}
+{{- template "base.html" . -}}

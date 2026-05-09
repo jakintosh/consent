@@ -40,20 +40,9 @@ func TestCreateUser_InvalidRole(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
-	// roles with spaces are auto-created by the database
-	user, err := env.Service.CreateUser("alice", "securepassword", []string{"bad role"})
-	if err != nil {
-		t.Fatalf("CreateUser failed: %v", err)
-	}
-	if user == nil {
-		t.Fatal("expected user")
-	}
-	roleSet := make(map[string]bool)
-	for _, r := range user.Roles {
-		roleSet[r] = true
-	}
-	if !roleSet["bad role"] {
-		t.Fatalf("expected 'bad role' to be auto-created, got roles: %#v", user.Roles)
+	_, err := env.Service.CreateUser("alice", "securepassword", []string{"bad role"})
+	if !errors.Is(err, service.ErrRoleNotFound) {
+		t.Fatalf("expected ErrRoleNotFound, got %v", err)
 	}
 }
 
@@ -61,20 +50,9 @@ func TestCreateUser_UnknownRole(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 
-	// unknown roles are auto-created by the database
-	user, err := env.Service.CreateUser("alice", "securepassword", []string{"nonexistent"})
-	if err != nil {
-		t.Fatalf("CreateUser failed: %v", err)
-	}
-	if user == nil {
-		t.Fatal("expected user")
-	}
-	roleSet := make(map[string]bool)
-	for _, r := range user.Roles {
-		roleSet[r] = true
-	}
-	if !roleSet["nonexistent"] {
-		t.Fatalf("expected 'nonexistent' to be auto-created, got roles: %#v", user.Roles)
+	_, err := env.Service.CreateUser("alice", "securepassword", []string{"nonexistent"})
+	if !errors.Is(err, service.ErrRoleNotFound) {
+		t.Fatalf("expected ErrRoleNotFound, got %v", err)
 	}
 }
 
@@ -129,7 +107,7 @@ func TestUpdateUser_Success(t *testing.T) {
 	env.CreateTestRole(t, "ops", "Operations")
 	env.CreateTestRole(t, "billing", "Billing")
 
-	created, err := env.Service.CreateUser("alice", "securepassword", []string{"admin"})
+	created, err := env.Service.CreateUser("alice", "securepassword", []string{"ops"})
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
@@ -165,19 +143,40 @@ func TestUpdateUser_UnknownRole(t *testing.T) {
 	}
 
 	roles := []string{"nonexistent"}
-	updated, err := env.Service.UpdateUser(created.Subject, &service.UserUpdate{Roles: &roles})
+	_, err = env.Service.UpdateUser(created.Subject, &service.UserUpdate{Roles: &roles})
+	if !errors.Is(err, service.ErrRoleNotFound) {
+		t.Fatalf("expected ErrRoleNotFound, got %v", err)
+	}
+}
+
+func TestUpdateUser_CannotRemoveLastAdmin(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	created, err := env.Service.CreateUser("alice", "securepassword", []string{"admin"})
 	if err != nil {
-		t.Fatalf("UpdateUser failed: %v", err)
+		t.Fatalf("CreateUser failed: %v", err)
 	}
-	if updated == nil {
-		t.Fatal("expected updated user")
+
+	roles := []string{}
+	_, err = env.Service.UpdateUser(created.Subject, &service.UserUpdate{Roles: &roles})
+	if !errors.Is(err, service.ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin, got %v", err)
 	}
-	roleSet := make(map[string]bool)
-	for _, r := range updated.Roles {
-		roleSet[r] = true
+}
+
+func TestDeleteUser_CannotDeleteLastAdmin(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	created, err := env.Service.CreateUser("alice", "securepassword", []string{"admin"})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
 	}
-	if !roleSet["nonexistent"] {
-		t.Fatalf("expected 'nonexistent' to be auto-created, got roles: %#v", updated.Roles)
+
+	err = env.Service.DeleteUser(created.Subject)
+	if !errors.Is(err, service.ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin, got %v", err)
 	}
 }
 

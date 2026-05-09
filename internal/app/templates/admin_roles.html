@@ -1,0 +1,30 @@
+{{ define "style" }}
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Roles</h2>
+            <p>Create and maintain access roles.</p>
+        </div>
+        <a class="button primary" href="/admin/roles/new">New Role</a>
+    </div>
+    <div class="admin-panel">
+    <table class="admin-table">
+        <thead><tr><th>Name</th><th>Display</th><th></th></tr></thead>
+        <tbody>
+        {{ range .Roles }}
+        <tr>
+            <td><strong>{{ .Name }}</strong></td>
+            <td>{{ .Display }}</td>
+            <td>{{ if eq .Name "admin" }}<span class="muted">Protected</span>{{ else }}<a class="button subtle" href="{{ .EditURL }}">Edit</a>{{ end }}</td>
+        </tr>
+        {{ end }}
+        </tbody>
+    </table>
+    </div>
+</section>
+{{ end }}
+{{- template "base.html" . -}}

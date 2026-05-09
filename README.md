@@ -199,6 +199,7 @@ This target resets `./mock`, creates a consent config for `http://localhost:9000
 - `http://mock1.localhost:9001`
 - `http://mock2.localhost:9002`
 - `http://mock3.localhost:9003`
+- `http://mock4.localhost:9004` as an unregistered app for testing admin manifest import
 
 The mock deployment keeps the real login flow enabled while relaxing auth cookie security for local HTTP so Safari and other stricter browsers will store them on localhost.
 

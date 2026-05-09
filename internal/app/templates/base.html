@@ -1,3 +1,17 @@
+{{ define "admin_nav" }}
+<div class="admin-topbar">
+    <nav class="admin-nav" aria-label="Admin sections">
+        <a href="/admin" {{ if eq .Current "dashboard" }}aria-current="page"{{ end }}>Dashboard</a>
+        <a href="/admin/users" {{ if eq .Current "users" }}aria-current="page"{{ end }}>Users</a>
+        <a href="/admin/roles" {{ if eq .Current "roles" }}aria-current="page"{{ end }}>Roles</a>
+        <a href="/admin/integrations" {{ if eq .Current "integrations" }}aria-current="page"{{ end }}>Integrations</a>
+    </nav>
+    <div class="admin-utilities">
+        <a class="text-link" href="/">Home</a>
+        <a class="text-link" href="{{ .LogoutURL }}">Log Out</a>
+    </div>
+</div>
+{{ end }}
 <!doctype html>
 <html>
     <head>
@@ -48,7 +62,7 @@
             a { color: var(--color-primary); text-underline-offset: 0.18em; }
             header { color: white; background-color: var(--color-primary); padding: 1.25rem 1rem; text-align: center; box-shadow: var(--shadow-header); }
             header h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
-            main { width: auto; margin: 0 auto; padding: 1.25rem; max-width: 44rem; }
+            main { width: auto; margin: 0 auto; padding: 1.25rem; max-width: 72rem; }
             section { margin: 0; }
             h2 { margin: 0 0 0.4rem; color: var(--color-primary); font-size: 1.5rem; }
             p { line-height: 1.5; }
@@ -58,10 +72,15 @@
             .page {
             	margin: 2rem auto;
             	padding: 1.5rem;
+            	max-width: 44rem;
             	background: var(--color-surface);
             	border: 1px solid var(--color-border);
             	border-radius: var(--radius-md);
             	box-shadow: var(--shadow-card);
+            }
+            .page.admin {
+            	max-width: 72rem;
+            	padding: 1.15rem;
             }
             .eyebrow {
             	margin: 0 0 0.6rem;
@@ -108,6 +127,14 @@
             button:hover { background: var(--color-bg-notice); }
             .button.primary:hover,
             button.primary:hover { background: var(--color-primary-light); }
+            .text-link {
+            	display: inline-flex;
+            	align-items: center;
+            	color: var(--color-text-muted);
+            	font-weight: 600;
+            	text-decoration: none;
+            }
+            .text-link:hover { color: var(--color-primary); }
             input[type="text"],
             input[type="password"] {
             	width: 100%;
@@ -125,6 +152,140 @@
             	outline-offset: 2px;
             }
             label { display: block; font-weight: 600; margin-block-end: 0.4rem; }
+            .admin-shell { display: grid; gap: 1rem; }
+            .admin-topbar {
+            	display: flex;
+            	align-items: center;
+            	justify-content: space-between;
+            	gap: 1rem;
+            	padding-block-end: 0.85rem;
+            	border-block-end: 1px solid var(--color-border-light);
+            }
+            .admin-nav {
+            	display: flex;
+            	flex-wrap: wrap;
+            	gap: 0.25rem;
+            }
+            .admin-nav a {
+            	display: inline-flex;
+            	align-items: center;
+            	padding: 0.42rem 0.62rem;
+            	border-radius: 0.45rem;
+            	color: var(--color-text-muted);
+            	font-size: 0.92rem;
+            	font-weight: 700;
+            	text-decoration: none;
+            }
+            .admin-nav a[aria-current="page"] {
+            	background: var(--color-bg-notice);
+            	color: var(--color-primary);
+            }
+            .admin-utilities {
+            	display: flex;
+            	align-items: center;
+            	gap: 0.75rem;
+            	white-space: nowrap;
+            }
+            .admin-heading {
+            	display: flex;
+            	align-items: flex-start;
+            	justify-content: space-between;
+            	gap: 1rem;
+            	flex-wrap: wrap;
+            }
+            .admin-heading h2 { margin-block-end: 0.15rem; }
+            .admin-heading p { margin: 0; color: var(--color-text-muted); }
+            .admin-panel {
+            	border: 1px solid var(--color-border-light);
+            	border-radius: 0.45rem;
+            	background: white;
+            	overflow: hidden;
+            }
+            .admin-table {
+            	width: 100%;
+            	border-collapse: collapse;
+            	background: white;
+            }
+            .admin-table th,
+            .admin-table td {
+            	padding: 0.62rem 0.75rem;
+            	border-block-end: 1px solid var(--color-border-light);
+            	text-align: left;
+            	vertical-align: top;
+            }
+            .admin-table tr:last-child td { border-block-end: 0; }
+            .admin-table th {
+            	color: var(--color-text-muted);
+            	background: var(--color-bg-notice);
+            	font-size: 0.78rem;
+            	text-transform: uppercase;
+            	letter-spacing: 0.04em;
+            }
+            .admin-table td:last-child,
+            .admin-table th:last-child { text-align: right; }
+            .admin-form {
+            	display: grid;
+            	gap: 0.85rem;
+            	padding: 1rem;
+            	border: 1px solid var(--color-border-light);
+            	border-radius: 0.45rem;
+            	background: white;
+            }
+            .admin-form-grid {
+            	display: grid;
+            	gap: 0.75rem 1rem;
+            }
+            .admin-form label { margin-block-end: 0.25rem; font-size: 0.88rem; }
+            .admin-form input[type="text"] { padding: 0.58rem 0.65rem; border-radius: 0.45rem; }
+            .admin-form .help { margin: 0.15rem 0 0; color: var(--color-text-muted); font-size: 0.86rem; }
+            .checkbox-grid {
+            	display: grid;
+            	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+            	gap: 0.35rem 0.75rem;
+            	padding: 0;
+            	list-style: none;
+            }
+            .checkbox-grid label {
+            	display: flex;
+            	gap: 0.45rem;
+            	align-items: baseline;
+            	margin: 0;
+            	font-weight: 500;
+            }
+            .form-actions {
+            	display: flex;
+            	align-items: center;
+            	justify-content: space-between;
+            	gap: 1rem;
+            	flex-wrap: wrap;
+            	padding-block-start: 0.75rem;
+            	border-block-start: 1px solid var(--color-border-light);
+            }
+            .form-actions .primary-actions,
+            .form-actions .danger-actions {
+            	display: flex;
+            	gap: 0.6rem;
+            	align-items: center;
+            	flex-wrap: wrap;
+            }
+            .admin .button,
+            .admin button {
+            	padding: 0.55rem 0.75rem;
+            	border-radius: 0.45rem;
+            	font-size: 0.9rem;
+            }
+            .admin .button.subtle,
+            .admin button.subtle {
+            	border-color: var(--color-border-light);
+            	color: var(--color-text-muted);
+            }
+            .admin .danger {
+            	border-color: var(--color-border-error);
+            	color: var(--color-text-error);
+            	background: white;
+            }
+            .muted { color: var(--color-text-muted); }
+            .mono { font-family: var(--font-mono); font-size: 0.88rem; overflow-wrap: anywhere; }
             footer { text-align: center; padding: 0 1rem 1.5rem; color: var(--color-text-muted); }
             .copyleft { display:inline-block;transform: scaleX(-1); }
             {{- template "style" .}}

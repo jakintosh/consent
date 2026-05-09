@@ -1,0 +1,86 @@
+{{ define "style" }}
+@media screen and (min-width: 760px) { .integration-fields { grid-template-columns: 1fr 1fr; } .integration-fields .wide { grid-column: 1 / -1; } }
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>{{ if .New }}New Integration{{ else }}Edit Integration{{ end }}</h2>
+            {{ if not .New }}<p><strong>{{ .Integration.Display }}</strong> <span class="mono">{{ .Integration.Name }}</span></p>{{ end }}
+        </div>
+    </div>
+    {{ if .Error }}<p class="notice error">{{ .Error }}</p>{{ end }}
+    {{ if .New }}
+    <form method="post" action="/admin/integrations/import" class="admin-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <div>
+            <label for="base_url">Import from app root URL</label>
+            <input id="base_url" name="base_url" type="text" value="{{ .BaseURL }}" placeholder="https://app.example.com">
+            <p class="help">Consent will fetch /.well-known/consent-integration from this root.</p>
+        </div>
+        <div class="form-actions">
+            <div class="primary-actions">
+            <button type="submit">Import Manifest</button>
+            </div>
+        </div>
+    </form>
+    {{ end }}
+    <form id="integration-form" method="post" action="{{ .SaveURL }}" class="admin-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <div class="admin-form-grid integration-fields">
+            <div>
+                <label for="name">Name</label>
+                <input id="name" name="name" type="text" value="{{ .Integration.Name }}" {{ if not .New }}disabled{{ end }} required>
+            </div>
+            <div>
+                <label for="display">Display</label>
+                <input id="display" name="display" type="text" value="{{ .Integration.Display }}" required>
+            </div>
+            <div>
+            <label for="audience">Audience</label>
+            <input id="audience" name="audience" type="text" value="{{ .Integration.Audience }}" required>
+            </div>
+            <div>
+            <label for="redirect">Redirect URL</label>
+            <input id="redirect" name="redirect" type="text" value="{{ .Integration.Redirect }}" required>
+            </div>
+            <div>
+            <label for="homepage">Homepage URL</label>
+            <input id="homepage" name="homepage" type="text" value="{{ .Integration.Homepage }}" required>
+            </div>
+            <div>
+            <label for="logo">Logo URL</label>
+            <input id="logo" name="logo" type="text" value="{{ .Integration.Logo }}" required>
+            </div>
+            <div class="wide">
+            <label>Required Roles</label>
+            <p class="help">Leave every role unchecked to allow any signed-in user.</p>
+            <ul class="checkbox-grid">
+                {{ range .Roles }}
+                <li><label><input type="checkbox" name="required_roles" value="{{ .Name }}" {{ if .Checked }}checked{{ end }}> <span>{{ .Display }} <span class="muted">({{ .Name }})</span></span></label></li>
+                {{ end }}
+            </ul>
+            </div>
+        </div>
+        <div class="form-actions">
+            <div class="primary-actions">
+                <button class="primary" type="submit">Save Integration</button>
+                <a class="button subtle" href="/admin/integrations">Cancel</a>
+            </div>
+            {{ if not .New }}
+            <div class="danger-actions">
+                <button class="danger" type="submit" form="delete-integration-form">Delete Integration</button>
+            </div>
+            {{ end }}
+        </div>
+    </form>
+    {{ if not .New }}
+    <form id="delete-integration-form" method="post" action="{{ .DeleteURL }}">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+    </form>
+    {{ end }}
+</section>
+{{ end }}
+{{- template "base.html" . -}}

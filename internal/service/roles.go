@@ -49,14 +49,14 @@ func (s *Service) CreateRole(
 	error,
 ) {
 	if name == "" {
-		return nil, ErrInvalidHandle
+		return nil, ErrInvalidRole
 	}
 	if name == ProtectedAdminRoleName {
 		return nil, ErrRoleProtected
 	}
 
 	if display == "" {
-		return nil, ErrInvalidHandle
+		return nil, ErrInvalidRole
 	}
 
 	err := s.store.InsertRole(name, display)
@@ -80,7 +80,7 @@ func (s *Service) GetRole(
 	error,
 ) {
 	if name == "" {
-		return nil, ErrInvalidHandle
+		return nil, ErrInvalidRole
 	}
 
 	record, err := s.store.GetRole(name)
@@ -102,10 +102,13 @@ func (s *Service) UpdateRole(
 	error,
 ) {
 	if name == "" {
-		return nil, ErrInvalidHandle
+		return nil, ErrInvalidRole
 	}
 	if name == ProtectedAdminRoleName {
 		return nil, ErrRoleProtected
+	}
+	if display != nil && *display == "" {
+		return nil, ErrInvalidRole
 	}
 
 	updates := &RoleUpdate{
@@ -120,12 +123,6 @@ func (s *Service) UpdateRole(
 		return nil, fmt.Errorf("%w: failed to update role: %v", ErrInternal, err)
 	}
 
-	if display != nil {
-		if *display == "" {
-			return nil, ErrInvalidHandle
-		}
-	}
-
 	current, err := s.store.GetRole(name)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to get role: %v", ErrInternal, err)
@@ -138,7 +135,7 @@ func (s *Service) DeleteRole(
 	name string,
 ) error {
 	if name == "" {
-		return ErrInvalidHandle
+		return ErrInvalidRole
 	}
 	if name == ProtectedAdminRoleName {
 		return ErrRoleProtected

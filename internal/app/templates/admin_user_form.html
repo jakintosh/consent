@@ -1,0 +1,45 @@
+{{ define "style" }}
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Edit User</h2>
+            <p><strong>{{ .User.Handle }}</strong> <span class="mono">{{ .User.Subject }}</span></p>
+        </div>
+    </div>
+    {{ if .Error }}<p class="notice error">{{ .Error }}</p>{{ end }}
+    <form id="user-form" method="post" action="/admin/users/{{ .User.Subject }}" class="admin-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <div class="admin-form-grid">
+        <div>
+            <label for="handle">Handle</label>
+            <input id="handle" name="handle" type="text" value="{{ .User.Handle }}" required>
+        </div>
+        <div>
+            <label>Roles</label>
+            <ul class="checkbox-grid">
+                {{ range .Roles }}
+                <li><label><input type="checkbox" name="roles" value="{{ .Name }}" {{ if .Checked }}checked{{ end }}> <span>{{ .Display }} <span class="muted">({{ .Name }})</span></span></label></li>
+                {{ end }}
+            </ul>
+        </div>
+        </div>
+        <div class="form-actions">
+            <div class="primary-actions">
+                <button class="primary" type="submit">Save User</button>
+                <a class="button subtle" href="/admin/users">Cancel</a>
+            </div>
+            <div class="danger-actions">
+                <button class="danger" type="submit" form="delete-user-form">Delete User</button>
+            </div>
+        </div>
+    </form>
+    <form id="delete-user-form" method="post" action="/admin/users/{{ .User.Subject }}/delete">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+    </form>
+</section>
+{{ end }}
+{{- template "base.html" . -}}

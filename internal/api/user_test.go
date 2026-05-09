@@ -75,14 +75,13 @@ func TestAPICreateUser_InvalidRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 
-	// roles with spaces are auto-created by the database
 	body := `{
 		"username": "alice",
 		"password": "pass1",
 		"roles": ["bad role"]
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/users", body, jsonHeader, authHeader)
-	result.ExpectStatus(t, http.StatusOK)
+	result.ExpectStatusError(t, http.StatusBadRequest)
 }
 
 func TestAPICreateUser_ThenLogin(t *testing.T) {
@@ -172,13 +171,13 @@ func TestAPIUpdateUser_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	user, err := env.Service.CreateUser("alice", "password", []string{"admin"})
+	env.CreateTestRole(t, "operator", "Operator")
+	env.CreateTestRole(t, "billing", "Billing")
+
+	user, err := env.Service.CreateUser("alice", "password", []string{"operator"})
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
-
-	env.CreateTestRole(t, "operator", "Operator")
-	env.CreateTestRole(t, "billing", "Billing")
 
 	body := `{
 		"username":"alice-2",
@@ -230,14 +229,13 @@ func TestAPIUpdateUser_InvalidRoles(t *testing.T) {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 
-	// roles with spaces are auto-created by the database
 	body := `{
 		"roles":[
 			"bad role"
 		]
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/users/"+user.Subject, body, jsonHeader, authHeader)
-	result.ExpectStatus(t, http.StatusOK)
+	result.ExpectStatusError(t, http.StatusBadRequest)
 }
 
 func TestAPIDeleteUser_Success(t *testing.T) {

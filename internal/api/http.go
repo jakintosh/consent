@@ -35,7 +35,8 @@ func httpStatusFromError(err error) int {
 	case errors.Is(err, service.ErrHandleExists),
 		errors.Is(err, service.ErrIntegrationExists),
 		errors.Is(err, service.ErrRoleExists),
-		errors.Is(err, service.ErrRoleInUse):
+		errors.Is(err, service.ErrRoleInUse),
+		errors.Is(err, service.ErrLastAdmin):
 		return http.StatusConflict
 	case errors.Is(err, service.ErrIntegrationProtected),
 		errors.Is(err, service.ErrRoleProtected),

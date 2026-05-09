@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -31,7 +32,7 @@ func (db *DB) InsertUser(
 		return fmt.Errorf("insert user: %w", err)
 	}
 
-	if err := ensureAndAssignRolesTx(tx, subject, roles); err != nil {
+	if err := assignRolesTx(tx, subject, roles); err != nil {
 		return err
 	}
 
@@ -169,6 +170,9 @@ func (db *DB) UpdateUser(
 	if resultsEmpty(result) {
 		return sql.ErrNoRows
 	}
+	if err := ensureAdminRemainsTx(tx, subject, slices.Contains(roles, service.ProtectedAdminRoleName)); err != nil {
+		return err
+	}
 
 	if len(roles) > 0 {
 		var placeholders []string
@@ -189,7 +193,7 @@ func (db *DB) UpdateUser(
 			return fmt.Errorf("remove obsolete roles for user %q: %w", subject, err)
 		}
 
-		if err := ensureAndAssignRolesTx(tx, subject, roles); err != nil {
+		if err := assignRolesTx(tx, subject, roles); err != nil {
 			return err
 		}
 	} else {
@@ -216,7 +220,29 @@ func (db *DB) DeleteUser(
 	bool,
 	error,
 ) {
-	result, err := db.Conn.Exec(`
+	tx, err := db.Conn.Begin()
+	if err != nil {
+		return false, fmt.Errorf("begin user delete transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
+		UPDATE user
+		SET handle=handle
+		WHERE subject=?1`,
+		subject,
+	)
+	if err != nil {
+		return false, fmt.Errorf("lock user %q for delete: %w", subject, err)
+	}
+	if resultsEmpty(result) {
+		return false, nil
+	}
+	if err := ensureAdminRemainsTx(tx, subject, false); err != nil {
+		return false, err
+	}
+
+	result, err = tx.Exec(`
 		DELETE FROM user
 		WHERE subject=?1`,
 		subject,
@@ -225,8 +251,11 @@ func (db *DB) DeleteUser(
 		return false, fmt.Errorf("delete user %q: %w", subject, err)
 	}
 
-	deleted := !resultsEmpty(result)
-	return deleted, nil
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit user delete transaction: %w", err)
+	}
+
+	return !resultsEmpty(result), nil
 }
 
 func (db *DB) GetSecret(
@@ -294,19 +323,11 @@ func scanUserRows(
 	return record, nil
 }
 
-func ensureAndAssignRolesTx(
+func assignRolesTx(
 	tx *sql.Tx,
 	subject string,
 	roles []string,
 ) error {
-	ensureStmt, err := tx.Prepare(`
-		INSERT OR IGNORE INTO role (name, display)
-		VALUES (?1, ?1)`)
-	if err != nil {
-		return fmt.Errorf("prepare role ensure statement: %w", err)
-	}
-	defer ensureStmt.Close()
-
 	assignStmt, err := tx.Prepare(`
 		INSERT OR IGNORE INTO user_roles (user_subject, role_name)
 		VALUES (?1, ?2)`)
@@ -316,13 +337,51 @@ func ensureAndAssignRolesTx(
 	defer assignStmt.Close()
 
 	for _, role := range roles {
-		if _, err := ensureStmt.Exec(role); err != nil {
-			return fmt.Errorf("ensure role %q: %w", role, err)
-		}
 		if _, err := assignStmt.Exec(subject, role); err != nil {
 			return fmt.Errorf("assign role %q to user %q: %w", role, subject, err)
 		}
 	}
 
+	return nil
+}
+
+func ensureAdminRemainsTx(
+	tx *sql.Tx,
+	subject string,
+	keepsAdmin bool,
+) error {
+	if keepsAdmin {
+		return nil
+	}
+
+	var isAdmin bool
+	if err := tx.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1
+			FROM user_roles
+			WHERE user_subject=?1 AND role_name=?2
+		)`,
+		subject,
+		service.ProtectedAdminRoleName,
+	).Scan(&isAdmin); err != nil {
+		return fmt.Errorf("check admin role for user %q: %w", subject, err)
+	}
+	if !isAdmin {
+		return nil
+	}
+
+	var otherAdmins int
+	if err := tx.QueryRow(`
+		SELECT COUNT(*)
+		FROM user_roles
+		WHERE user_subject<>?1 AND role_name=?2`,
+		subject,
+		service.ProtectedAdminRoleName,
+	).Scan(&otherAdmins); err != nil {
+		return fmt.Errorf("count other admin users for %q: %w", subject, err)
+	}
+	if otherAdmins == 0 {
+		return service.ErrLastAdmin
+	}
 	return nil
 }

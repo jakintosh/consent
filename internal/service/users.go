@@ -33,6 +33,10 @@ func (s *Service) CreateUser(
 		return nil, ErrInvalidHandle
 	}
 
+	if err := s.validateRequiredRoles(roles); err != nil {
+		return nil, err
+	}
+
 	subject, err := generateSubject()
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to generate account subject: %v", ErrInternal, err)
@@ -116,6 +120,9 @@ func (s *Service) UpdateUser(
 		current.Handle = *updates.Handle
 	}
 	if updates.Roles != nil {
+		if err := s.validateRequiredRoles(*updates.Roles); err != nil {
+			return nil, err
+		}
 		current.Roles = *updates.Roles
 	}
 
@@ -130,6 +137,9 @@ func (s *Service) UpdateUser(
 		}
 		if isUniqueConstraintError(err) {
 			return nil, ErrHandleExists
+		}
+		if errors.Is(err, ErrLastAdmin) {
+			return nil, ErrLastAdmin
 		}
 		return nil, fmt.Errorf("%w: failed to update user: %v", ErrInternal, err)
 	}
@@ -150,6 +160,9 @@ func (s *Service) DeleteUser(
 
 	deleted, err := s.store.DeleteUser(subject)
 	if err != nil {
+		if errors.Is(err, ErrLastAdmin) {
+			return ErrLastAdmin
+		}
 		return fmt.Errorf("%w: failed to delete user: %v", ErrInternal, err)
 	}
 	if !deleted {

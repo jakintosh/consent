@@ -19,6 +19,11 @@ const (
 	errLoginFormInvalid
 	errLoginFailed
 	errHomeSessionUI
+	errAdminForbidden
+	errAdminSessionUI
+	errAdminFormInvalid
+	errAdminCSRFExpired
+	errAdminActionFailed
 )
 
 type appError struct {
@@ -128,6 +133,39 @@ var appErrorSpecs = map[appErrorKind]appErrorSpec{
 		title:      "Server Error",
 		message:    "The session UI could not be prepared right now.",
 		logMessage: "failed to build logout URL",
+		loggable:   true,
+	},
+	errAdminForbidden: {
+		status:   http.StatusForbidden,
+		title:    "Access Denied",
+		message:  "Your account does not have permission to use the admin dashboard.",
+		loggable: false,
+	},
+	errAdminSessionUI: {
+		status:     http.StatusInternalServerError,
+		title:      "Server Error",
+		message:    "The admin dashboard could not be prepared right now.",
+		logMessage: "failed to prepare admin dashboard",
+		loggable:   true,
+	},
+	errAdminFormInvalid: {
+		status:     http.StatusBadRequest,
+		title:      "Bad Request",
+		message:    "That admin form could not be processed.",
+		logMessage: "failed to parse admin form",
+		loggable:   true,
+	},
+	errAdminCSRFExpired: {
+		status:   http.StatusForbidden,
+		title:    "Action Expired",
+		message:  "This admin form is no longer valid. Reload the page and try again.",
+		loggable: false,
+	},
+	errAdminActionFailed: {
+		status:     http.StatusInternalServerError,
+		title:      "Server Error",
+		message:    "That admin change could not be completed right now.",
+		logMessage: "admin action failed",
 		loggable:   true,
 	},
 }

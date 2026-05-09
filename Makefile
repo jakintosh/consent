@@ -31,6 +31,10 @@ MOCK_CLIENT_3_HOST?=mock3.localhost
 MOCK_CLIENT_3_PORT?=9003
 MOCK_CLIENT_3_INTEGRATION?=mock3
 
+MOCK_CLIENT_4_HOST?=mock4.localhost
+MOCK_CLIENT_4_PORT?=9004
+MOCK_CLIENT_4_INTEGRATION?=mock4
+
 MOCK_DEMO_USER?=alice
 MOCK_DEMO_PASSWORD?=alice123
 MOCK_SECOND_USER?=bob
@@ -129,6 +133,7 @@ mock-deployment: mock-deployment-init
 		"Mock 1:  http://$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
 		"Mock 2:  http://$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
 		"Mock 3:  http://$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \
+		"Mock 4:  http://$(MOCK_CLIENT_4_HOST):$(MOCK_CLIENT_4_PORT) (not registered; use admin manifest import)" \
 		"Admin demo user: $(MOCK_DEMO_USER) / $(MOCK_DEMO_PASSWORD)" \
 		"Regular demo user: $(MOCK_SECOND_USER) / $(MOCK_SECOND_PASSWORD)"
 	@set -eu; \
@@ -139,7 +144,7 @@ mock-deployment: mock-deployment-init
 			--verbose \
 			>"$(MOCK_LOG_DIR)/consent.log" 2>&1 & \
 		consent_pid=$$!; \
-		trap 'kill $$consent_pid $$client1_pid $$client2_pid $$client3_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
+		trap 'kill $$consent_pid $$client1_pid $$client2_pid $$client3_pid $$client4_pid >/dev/null 2>&1 || true' EXIT INT TERM; \
 		until curl -fsS "$(MOCK_CONSENT_URL)/" >/dev/null 2>&1; do \
 			if ! kill -0 $$consent_pid >/dev/null 2>&1; then \
 				printf '%s\n' "consent server exited before becoming ready; see $(MOCK_LOG_DIR)/consent.log"; \
@@ -152,6 +157,7 @@ mock-deployment: mock-deployment-init
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_1_PORT)" \
 			--integration "$(MOCK_CLIENT_1_INTEGRATION)" \
+			--display "Mock Client 1" \
 			--audience "$(MOCK_CLIENT_1_HOST):$(MOCK_CLIENT_1_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \
@@ -162,6 +168,7 @@ mock-deployment: mock-deployment-init
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_2_PORT)" \
 			--integration "$(MOCK_CLIENT_2_INTEGRATION)" \
+			--display "Mock Client 2" \
 			--audience "$(MOCK_CLIENT_2_HOST):$(MOCK_CLIENT_2_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \
@@ -172,12 +179,24 @@ mock-deployment: mock-deployment-init
 			--authority-domain "$(MOCK_ISSUER)" \
 			--port "$(MOCK_CLIENT_3_PORT)" \
 			--integration "$(MOCK_CLIENT_3_INTEGRATION)" \
+			--display "Mock Client 3" \
 			--audience "$(MOCK_CLIENT_3_HOST):$(MOCK_CLIENT_3_PORT)" \
 			--config-dir "$(MOCK_CONFIG_DIR)" \
 			--verbose \
 			>"$(MOCK_LOG_DIR)/mock3.log" 2>&1 & \
 		client3_pid=$$!; \
-		wait $$consent_pid $$client1_pid $$client2_pid $$client3_pid
+		$(DEV_CLIENT_BIN) \
+			--auth-url "$(MOCK_CONSENT_URL)" \
+			--authority-domain "$(MOCK_ISSUER)" \
+			--port "$(MOCK_CLIENT_4_PORT)" \
+			--integration "$(MOCK_CLIENT_4_INTEGRATION)" \
+			--display "Mock Client 4" \
+			--audience "$(MOCK_CLIENT_4_HOST):$(MOCK_CLIENT_4_PORT)" \
+			--config-dir "$(MOCK_CONFIG_DIR)" \
+			--verbose \
+			>"$(MOCK_LOG_DIR)/mock4.log" 2>&1 & \
+		client4_pid=$$!; \
+		wait $$consent_pid $$client1_pid $$client2_pid $$client3_pid $$client4_pid
 
 test: build
 	go test ./...

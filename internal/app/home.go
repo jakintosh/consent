@@ -14,6 +14,7 @@ type homePageData struct {
 	Handle        string
 	Roles         []homeRole
 	Integrations  []homeIntegration
+	IsAdmin       bool
 	LoginURL      string
 	LogoutURL     string
 }
@@ -59,6 +60,7 @@ func (a *App) handleGetHome(
 		} else if user != nil {
 			data.Handle = user.Handle
 			data.Roles = a.homeRoles(r, user.Roles)
+			data.IsAdmin = a.service.UserHasRole(user.Subject, service.ProtectedAdminRoleName)
 		}
 
 		grants, err := a.service.ListUserGrants(accessToken.Subject())
@@ -72,6 +74,7 @@ func (a *App) handleGetHome(
 			Handle:        data.Handle,
 			Roles:         data.Roles,
 			Integrations:  buildHomeIntegrations(grants, scopeDefinitions),
+			IsAdmin:       data.IsAdmin,
 			LoginURL:      a.auth.LoginURL,
 			LogoutURL:     logoutUrl,
 		}

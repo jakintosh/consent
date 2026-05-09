@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
 
@@ -23,6 +24,15 @@ func insertUserWithSecret(t *testing.T, store interface {
 	t.Helper()
 	if err := store.InsertUser(subject, handle, secret, roles); err != nil {
 		t.Fatalf("InsertUser failed: %v", err)
+	}
+}
+
+func insertRole(t *testing.T, store interface {
+	InsertRole(string, string) error
+}, name string) {
+	t.Helper()
+	if err := store.InsertRole(name, name); err != nil {
+		t.Fatalf("InsertRole failed: %v", err)
 	}
 }
 
@@ -180,6 +190,33 @@ func TestUpdateUser_NotFound(t *testing.T) {
 	}
 }
 
+func TestUpdateUser_PreventsRemovingLastAdmin(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	insertRole(t, store, service.ProtectedAdminRoleName)
+	insertUser(t, store, "alice", []string{service.ProtectedAdminRoleName})
+
+	err := store.UpdateUser("subject-alice", "alice", nil)
+	if !errors.Is(err, service.ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin, got %v", err)
+	}
+}
+
+func TestUpdateUser_AllowsRemovingAdminWhenAnotherAdminExists(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	insertRole(t, store, service.ProtectedAdminRoleName)
+	insertUser(t, store, "alice", []string{service.ProtectedAdminRoleName})
+	insertUser(t, store, "bob", []string{service.ProtectedAdminRoleName})
+
+	err := store.UpdateUser("subject-alice", "alice", nil)
+	if err != nil {
+		t.Fatalf("UpdateUser failed: %v", err)
+	}
+}
+
 func TestDeleteUser_Success(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
@@ -205,6 +242,39 @@ func TestDeleteUser_NotFound(t *testing.T) {
 	}
 	if deleted {
 		t.Fatal("expected deleted = false")
+	}
+}
+
+func TestDeleteUser_PreventsDeletingLastAdmin(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	insertRole(t, store, service.ProtectedAdminRoleName)
+	insertUser(t, store, "alice", []string{service.ProtectedAdminRoleName})
+
+	deleted, err := store.DeleteUser("subject-alice")
+	if !errors.Is(err, service.ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin, got %v", err)
+	}
+	if deleted {
+		t.Fatal("expected deleted = false")
+	}
+}
+
+func TestDeleteUser_AllowsDeletingAdminWhenAnotherAdminExists(t *testing.T) {
+	t.Parallel()
+	store := testutil.SetupTestDB(t)
+
+	insertRole(t, store, service.ProtectedAdminRoleName)
+	insertUser(t, store, "alice", []string{service.ProtectedAdminRoleName})
+	insertUser(t, store, "bob", []string{service.ProtectedAdminRoleName})
+
+	deleted, err := store.DeleteUser("subject-alice")
+	if err != nil {
+		t.Fatalf("DeleteUser failed: %v", err)
+	}
+	if !deleted {
+		t.Fatal("expected deleted = true")
 	}
 }
 

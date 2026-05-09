@@ -1,0 +1,41 @@
+{{ define "style" }}
+.admin .role-list { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0; list-style: none; }
+.admin .role-chip { display: inline-flex; padding: 0.22rem 0.45rem; border: 1px solid var(--color-border-light); border-radius: 999px; background: var(--color-bg-notice); font-size: 0.84rem; }
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Integrations</h2>
+            <p>Register apps and manage role access.</p>
+        </div>
+        <a class="button primary" href="/admin/integrations/new">New Integration</a>
+    </div>
+    {{ if .Integrations }}
+    <div class="admin-panel">
+    <table class="admin-table">
+        <thead><tr><th>Name</th><th>Audience</th><th>Required Roles</th><th></th></tr></thead>
+        <tbody>
+        {{ range .Integrations }}
+        <tr>
+            <td><strong>{{ .Display }}</strong><br><span class="muted">{{ .Name }}</span></td>
+            <td class="muted mono">{{ .Audience }}</td>
+            <td>
+                {{ if .RequiredRoles }}
+                <ul class="role-list">{{ range .RequiredRoles }}<li class="role-chip">{{ . }}</li>{{ end }}</ul>
+                {{ else }}<span class="muted">Any signed-in user</span>{{ end }}
+            </td>
+            <td><a class="button subtle" href="{{ .EditURL }}">Edit</a></td>
+        </tr>
+        {{ end }}
+        </tbody>
+    </table>
+    </div>
+    {{ else }}
+    <p class="notice">No user-facing integrations are registered yet.</p>
+    {{ end }}
+</section>
+{{ end }}
+{{- template "base.html" . -}}

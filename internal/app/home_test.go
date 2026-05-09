@@ -60,6 +60,22 @@ func TestHome_AuthenticatedIncludesUserRolesAndCSRFLogoutURL(t *testing.T) {
 	}
 }
 
+func TestHome_AdminIncludesAdminDashboardLink(t *testing.T) {
+	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
+	env := testutil.SetupTestEnv(t)
+	user, err := env.Service.CreateUser("alice", "password", []string{service.ProtectedAdminRoleName})
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	appServer := newTestApp(t, env, tv)
+
+	body := getAuthenticatedHome(t, appServer, tv, user.Subject)
+
+	if !strings.Contains(body, `href="/admin"`) {
+		t.Fatalf("expected admin dashboard link in home page, got: %s", body)
+	}
+}
+
 func TestHome_AuthenticatedShowsAccessibleIntegrationsAndHidesInaccessible(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 	env := testutil.SetupTestEnv(t)

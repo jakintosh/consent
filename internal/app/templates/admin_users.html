@@ -1,0 +1,36 @@
+{{ define "style" }}
+.admin .role-list { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0; list-style: none; }
+.admin .role-chip { display: inline-flex; padding: 0.22rem 0.45rem; border: 1px solid var(--color-border-light); border-radius: 999px; background: var(--color-bg-notice); font-size: 0.84rem; }
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Users</h2>
+            <p>Review accounts and assign roles.</p>
+        </div>
+    </div>
+    <div class="admin-panel">
+    <table class="admin-table">
+        <thead><tr><th>Handle</th><th>Subject</th><th>Roles</th><th></th></tr></thead>
+        <tbody>
+        {{ range .Users }}
+        <tr>
+            <td><strong>{{ .Handle }}</strong></td>
+            <td class="muted mono">{{ .Subject }}</td>
+            <td>
+                {{ if .Roles }}
+                <ul class="role-list">{{ range .Roles }}<li class="role-chip">{{ . }}</li>{{ end }}</ul>
+                {{ else }}<span class="muted">No roles</span>{{ end }}
+            </td>
+            <td><a class="button subtle" href="/admin/users/{{ .Subject }}/edit">Edit</a></td>
+        </tr>
+        {{ end }}
+        </tbody>
+    </table>
+    </div>
+</section>
+{{ end }}
+{{- template "base.html" . -}}

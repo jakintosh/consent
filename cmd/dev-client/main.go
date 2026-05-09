@@ -32,6 +32,7 @@ type Config struct {
 	AuthorityDomain     string
 	Port                int
 	Integration         string
+	Display             string
 	Audience            string
 	VerificationKeyPath string
 }
@@ -74,6 +75,11 @@ var root = &args.Command{
 			Help: "integration name for consent login (default: example@localhost)",
 		},
 		{
+			Long: "display",
+			Type: args.OptionTypeParameter,
+			Help: "integration display name for the setup manifest (default: integration name)",
+		},
+		{
 			Long: "audience",
 			Type: args.OptionTypeParameter,
 			Help: "JWT audience (default: localhost:<port>)",
@@ -102,6 +108,7 @@ var root = &args.Command{
 			log.Printf("  Auth URL: %s", cfg.AuthURL)
 			log.Printf("  Authority domain: %s", cfg.AuthorityDomain)
 			log.Printf("  Integration: %s", cfg.Integration)
+			log.Printf("  Display: %s", cfg.Display)
 			log.Printf("  Audience: %s", cfg.Audience)
 			log.Printf("  Verification key: %s", cfg.VerificationKeyPath)
 			log.Printf("  Port: %d", cfg.Port)
@@ -129,7 +136,10 @@ var root = &args.Command{
 			authClient.SetLogLevel(client.LogLevelDebug)
 		}
 
+		manifest := buildIntegrationManifest(cfg)
+
 		mux := http.NewServeMux()
+		mux.HandleFunc(client.IntegrationManifestPath, client.HandleIntegrationManifest(manifest))
 		mux.HandleFunc("/", homeHandler(authClient, cfg))
 		mux.HandleFunc("/api/example", exampleHandler(authClient, cfg.Integration))
 		mux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
@@ -177,6 +187,10 @@ func parseConfig(
 	if strings.TrimSpace(integrationName) == "" {
 		return Config{}, fmt.Errorf("--integration cannot be empty")
 	}
+	display := i.GetParameterOr("display", integrationName)
+	if strings.TrimSpace(display) == "" {
+		return Config{}, fmt.Errorf("--display cannot be empty")
+	}
 
 	audience := i.GetParameterOr("audience", fmt.Sprintf("localhost:%d", port))
 	if strings.TrimSpace(audience) == "" {
@@ -202,12 +216,34 @@ func parseConfig(
 		AuthorityDomain:     authorityDomain,
 		Port:                port,
 		Integration:         integrationName,
+		Display:             display,
 		Audience:            audience,
 		VerificationKeyPath: verificationKeyPath,
 	}, nil
 }
 
-func normalizeAuthURL(raw string) (string, error) {
+func buildIntegrationManifest(
+	cfg Config,
+) client.IntegrationManifest {
+	homepage := "http://" + cfg.Audience
+	return client.IntegrationManifest{
+		Name:           cfg.Integration,
+		Display:        cfg.Display,
+		Audience:       cfg.Audience,
+		Redirect:       strings.TrimRight(homepage, "/") + "/auth/callback",
+		Homepage:       homepage,
+		Logo:           strings.TrimRight(cfg.AuthURL, "/") + "/assets/default-integration-logo.png",
+		ConsentIssuer:  cfg.AuthorityDomain,
+		ConsentBaseURL: cfg.AuthURL,
+	}
+}
+
+func normalizeAuthURL(
+	raw string,
+) (
+	string,
+	error,
+) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || parsed == nil {
 		return "", fmt.Errorf("invalid --auth-url: expected absolute URL with scheme and host")
@@ -223,7 +259,10 @@ func normalizeAuthURL(raw string) (string, error) {
 	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), nil
 }
 
-func homeHandler(c client.Verifier, cfg Config) http.HandlerFunc {
+func homeHandler(
+	c client.Verifier,
+	cfg Config,
+) http.HandlerFunc {
 	loginURL := fmt.Sprintf("%s/authorize?integration=%s&scope=identity&scope=profile", cfg.AuthURL, url.QueryEscape(cfg.Integration))
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -264,7 +303,10 @@ func homeHandler(c client.Verifier, cfg Config) http.HandlerFunc {
 	}
 }
 
-func exampleHandler(c *client.Client, integrationName string) http.HandlerFunc {
+func exampleHandler(
+	c *client.Client,
+	integrationName string,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page := examplePageData{
 			Integration:   integrationName,

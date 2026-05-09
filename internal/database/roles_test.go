@@ -180,7 +180,7 @@ func TestInsertUser_RolesRoundTrip(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertRole("admin", "Administrator")
+	err := store.InsertRole("operator", "Operator")
 	if err != nil {
 		t.Fatalf("InsertRole failed: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestInsertUser_RolesRoundTrip(t *testing.T) {
 		t.Fatalf("InsertRole failed: %v", err)
 	}
 
-	err = store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"admin", "ops"})
+	err = store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"operator", "ops"})
 	if err != nil {
 		t.Fatalf("InsertUser failed: %v", err)
 	}
@@ -205,29 +205,18 @@ func TestInsertUser_RolesRoundTrip(t *testing.T) {
 	for _, r := range user.Roles {
 		roleSet[r] = true
 	}
-	if !roleSet["admin"] || !roleSet["ops"] {
-		t.Fatalf("roles = %#v, want admin and ops", user.Roles)
+	if !roleSet["operator"] || !roleSet["ops"] {
+		t.Fatalf("roles = %#v, want operator and ops", user.Roles)
 	}
 }
 
-func TestInsertUser_AutoCreatesRoles(t *testing.T) {
+func TestInsertUser_RejectsMissingRoles(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
 	err := store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"auto-role"})
-	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
-	}
-
-	role, err := store.GetRole("auto-role")
-	if err != nil {
-		t.Fatalf("GetRole failed: %v", err)
-	}
-	if role.Name != "auto-role" {
-		t.Fatalf("role.Name = %s, want auto-role", role.Name)
-	}
-	if role.Display != "auto-role" {
-		t.Fatalf("role.Display = %s, want auto-role (defaulted to name)", role.Display)
+	if err == nil {
+		t.Fatal("expected missing role insert to fail")
 	}
 }
 
@@ -324,12 +313,12 @@ func TestDeleteUser_CascadesUserRoles(t *testing.T) {
 	t.Parallel()
 	store := testutil.SetupTestDB(t)
 
-	err := store.InsertRole("admin", "Administrator")
+	err := store.InsertRole("operator", "Operator")
 	if err != nil {
 		t.Fatalf("InsertRole failed: %v", err)
 	}
 
-	err = store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"admin"})
+	err = store.InsertUser("subject-alice", "alice", []byte("secret"), []string{"operator"})
 	if err != nil {
 		t.Fatalf("InsertUser failed: %v", err)
 	}
@@ -351,8 +340,8 @@ func TestDeleteUser_CascadesUserRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRoles failed: %v", err)
 	}
-	if len(roles) != 1 || roles[0].Name != "admin" {
-		t.Fatalf("expected admin role to still exist after user deletion via cascade, got %#v", roles)
+	if len(roles) != 1 || roles[0].Name != "operator" {
+		t.Fatalf("expected operator role to still exist after user deletion via cascade, got %#v", roles)
 	}
 }
 

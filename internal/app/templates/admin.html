@@ -1,0 +1,26 @@
+{{ define "style" }}
+.admin-dashboard-list { display: grid; gap: 0; }
+.admin-dashboard-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; padding: 0.85rem 1rem; border-block-end: 1px solid var(--color-border-light); color: inherit; text-decoration: none; }
+.admin-dashboard-list a:last-child { border-block-end: 0; }
+.admin-dashboard-list a:hover { background: var(--color-bg-notice); }
+.admin-dashboard-list strong { display: block; margin-block-end: 0.15rem; }
+.admin-dashboard-list span { color: var(--color-text-muted); font-size: 0.92rem; }
+{{ end }}
+{{ define "content" }}
+<section class="page admin admin-shell">
+    {{ template "admin_nav" . }}
+    <div class="admin-heading">
+        <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Dashboard</h2>
+            <p>Signed in as <strong>{{ .Handle }}</strong>.</p>
+        </div>
+    </div>
+    <div class="admin-panel admin-dashboard-list">
+        <a href="/admin/users"><span><strong>Users</strong><span>Review accounts and assign roles.</span></span><span aria-hidden="true">View</span></a>
+        <a href="/admin/roles"><span><strong>Roles</strong><span>Create and maintain access roles.</span></span><span aria-hidden="true">View</span></a>
+        <a href="/admin/integrations"><span><strong>Integrations</strong><span>Register apps and manage role access.</span></span><span aria-hidden="true">View</span></a>
+    </div>
+</section>
+{{ end }}
+{{- template "base.html" . -}}

@@ -29,8 +29,8 @@ func TestCreateRole_EmptyName(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	_, err := env.Service.CreateRole("", "Something")
-	if !errors.Is(err, service.ErrInvalidHandle) {
-		t.Fatalf("expected ErrInvalidHandle, got %v", err)
+	if !errors.Is(err, service.ErrInvalidRole) {
+		t.Fatalf("expected ErrInvalidRole, got %v", err)
 	}
 }
 
@@ -39,8 +39,8 @@ func TestCreateRole_EmptyDisplay(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	_, err := env.Service.CreateRole("editor", "")
-	if !errors.Is(err, service.ErrInvalidHandle) {
-		t.Fatalf("expected ErrInvalidHandle, got %v", err)
+	if !errors.Is(err, service.ErrInvalidRole) {
+		t.Fatalf("expected ErrInvalidRole, got %v", err)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestGetRole_EmptyName(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	_, err := env.Service.GetRole("")
-	if !errors.Is(err, service.ErrInvalidHandle) {
-		t.Fatalf("expected ErrInvalidHandle, got %v", err)
+	if !errors.Is(err, service.ErrInvalidRole) {
+		t.Fatalf("expected ErrInvalidRole, got %v", err)
 	}
 }
 
@@ -137,8 +137,8 @@ func TestUpdateRole_EmptyDisplay(t *testing.T) {
 
 	empty := ""
 	_, err := env.Service.UpdateRole("editor", &empty)
-	if !errors.Is(err, service.ErrInvalidHandle) {
-		t.Fatalf("expected ErrInvalidHandle, got %v", err)
+	if !errors.Is(err, service.ErrInvalidRole) {
+		t.Fatalf("expected ErrInvalidRole, got %v", err)
 	}
 }
 
@@ -259,8 +259,8 @@ func TestDeleteRole_EmptyName(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	err := env.Service.DeleteRole("")
-	if !errors.Is(err, service.ErrInvalidHandle) {
-		t.Fatalf("expected ErrInvalidHandle, got %v", err)
+	if !errors.Is(err, service.ErrInvalidRole) {
+		t.Fatalf("expected ErrInvalidRole, got %v", err)
 	}
 }
 
