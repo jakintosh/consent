@@ -41,7 +41,12 @@ func Serve(
 	// build service
 	svcOpts := service.Options{
 		PasswordMode: options.PasswordMode,
-		Store:        db,
+		TokenLifetimes: service.TokenLifetimes{
+			AuthCode: options.Runtime.Tokens.AuthCodeTTL,
+			Access:   options.Runtime.Tokens.AccessTTL,
+			Refresh:  options.Runtime.Tokens.RefreshTTL,
+		},
+		Store: db,
 		TokenServerOpts: tokens.ServerOptions{
 			SigningKey:   options.Runtime.Secrets.SigningKey,
 			IssuerDomain: options.Runtime.Server.AuthorityDomain,

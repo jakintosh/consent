@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"time"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -92,6 +93,13 @@ type Options struct {
 	TokenServerOpts         tokens.ServerOptions
 	ResourceTokenClientOpts tokens.ClientOptions
 	PasswordMode            PasswordMode
+	TokenLifetimes          TokenLifetimes
+}
+
+type TokenLifetimes struct {
+	AuthCode time.Duration
+	Access   time.Duration
+	Refresh  time.Duration
 }
 
 // InitOptions configures bootstrap initialization for service state.
@@ -107,6 +115,7 @@ type InitOptions struct {
 type Service struct {
 	store                  Store
 	passwordMode           PasswordMode
+	tokenLifetimes         TokenLifetimes
 	tokenIssuer            tokens.Issuer
 	tokenValidator         tokens.Validator
 	resourceTokenValidator tokens.Validator
@@ -125,15 +134,30 @@ func New(
 
 	issuer, validator := tokens.InitServer(options.TokenServerOpts)
 	resourceValidator := tokens.InitClient(options.ResourceTokenClientOpts)
+	tokenLifetimes := options.TokenLifetimes.withDefaults()
 
 	return &Service{
 		passwordMode:           options.PasswordMode,
+		tokenLifetimes:         tokenLifetimes,
 		store:                  options.Store,
 		tokenIssuer:            issuer,
 		tokenValidator:         validator,
 		resourceTokenValidator: resourceValidator,
 		consentAPIAudience:     options.ResourceTokenClientOpts.ValidAudience,
 	}, nil
+}
+
+func (l TokenLifetimes) withDefaults() TokenLifetimes {
+	if l.AuthCode <= 0 {
+		l.AuthCode = 10 * time.Second
+	}
+	if l.Access <= 0 {
+		l.Access = 30 * time.Minute
+	}
+	if l.Refresh <= 0 {
+		l.Refresh = 72 * time.Hour
+	}
+	return l
 }
 
 func Init(

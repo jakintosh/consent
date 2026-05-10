@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"git.sr.ht/~jakintosh/consent/internal/config"
 )
@@ -24,6 +25,35 @@ func TestLoad_DefaultWhenConfigMissing(t *testing.T) {
 
 	if cfg != config.Default() {
 		t.Fatalf("Load() = %#v, want %#v", cfg, config.Default())
+	}
+}
+
+func TestLoad_TokenDurations(t *testing.T) {
+	t.Parallel()
+
+	configDir := filepath.Join(t.TempDir(), "cfg")
+	dataDir := filepath.Join(t.TempDir(), "data")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	payload := []byte("server:\n  publicURL: http://localhost:9001\n  authorityDomain: localhost\n  port: 9001\n  devMode: false\ntokens:\n  authCodeTTL: 15s\n  accessTTL: 2m\n  refreshTTL: 48h\n")
+	if err := os.WriteFile(filepath.Join(configDir, config.ConfigFileName), payload, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	cfg, err := config.Load(configDir, dataDir)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.Tokens.AuthCodeTTL.Duration != 15*time.Second {
+		t.Fatalf("AuthCodeTTL = %s, want 15s", cfg.Tokens.AuthCodeTTL)
+	}
+	if cfg.Tokens.AccessTTL.Duration != 2*time.Minute {
+		t.Fatalf("AccessTTL = %s, want 2m", cfg.Tokens.AccessTTL)
+	}
+	if cfg.Tokens.RefreshTTL.Duration != 48*time.Hour {
+		t.Fatalf("RefreshTTL = %s, want 48h", cfg.Tokens.RefreshTTL)
 	}
 }
 
@@ -147,9 +177,10 @@ func TestInit_IsNonDestructiveUnlessForced(t *testing.T) {
 	}
 
 	overrideURL := "http://forced.test:9100"
+	accessTTL := 5 * time.Second
 	_, err = config.Init(configDir, dataDir, config.InitOptions{
 		Force:     true,
-		Overrides: config.Overrides{PublicURL: &overrideURL},
+		Overrides: config.Overrides{PublicURL: &overrideURL, AccessTTL: &accessTTL},
 	})
 	if err != nil {
 		t.Fatalf("forced Init failed: %v", err)
@@ -161,6 +192,9 @@ func TestInit_IsNonDestructiveUnlessForced(t *testing.T) {
 	}
 	if cfg.Server.PublicURL != overrideURL {
 		t.Fatalf("PublicURL = %q, want %q", cfg.Server.PublicURL, overrideURL)
+	}
+	if cfg.Tokens.AccessTTL.Duration != accessTTL {
+		t.Fatalf("AccessTTL = %s, want %s", cfg.Tokens.AccessTTL, accessTTL)
 	}
 }
 

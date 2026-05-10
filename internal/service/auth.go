@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -183,7 +182,7 @@ func (s *Service) Login(
 		user.Subject,
 		[]string{integration.Audience},
 		nil,
-		time.Second*10,
+		s.tokenLifetimes.AuthCode,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
@@ -274,7 +273,7 @@ func (s *Service) FinalizeAuthorization(
 			review.Request.Integration.Audience,
 		},
 		review.Request.Scopes,
-		10*time.Second,
+		s.tokenLifetimes.AuthCode,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to issue refresh token: %v", ErrInternal, err)
@@ -347,7 +346,7 @@ func (s *Service) RefreshAccessToken(
 		token.Subject(),
 		token.Audience(),
 		token.Scopes(),
-		time.Minute*30,
+		s.tokenLifetimes.Access,
 	)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: couldn't issue access token: %v", ErrInternal, err)
@@ -357,7 +356,7 @@ func (s *Service) RefreshAccessToken(
 		token.Subject(),
 		token.Audience(),
 		token.Scopes(),
-		time.Hour*72,
+		s.tokenLifetimes.Refresh,
 	)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: couldn't issue refresh token: %v", ErrInternal, err)

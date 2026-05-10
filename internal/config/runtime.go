@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -33,6 +34,7 @@ type Runtime struct {
 	Config  Config
 	Paths   Paths
 	Server  RuntimeServer
+	Tokens  RuntimeTokens
 	Secrets RuntimeSecrets
 	Source  RuntimeSource
 }
@@ -46,6 +48,12 @@ type RuntimeServer struct {
 	Port            int
 	ListenAddress   string
 	DevMode         bool
+}
+
+type RuntimeTokens struct {
+	AuthCodeTTL time.Duration
+	AccessTTL   time.Duration
+	RefreshTTL  time.Duration
 }
 
 type RuntimeSecrets struct {
@@ -64,6 +72,7 @@ type View struct {
 	Config  Config      `yaml:"config" json:"config"`
 	Paths   Paths       `yaml:"paths" json:"paths"`
 	Server  ViewServer  `yaml:"server" json:"server"`
+	Tokens  ViewTokens  `yaml:"tokens" json:"tokens"`
 	Secrets ViewSecrets `yaml:"secrets" json:"secrets"`
 	Source  ViewSource  `yaml:"source" json:"source"`
 }
@@ -76,6 +85,12 @@ type ViewServer struct {
 	Port            int    `yaml:"port" json:"port"`
 	ListenAddress   string `yaml:"listenAddress" json:"listenAddress"`
 	DevMode         bool   `yaml:"devMode" json:"devMode"`
+}
+
+type ViewTokens struct {
+	AuthCodeTTL string `yaml:"authCodeTTL" json:"authCodeTTL"`
+	AccessTTL   string `yaml:"accessTTL" json:"accessTTL"`
+	RefreshTTL  string `yaml:"refreshTTL" json:"refreshTTL"`
 }
 
 type ViewSecrets struct {
@@ -158,6 +173,11 @@ func Resolve(configDir string, dataDir string, opts RuntimeOptions) (Runtime, er
 			ListenAddress:   fmt.Sprintf(":%d", cfg.Server.Port),
 			DevMode:         cfg.Server.DevMode,
 		},
+		Tokens: RuntimeTokens{
+			AuthCodeTTL: cfg.Tokens.AuthCodeTTL.Duration,
+			AccessTTL:   cfg.Tokens.AccessTTL.Duration,
+			RefreshTTL:  cfg.Tokens.RefreshTTL.Duration,
+		},
 		Secrets: RuntimeSecrets{
 			SigningKey:      signingKey,
 			BootstrapAPIKey: bootstrapAPIKey,
@@ -183,6 +203,11 @@ func (r Runtime) View() View {
 			Port:            r.Server.Port,
 			ListenAddress:   r.Server.ListenAddress,
 			DevMode:         r.Server.DevMode,
+		},
+		Tokens: ViewTokens{
+			AuthCodeTTL: r.Tokens.AuthCodeTTL.String(),
+			AccessTTL:   r.Tokens.AccessTTL.String(),
+			RefreshTTL:  r.Tokens.RefreshTTL.String(),
 		},
 		Secrets: ViewSecrets{
 			SigningKeySet:      r.Secrets.SigningKey != nil,

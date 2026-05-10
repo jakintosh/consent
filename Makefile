@@ -39,6 +39,9 @@ MOCK_DEMO_USER?=alice
 MOCK_DEMO_PASSWORD?=alice123
 MOCK_SECOND_USER?=bob
 MOCK_SECOND_PASSWORD?=bob123
+MOCK_AUTH_CODE_TTL?=5s
+MOCK_ACCESS_TTL?=5s
+MOCK_REFRESH_TTL?=72h
 
 .PHONY: build init run-local mock-deployment-init mock-deployment test
 
@@ -79,7 +82,10 @@ mock-deployment-init: build
 		--data-dir "$(MOCK_DATA_DIR)" \
 		--public-url "$(MOCK_CONSENT_URL)" \
 		--authority-domain "$(MOCK_ISSUER)" \
-		--port "$(MOCK_CONSENT_PORT)"
+		--port "$(MOCK_CONSENT_PORT)" \
+		--auth-code-ttl "$(MOCK_AUTH_CODE_TTL)" \
+		--access-ttl "$(MOCK_ACCESS_TTL)" \
+		--refresh-ttl "$(MOCK_REFRESH_TTL)"
 	$(CONSENT_BIN) init \
 		--config-dir "$(MOCK_CONFIG_DIR)" \
 		--data-dir "$(MOCK_DATA_DIR)"

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -23,6 +24,7 @@ const (
 
 type Config struct {
 	Server ServerConfig `yaml:"server"`
+	Tokens TokenConfig  `yaml:"tokens"`
 }
 
 type ServerConfig struct {
@@ -30,6 +32,16 @@ type ServerConfig struct {
 	AuthorityDomain string `yaml:"authorityDomain"`
 	Port            int    `yaml:"port"`
 	DevMode         bool   `yaml:"devMode"`
+}
+
+type TokenConfig struct {
+	AuthCodeTTL Duration `yaml:"authCodeTTL"`
+	AccessTTL   Duration `yaml:"accessTTL"`
+	RefreshTTL  Duration `yaml:"refreshTTL"`
+}
+
+type Duration struct {
+	time.Duration
 }
 
 type Paths struct {
@@ -48,6 +60,9 @@ type Overrides struct {
 	AuthorityDomain *string
 	Port            *int
 	DevMode         *bool
+	AuthCodeTTL     *time.Duration
+	AccessTTL       *time.Duration
+	RefreshTTL      *time.Duration
 }
 
 func Default() Config {
@@ -57,6 +72,11 @@ func Default() Config {
 			AuthorityDomain: "localhost",
 			Port:            9001,
 			DevMode:         false,
+		},
+		Tokens: TokenConfig{
+			AuthCodeTTL: Duration{Duration: 10 * time.Second},
+			AccessTTL:   Duration{Duration: 30 * time.Minute},
+			RefreshTTL:  Duration{Duration: 72 * time.Hour},
 		},
 	}
 }
@@ -123,6 +143,7 @@ func Save(
 		return err
 	}
 
+	cfg.applyDefaults()
 	cfg.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return err
@@ -197,6 +218,19 @@ func (c *Config) Normalize() {
 	c.Server.AuthorityDomain = strings.TrimSpace(c.Server.AuthorityDomain)
 }
 
+func (c *Config) applyDefaults() {
+	defaults := Default()
+	if c.Tokens.AuthCodeTTL.Duration == 0 {
+		c.Tokens.AuthCodeTTL = defaults.Tokens.AuthCodeTTL
+	}
+	if c.Tokens.AccessTTL.Duration == 0 {
+		c.Tokens.AccessTTL = defaults.Tokens.AccessTTL
+	}
+	if c.Tokens.RefreshTTL.Duration == 0 {
+		c.Tokens.RefreshTTL = defaults.Tokens.RefreshTTL
+	}
+}
+
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.Server.PublicURL) == "" {
 		return fmt.Errorf("config: server.publicURL is required")
@@ -212,6 +246,15 @@ func (c Config) Validate() error {
 
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("config: server.port must be between 1 and 65535")
+	}
+	if c.Tokens.AuthCodeTTL.Duration <= 0 {
+		return fmt.Errorf("config: tokens.authCodeTTL must be positive")
+	}
+	if c.Tokens.AccessTTL.Duration <= 0 {
+		return fmt.Errorf("config: tokens.accessTTL must be positive")
+	}
+	if c.Tokens.RefreshTTL.Duration <= 0 {
+		return fmt.Errorf("config: tokens.refreshTTL must be positive")
 	}
 
 	return nil
@@ -234,9 +277,31 @@ func (c Config) WithOverrides(
 	if overrides.DevMode != nil {
 		resolved.Server.DevMode = *overrides.DevMode
 	}
+	if overrides.AuthCodeTTL != nil {
+		resolved.Tokens.AuthCodeTTL = Duration{Duration: *overrides.AuthCodeTTL}
+	}
+	if overrides.AccessTTL != nil {
+		resolved.Tokens.AccessTTL = Duration{Duration: *overrides.AccessTTL}
+	}
+	if overrides.RefreshTTL != nil {
+		resolved.Tokens.RefreshTTL = Duration{Duration: *overrides.RefreshTTL}
+	}
 
 	resolved.Normalize()
 	return resolved
+}
+
+func (d Duration) MarshalYAML() (any, error) {
+	return d.String(), nil
+}
+
+func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
+	parsed, err := time.ParseDuration(strings.TrimSpace(value.Value))
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", value.Value, err)
+	}
+	d.Duration = parsed
+	return nil
 }
 
 func expandPath(
