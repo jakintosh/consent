@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/internal/api"
@@ -152,6 +153,31 @@ func TestAuthFlow_E2E(t *testing.T) {
 	if appAccessToken.Subject() == testUserHandle {
 		t.Fatalf("expected opaque sub, got handle %q", appAccessToken.Subject())
 	}
+
+	expiredAccess, err := h.issueExpiredAccessToken(appAccessToken.Subject(), appAccessToken.Audience(), appAccessToken.Scopes())
+	if err != nil {
+		t.Fatalf("issueExpiredAccessToken failed: %v", err)
+	}
+	expiredAccessCookie := &http.Cookie{Name: "accessToken", Value: expiredAccess.Encoded()}
+	refreshCallsBefore := h.counters.refreshCalls.Load()
+	refreshedProtectedResp := getNoRedirectWithCookies(t, h.appServer.Client(), h.appServer.URL+"/protected", expiredAccessCookie, refreshCookie)
+	if refreshedProtectedResp.StatusCode != http.StatusOK {
+		t.Fatalf("expired-access protected status = %d, want %d", refreshedProtectedResp.StatusCode, http.StatusOK)
+	}
+	if h.counters.refreshCalls.Load() != refreshCallsBefore+1 {
+		t.Fatalf("refresh calls = %d, want %d", h.counters.refreshCalls.Load(), refreshCallsBefore+1)
+	}
+	refreshedAccessCookie := cookieByName(refreshedProtectedResp.Cookies(), "accessToken")
+	refreshedRefreshCookie := cookieByName(refreshedProtectedResp.Cookies(), "refreshToken")
+	if refreshedAccessCookie == nil || refreshedRefreshCookie == nil {
+		t.Fatalf("expired-access refresh should set replacement accessToken and refreshToken cookies")
+	}
+	if refreshedRefreshCookie.Value == refreshCookie.Value {
+		t.Fatalf("expected refresh token rotation")
+	}
+	refreshedProtectedResp.Body.Close()
+	accessCookie = refreshedAccessCookie
+	refreshCookie = refreshedRefreshCookie
 
 	userInfoResp := getBearerNoRedirect(t, h.consentServer.Client(), h.consentServer.URL+"/api/v1/auth/userinfo", accessCookie.Value)
 	if userInfoResp.StatusCode != http.StatusOK {
@@ -362,6 +388,21 @@ func (h *e2eHarness) close() {
 	if h.db != nil {
 		_ = h.db.Close()
 	}
+}
+
+func (h *e2eHarness) issueExpiredAccessToken(
+	subject string,
+	audience []string,
+	scopes []string,
+) (
+	*tokens.AccessToken,
+	error,
+) {
+	issuer, _ := tokens.InitServer(tokens.ServerOptions{
+		SigningKey:   h.signingKey,
+		IssuerDomain: testIssuerDomain,
+	})
+	return issuer.IssueAccessToken(subject, audience, scopes, -time.Minute)
 }
 
 func postFormNoRedirect(t *testing.T, baseClient *http.Client, endpoint string, body url.Values) *http.Response {

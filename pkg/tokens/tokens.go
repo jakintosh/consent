@@ -24,6 +24,9 @@ func (t *validateError) Context() string {
 func (t *validateError) Error() string {
 	return fmt.Sprintf("%v", t.err)
 }
+func (t *validateError) Unwrap() error {
+	return t.err
+}
 
 var (
 	errTokenMalformed       = errors.New("token malformed")
