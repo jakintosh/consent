@@ -51,6 +51,19 @@ func TestAPICreateUser_InvalidJSON(t *testing.T) {
 	result.ExpectStatusError(t, http.StatusBadRequest)
 }
 
+func TestAPICreateUser_EmptyPassword(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"username": "alice",
+		"password": ""
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/users", body, jsonHeader, authHeader)
+	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
 func TestAPICreateUser_DuplicateUser(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)

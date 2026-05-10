@@ -13,6 +13,7 @@ var (
 	ErrInternal               = errors.New("internal error")
 	ErrHandleExists           = errors.New("handle already exists")
 	ErrInvalidHandle          = errors.New("invalid handle")
+	ErrInvalidPassword        = errors.New("invalid password")
 	ErrInvalidUser            = errors.New("invalid user")
 	ErrUserNotFound           = errors.New("user not found")
 	ErrInvalidRole            = errors.New("invalid role")

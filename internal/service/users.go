@@ -32,6 +32,9 @@ func (s *Service) CreateUser(
 	if handle == "" {
 		return nil, ErrInvalidHandle
 	}
+	if strings.TrimSpace(password) == "" {
+		return nil, ErrInvalidPassword
+	}
 
 	if err := s.validateRequiredRoles(roles); err != nil {
 		return nil, err

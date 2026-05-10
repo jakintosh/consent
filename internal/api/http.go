@@ -24,6 +24,7 @@ func httpStatusFromError(err error) int {
 		errors.Is(err, service.ErrTokenNotFound),
 		errors.Is(err, service.ErrUserNotFound),
 		errors.Is(err, service.ErrInvalidHandle),
+		errors.Is(err, service.ErrInvalidPassword),
 		errors.Is(err, service.ErrInvalidUser),
 		errors.Is(err, service.ErrInvalidRole),
 		errors.Is(err, service.ErrInvalidScope),

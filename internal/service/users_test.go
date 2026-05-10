@@ -209,6 +209,26 @@ func TestCreateUser_NoRoles(t *testing.T) {
 	}
 }
 
+func TestCreateUser_RejectsEmptyPassword(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	_, err := env.Service.CreateUser("alice", "", nil)
+	if !errors.Is(err, service.ErrInvalidPassword) {
+		t.Fatalf("expected ErrInvalidPassword, got %v", err)
+	}
+}
+
+func TestCreateUser_RejectsWhitespacePassword(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	_, err := env.Service.CreateUser("alice", "   \t", nil)
+	if !errors.Is(err, service.ErrInvalidPassword) {
+		t.Fatalf("expected ErrInvalidPassword, got %v", err)
+	}
+}
+
 func TestCreateUser_ThenLogin(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
