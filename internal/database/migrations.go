@@ -36,7 +36,7 @@ var migrations = []Migration{
 			CREATE TABLE IF NOT EXISTS refresh (
 				id         INTEGER PRIMARY KEY,
 				owner      INTEGER,
-				jwt        TEXT,
+				token_hash TEXT UNIQUE NOT NULL,
 				expiration INTEGER,
 				FOREIGN KEY (owner) REFERENCES user(id) ON DELETE CASCADE
 			);

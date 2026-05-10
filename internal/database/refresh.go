@@ -1,6 +1,8 @@
 package database
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
@@ -10,11 +12,11 @@ func (db *DB) InsertRefreshToken(
 	token *tokens.RefreshToken,
 ) error {
 	_, err := db.Conn.Exec(`
-		INSERT INTO refresh (owner, jwt, expiration)
+		INSERT INTO refresh (owner, token_hash, expiration)
 		SELECT u.id, ?1, ?2
 		FROM user u
 		WHERE u.subject=?3`,
-		token.Encoded(),
+		refreshTokenHash(token.Encoded()),
 		token.Expiration().Unix(),
 		token.Subject(),
 	)
@@ -34,8 +36,8 @@ func (db *DB) GetRefreshTokenOwner(
 		SELECT u.subject
 		FROM refresh r
 		JOIN user u ON r.owner = u.id
-		WHERE r.jwt=?1`,
-		jwt,
+		WHERE r.token_hash=?1`,
+		refreshTokenHash(jwt),
 	)
 
 	var subject string
@@ -58,9 +60,9 @@ func (db *DB) DeleteRefreshToken(
 			SELECT r.id
 			FROM refresh r
 			JOIN user u ON r.owner=u.id
-			WHERE jwt=?1
+			WHERE token_hash=?1
 		)`,
-		jwt,
+		refreshTokenHash(jwt),
 	)
 	if err != nil {
 		return false, fmt.Errorf("delete refresh token: %w", err)
@@ -68,4 +70,9 @@ func (db *DB) DeleteRefreshToken(
 
 	deleted := !resultsEmpty(result)
 	return deleted, nil
+}
+
+func refreshTokenHash(jwt string) string {
+	sum := sha256.Sum256([]byte(jwt))
+	return hex.EncodeToString(sum[:])
 }

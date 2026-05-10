@@ -57,6 +57,29 @@ func TestInsertRefreshToken_MultipleTokens(t *testing.T) {
 	}
 }
 
+func TestInsertRefreshToken_StoresHashNotRawToken(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
+	store := env.DB
+	token := env.IssueTestRefreshToken(t, "alice", testAudience1)
+
+	if err := store.InsertRefreshToken(token); err != nil {
+		t.Fatalf("InsertRefreshToken failed: %v", err)
+	}
+
+	var stored string
+	err := store.Conn.QueryRow(`SELECT token_hash FROM refresh`).Scan(&stored)
+	if err != nil {
+		t.Fatalf("query token_hash failed: %v", err)
+	}
+	if stored == token.Encoded() {
+		t.Fatal("stored refresh token should not equal raw encoded token")
+	}
+	if len(stored) != 64 {
+		t.Fatalf("stored refresh token hash length = %d, want 64", len(stored))
+	}
+}
+
 func TestDeleteRefreshToken_Exists(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithUsers(t, testutil.TestUser{Handle: "alice", Password: "password"})
