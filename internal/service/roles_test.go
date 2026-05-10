@@ -241,7 +241,7 @@ func TestDeleteRole_RequiredByIntegration(t *testing.T) {
 		t,
 		"editor-app",
 		"Editor App",
-		"editor-audience",
+		"editor.test",
 		"https://editor.test/callback",
 		"https://editor.test",
 		"https://editor.test/logo.png",

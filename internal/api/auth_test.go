@@ -167,7 +167,7 @@ func TestAPILogout_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -180,7 +180,7 @@ func TestAPILogout_InvalidatesToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	logoutBody := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -229,7 +229,7 @@ func TestAPILogout_DoubleLogout(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -245,7 +245,7 @@ func TestAPIRefresh_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -275,7 +275,7 @@ func TestAPIRefresh_TokenNotInStore(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.IssueTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.IssueTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -288,7 +288,7 @@ func TestAPIRefresh_InvalidatesOldToken(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -304,7 +304,7 @@ func TestAPIRefresh_NewTokenCanBeUsed(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	body := `{
 		"refreshToken": "` + token.Encoded() + `"
@@ -335,7 +335,7 @@ func TestAPIUserInfo_IdentityOnly(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"app.test", consentAudience}, []string{"identity"})
 	result := wire.TestGet[api.UserInfo](env.Router, "/auth/userinfo", authHeader(token))
 	response := result.ExpectOK(t)
 	if response.Sub != token.Subject() {
@@ -351,7 +351,7 @@ func TestAPIUserInfo_ProfileScope(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity", "profile"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"app.test", consentAudience}, []string{"identity", "profile"})
 	result := wire.TestGet[api.UserInfo](env.Router, "/auth/userinfo", authHeader(token))
 	response := result.ExpectOK(t)
 	if response.Sub != token.Subject() {
@@ -367,7 +367,7 @@ func TestAPIUserInfo_RequiresIdentityScope(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"profile"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"app.test", consentAudience}, []string{"profile"})
 	result := wire.TestGet[any](env.Router, "/auth/userinfo", authHeader(token))
 	result.ExpectStatus(t, http.StatusForbidden)
 }
@@ -385,7 +385,7 @@ func TestAPIUserInfo_RequiresConsentAudience(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience"}, []string{"identity"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"app.test"}, []string{"identity"})
 	result := wire.TestGet[any](env.Router, "/auth/userinfo", authHeader(token))
 	result.ExpectStatus(t, http.StatusBadRequest)
 }
@@ -419,7 +419,7 @@ func TestAPIUserInfo_BearerSchemeIsCaseInsensitive(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	env.RegisterTestUser(t, "alice", "password")
 
-	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"test-audience", consentAudience}, []string{"identity"})
+	token := env.IssueTestAccessTokenWithScopes(t, "alice", []string{"app.test", consentAudience}, []string{"identity"})
 	result := wire.TestGet[api.UserInfo](env.Router, "/auth/userinfo", wire.TestHeader{Key: "Authorization", Value: "bEaReR " + token.Encoded()})
 	response := result.ExpectOK(t)
 	if response.Sub != token.Subject() {

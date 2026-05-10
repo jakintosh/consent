@@ -15,7 +15,7 @@ func TestCreateIntegration_Success(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -33,7 +33,7 @@ func TestCreateIntegration_DuplicateName(t *testing.T) {
 	if err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -45,7 +45,7 @@ func TestCreateIntegration_DuplicateName(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -62,7 +62,7 @@ func TestCreateIntegration_DuplicateAudience(t *testing.T) {
 	if err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"shared-audience",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -74,9 +74,9 @@ func TestCreateIntegration_DuplicateAudience(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-b",
 		"Service B",
-		"shared-audience",
-		"https://svc-b.test/callback",
-		"https://svc-b.test",
+		"svc-a.test",
+		"https://svc-a.test/callback-b",
+		"https://svc-a.test",
 		"https://svc-b.test/logo.png",
 		nil,
 	)
@@ -92,7 +92,7 @@ func TestCreateIntegration_InvalidRedirect(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"bad-url",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -103,6 +103,42 @@ func TestCreateIntegration_InvalidRedirect(t *testing.T) {
 	}
 }
 
+func TestCreateIntegration_RedirectHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	err := env.Service.CreateIntegration(
+		"svc-a",
+		"Service A",
+		"svc-a.test",
+		"https://other.test/callback",
+		"https://svc-a.test",
+		"https://svc-a.test/logo.png",
+		nil,
+	)
+	if !errors.Is(err, service.ErrInvalidRedirect) {
+		t.Fatalf("expected ErrInvalidRedirect, got %v", err)
+	}
+}
+
+func TestCreateIntegration_HomepageHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+
+	err := env.Service.CreateIntegration(
+		"svc-a",
+		"Service A",
+		"svc-a.test",
+		"https://svc-a.test/callback",
+		"https://other.test",
+		"https://svc-a.test/logo.png",
+		nil,
+	)
+	if !errors.Is(err, service.ErrInvalidIntegration) {
+		t.Fatalf("expected ErrInvalidIntegration, got %v", err)
+	}
+}
+
 func TestCreateIntegration_InvalidName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -110,7 +146,7 @@ func TestCreateIntegration_InvalidName(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -146,7 +182,7 @@ func TestCreateIntegration_RequiredRoleNotFound(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -165,7 +201,7 @@ func TestCreateIntegration_DuplicateRequiredRole(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -183,7 +219,7 @@ func TestGetIntegration_Success(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -225,7 +261,7 @@ func TestCreateIntegration_MissingHomepage(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"",
 		"https://svc-a.test/logo.png",
@@ -243,7 +279,7 @@ func TestCreateIntegration_MissingLogo(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"",
@@ -261,7 +297,7 @@ func TestUpdateIntegration_Success(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -270,9 +306,9 @@ func TestUpdateIntegration_Success(t *testing.T) {
 
 	update := service.IntegrationUpdate{
 		Display:  strPtr("Service A2"),
-		Audience: strPtr("aud-b"),
-		Redirect: strPtr("https://svc-a.test/new"),
-		Homepage: strPtr("https://svc-a-v2.test"),
+		Audience: strPtr("svc-b.test"),
+		Redirect: strPtr("https://svc-b.test/new"),
+		Homepage: strPtr("https://svc-b.test"),
 		Logo:     strPtr("https://svc-a.test/logo-v2.png"),
 	}
 	err := env.Service.UpdateIntegration("svc-a", &update)
@@ -287,8 +323,8 @@ func TestUpdateIntegration_Success(t *testing.T) {
 	if integration.Display != "Service A2" {
 		t.Errorf("Display = %s, want Service A2", integration.Display)
 	}
-	if integration.Homepage != "https://svc-a-v2.test" {
-		t.Errorf("Homepage = %s, want https://svc-a-v2.test", integration.Homepage)
+	if integration.Homepage != "https://svc-b.test" {
+		t.Errorf("Homepage = %s, want https://svc-b.test", integration.Homepage)
 	}
 	if integration.Logo != "https://svc-a.test/logo-v2.png" {
 		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", integration.Logo)
@@ -315,7 +351,7 @@ func TestUpdateIntegration_MissingHomepage(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -338,7 +374,7 @@ func TestUpdateIntegration_MissingLogo(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -359,7 +395,7 @@ func TestUpdateIntegration_InvalidRedirect(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -375,6 +411,48 @@ func TestUpdateIntegration_InvalidRedirect(t *testing.T) {
 	}
 }
 
+func TestUpdateIntegration_RedirectHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestIntegration(
+		t,
+		"svc-a",
+		"Service A",
+		"svc-a.test",
+		"https://svc-a.test/callback",
+		"https://svc-a.test",
+		"https://svc-a.test/logo.png",
+		nil,
+	)
+
+	redirect := "https://other.test/callback"
+	err := env.Service.UpdateIntegration("svc-a", &service.IntegrationUpdate{Redirect: &redirect})
+	if !errors.Is(err, service.ErrInvalidRedirect) {
+		t.Fatalf("expected ErrInvalidRedirect, got %v", err)
+	}
+}
+
+func TestUpdateIntegration_HomepageHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnv(t)
+	env.CreateTestIntegration(
+		t,
+		"svc-a",
+		"Service A",
+		"svc-a.test",
+		"https://svc-a.test/callback",
+		"https://svc-a.test",
+		"https://svc-a.test/logo.png",
+		nil,
+	)
+
+	homepage := "https://other.test"
+	err := env.Service.UpdateIntegration("svc-a", &service.IntegrationUpdate{Homepage: &homepage})
+	if !errors.Is(err, service.ErrInvalidIntegration) {
+		t.Fatalf("expected ErrInvalidIntegration, got %v", err)
+	}
+}
+
 func TestUpdateIntegration_RequiredRoleNotFound(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
@@ -382,7 +460,7 @@ func TestUpdateIntegration_RequiredRoleNotFound(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -416,7 +494,7 @@ func TestUpdateIntegration_RestoreHomepageLogo(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -424,7 +502,7 @@ func TestUpdateIntegration_RestoreHomepageLogo(t *testing.T) {
 	)
 
 	update := service.IntegrationUpdate{
-		Homepage: strPtr("https://svc-a-v2.test"),
+		Homepage: strPtr("https://svc-a.test/v2"),
 		Logo:     strPtr("https://svc-a.test/logo-v2.png"),
 	}
 	err := env.Service.UpdateIntegration("svc-a", &update)
@@ -436,8 +514,8 @@ func TestUpdateIntegration_RestoreHomepageLogo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetIntegration failed: %v", err)
 	}
-	if integration.Homepage != "https://svc-a-v2.test" {
-		t.Errorf("Homepage = %s, want https://svc-a-v2.test", integration.Homepage)
+	if integration.Homepage != "https://svc-a.test/v2" {
+		t.Errorf("Homepage = %s, want https://svc-a.test/v2", integration.Homepage)
 	}
 	if integration.Logo != "https://svc-a.test/logo-v2.png" {
 		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", integration.Logo)
@@ -447,11 +525,13 @@ func TestUpdateIntegration_RestoreHomepageLogo(t *testing.T) {
 func TestUpdateIntegration_DuplicateAudience(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
-	env.CreateTestIntegration(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-b", "Service B", "svc-b.test", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil)
 
-	audience := "aud-a"
-	err := env.Service.UpdateIntegration("svc-b", &service.IntegrationUpdate{Audience: &audience})
+	audience := "svc-a.test"
+	redirect := "https://svc-a.test/callback-b"
+	homepage := "https://svc-a.test"
+	err := env.Service.UpdateIntegration("svc-b", &service.IntegrationUpdate{Audience: &audience, Redirect: &redirect, Homepage: &homepage})
 	if !errors.Is(err, service.ErrIntegrationExists) {
 		t.Fatalf("expected ErrIntegrationExists, got %v", err)
 	}
@@ -464,7 +544,7 @@ func TestDeleteIntegration_Success(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -528,7 +608,7 @@ func TestListIntegrations_Multiple(t *testing.T) {
 		t,
 		"svc-a",
 		"Service A",
-		"aud-a",
+		"svc-a.test",
 		"https://svc-a.test/callback",
 		"https://svc-a.test",
 		"https://svc-a.test/logo.png",
@@ -538,7 +618,7 @@ func TestListIntegrations_Multiple(t *testing.T) {
 		t,
 		"svc-b",
 		"Service B",
-		"aud-b",
+		"svc-b.test",
 		"https://svc-b.test/callback",
 		"https://svc-b.test",
 		"https://svc-b.test/logo.png",
@@ -580,7 +660,7 @@ func TestIntegrationsAccessibleTo_AllRoles(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"open-app",
 		"Open App",
-		"open-audience",
+		"open.test",
 		"https://open.test/callback",
 		"https://open.test",
 		"https://open.test/logo.png",
@@ -594,7 +674,7 @@ func TestIntegrationsAccessibleTo_AllRoles(t *testing.T) {
 	err = env.Service.CreateIntegration(
 		"editor-app",
 		"Editor App",
-		"editor-audience",
+		"editor.test",
 		"https://editor.test/callback",
 		"https://editor.test",
 		"https://editor.test/logo.png",
@@ -608,7 +688,7 @@ func TestIntegrationsAccessibleTo_AllRoles(t *testing.T) {
 	err = env.Service.CreateIntegration(
 		"admin-app",
 		"Admin App",
-		"admin-audience",
+		"admin.test",
 		"https://admin.test/callback",
 		"https://admin.test",
 		"https://admin.test/logo.png",
@@ -697,7 +777,7 @@ func TestIntegrationsAccessibleTo_MultipleRoles(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"multi-app",
 		"Multi Role App",
-		"multi-audience",
+		"multi.test",
 		"https://multi.test/callback",
 		"https://multi.test",
 		"https://multi.test/logo.png",
@@ -744,7 +824,7 @@ func TestIntegrationsAccessibleTo_NoMatchingRole(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"admin-app",
 		"Admin App",
-		"admin-audience",
+		"admin.test",
 		"https://admin.test/callback",
 		"https://admin.test",
 		"https://admin.test/logo.png",

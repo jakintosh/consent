@@ -149,7 +149,7 @@ func SetupTestEnvWithRouter(
 ) *TestEnv {
 	t.Helper()
 	env := SetupTestEnv(t)
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "http://localhost:8080/callback", "http://test-integration.local", "http://test-integration.local/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "localhost:8080", "http://localhost:8080/callback", "http://localhost:8080", "http://localhost:8080/logo.png", nil)
 	return env
 }
 

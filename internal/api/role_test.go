@@ -251,7 +251,7 @@ func TestAPIDeleteRole_RequiredByIntegration(t *testing.T) {
 	authHeader := env.APIKeyHeader(t)
 
 	env.CreateTestRole(t, "editor", "Editor")
-	env.CreateTestIntegration(t, "editor-app", "Editor App", "editor-audience", "https://editor.test/callback", "https://editor.test", "https://editor.test/logo.png", []string{"editor"})
+	env.CreateTestIntegration(t, "editor-app", "Editor App", "editor.test", "https://editor.test/callback", "https://editor.test", "https://editor.test/logo.png", []string{"editor"})
 
 	result := wire.TestDelete[any](env.Router, "/admin/roles/editor", authHeader)
 	result.ExpectStatusError(t, http.StatusConflict)

@@ -102,8 +102,8 @@ func (s *Service) CreateIntegration(
 		return ErrInvalidIntegration
 	}
 
-	if _, err := parseAndValidateRedirectURL(redirect); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
+	if err := validateIntegrationURLs(audience, redirect, homepage); err != nil {
+		return err
 	}
 	if err := s.validateRequiredRoles(requiredRoles); err != nil {
 		return err
@@ -187,8 +187,8 @@ func (s *Service) UpdateIntegration(
 		return ErrInvalidIntegration
 	}
 
-	if _, err := parseAndValidateRedirectURL(current.Redirect); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
+	if err := validateIntegrationURLs(current.Audience, current.Redirect, current.Homepage); err != nil {
+		return err
 	}
 	if err := s.validateRequiredRoles(current.RequiredRoles); err != nil {
 		return err
@@ -237,6 +237,30 @@ func (s *Service) ListIntegrations() (
 		return nil, fmt.Errorf("%w: failed to list integrations: %v", ErrInternal, err)
 	}
 	return records, nil
+}
+
+func validateIntegrationURLs(
+	audience string,
+	redirect string,
+	homepage string,
+) error {
+	redirectURL, err := parseAndValidateRedirectURL(redirect)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidRedirect, err)
+	}
+	if redirectURL.Host != audience {
+		return fmt.Errorf("%w: redirect host must match audience", ErrInvalidRedirect)
+	}
+
+	homepageURL, err := parseAndValidateRedirectURL(homepage)
+	if err != nil {
+		return fmt.Errorf("%w: invalid homepage URL: %v", ErrInvalidIntegration, err)
+	}
+	if homepageURL.Host != audience {
+		return fmt.Errorf("%w: homepage host must match audience", ErrInvalidIntegration)
+	}
+
+	return nil
 }
 
 func (s *Service) validateRequiredRoles(

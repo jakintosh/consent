@@ -81,9 +81,9 @@ func TestHome_AuthenticatedShowsAccessibleIntegrationsAndHidesInaccessible(t *te
 	env := testutil.SetupTestEnv(t)
 	env.CreateTestRole(t, "editor", "Editor")
 	env.CreateTestRole(t, "superadmin", "Super Admin")
-	env.CreateTestIntegration(t, "open-app", "Open App", "open-audience", "https://open.test/callback", "https://open.test", "https://open.test/logo.png", nil)
-	env.CreateTestIntegration(t, "editor-app", "Editor App", "editor-audience", "https://editor.test/callback", "https://editor.test", "https://editor.test/logo.png", []string{"editor"})
-	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin-audience", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"superadmin"})
+	env.CreateTestIntegration(t, "open-app", "Open App", "open.test", "https://open.test/callback", "https://open.test", "https://open.test/logo.png", nil)
+	env.CreateTestIntegration(t, "editor-app", "Editor App", "editor.test", "https://editor.test/callback", "https://editor.test", "https://editor.test/logo.png", []string{"editor"})
+	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin.test", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"superadmin"})
 	user, err := env.Service.CreateUser("alice", "password", []string{"editor"})
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
@@ -116,7 +116,7 @@ func TestHome_AuthenticatedShowsGrantedAndUngrantedScopes(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "partial-app", "Partial App", "partial-audience", "https://partial.test/callback", "https://partial-app.local", "https://partial-app.local/logo.png", nil)
+	env.CreateTestIntegration(t, "partial-app", "Partial App", "partial-app.local", "https://partial-app.local/callback", "https://partial-app.local", "https://partial-app.local/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -155,7 +155,7 @@ func TestHome_AuthenticatedShowsAllScopesGranted(t *testing.T) {
 	tv := consenttesting.NewTestVerifier("consent.test", "app.test")
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-app", "Test App", "test-audience", "https://test.test/callback", "https://test-app.local", "https://test-app.local/logo.png", nil)
+	env.CreateTestIntegration(t, "test-app", "Test App", "test-app.local", "https://test-app.local/callback", "https://test-app.local", "https://test-app.local/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)

@@ -171,7 +171,7 @@ func TestReviewAuthorizationRequest_MissingScopes(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "app.test", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -206,7 +206,7 @@ func TestReviewAuthorizationRequest_AuthorizedWhenAllScopesGranted(t *testing.T)
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "app.test", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 	if err := env.DB.InsertGrants(user.Subject, "test-integration", []string{service.ScopeIdentity}); err != nil {
 		t.Fatalf("InsertGrants failed: %v", err)
@@ -232,7 +232,7 @@ func TestFinalizeAuthorization_RedirectIncludesAuthCodeStateAndPreservesQuery(t 
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback?existing=1", "https://app.test", "https://app.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "app.test", "https://app.test/callback?existing=1", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -274,7 +274,7 @@ func TestFinalizeAuthorization_StoresAuthCodeAndGrantsMissingScopes(t *testing.T
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "app.test", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -314,7 +314,7 @@ func TestFinalizeAuthorization_OmitsEmptyState(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "app.test", "https://app.test/callback", "https://app.test", "https://app.test/logo.png", nil)
 	user := getTestUser(t, env, "alice")
 
 	review, err := env.Service.ReviewAuthorizationRequest(
@@ -349,7 +349,7 @@ func TestFinalizeAuthorization_InvalidRedirect(t *testing.T) {
 		Request: service.AuthorizationRequest{
 			Integration: service.Integration{
 				Name:     "test-integration",
-				Audience: "test-audience",
+				Audience: "app.test",
 				Redirect: "bad-url",
 			},
 			Scopes: []string{service.ScopeIdentity},
@@ -440,7 +440,7 @@ func TestRefreshAccessToken_Success(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// refreshing valid token returns new access and refresh tokens
 	accessToken, newRefreshToken, err := env.Service.RefreshAccessToken(token.Encoded())
@@ -472,7 +472,7 @@ func TestRefreshAccessToken_TokenNotInStore(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.IssueTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.IssueTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// valid token not in store returns ErrTokenNotFound
 	_, _, err := env.Service.RefreshAccessToken(token.Encoded())
@@ -487,7 +487,7 @@ func TestRefreshAccessToken_DeletesOldToken(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// first refresh succeeds
 	_, _, err := env.Service.RefreshAccessToken(token.Encoded())
@@ -508,7 +508,7 @@ func TestRefreshAccessToken_StoresNewToken(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// refresh returns new token
 	_, newRefreshToken, err := env.Service.RefreshAccessToken(token.Encoded())
@@ -536,7 +536,7 @@ func TestRefreshAccessToken_CanBeRefreshedAgain(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// first refresh succeeds
 	_, newRefreshToken1, err := env.Service.RefreshAccessToken(token.Encoded())
@@ -562,7 +562,7 @@ func TestRefreshAccessToken_AccessDeniedWhenRequiredRoleLost(t *testing.T) {
 		t,
 		"admin-app",
 		"Admin App",
-		"admin-audience",
+		"admin.test",
 		"https://admin.test/callback",
 		"https://admin.test",
 		"https://admin.test/logo.png",
@@ -576,7 +576,7 @@ func TestRefreshAccessToken_AccessDeniedWhenRequiredRoleLost(t *testing.T) {
 	if _, err := env.Service.UpdateUser(user.Subject, &service.UserUpdate{Roles: &roles}); err != nil {
 		t.Fatalf("UpdateUser failed: %v", err)
 	}
-	token := env.StoreTestRefreshToken(t, user.Subject, []string{"test.consent.local", "admin-audience"})
+	token := env.StoreTestRefreshToken(t, user.Subject, []string{"test.consent.local", "admin.test"})
 
 	_, _, err = env.Service.RefreshAccessToken(token.Encoded())
 	if !errors.Is(err, service.ErrAccessDenied) {
@@ -607,7 +607,7 @@ func TestRevokeRefreshToken_Success(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// revoking valid token succeeds
 	err := env.Service.RevokeRefreshToken(token.Encoded())
@@ -633,7 +633,7 @@ func TestRevokeRefreshToken_CantRefreshAfterRevoke(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// revoke the token
 	if err := env.Service.RevokeRefreshToken(token.Encoded()); err != nil {
@@ -653,7 +653,7 @@ func TestRevokeRefreshToken_DoubleRevoke(t *testing.T) {
 
 	// setup env
 	env.RegisterTestUser(t, "alice", "password")
-	token := env.StoreTestRefreshToken(t, "alice", []string{"test-audience"})
+	token := env.StoreTestRefreshToken(t, "alice", []string{"app.test"})
 
 	// first revoke succeeds
 	if err := env.Service.RevokeRefreshToken(token.Encoded()); err != nil {
@@ -714,7 +714,7 @@ func TestReviewAuthorizationRequest_AccessDenied(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"admin-app",
 		"Admin App",
-		"admin-audience",
+		"admin.test",
 		"https://admin.test/callback",
 		"https://admin.test",
 		"https://admin.test/logo.png",
@@ -751,7 +751,7 @@ func TestReviewAuthorizationRequest_AccessAllowed(t *testing.T) {
 	err := env.Service.CreateIntegration(
 		"admin-app",
 		"Admin App",
-		"admin-audience",
+		"admin.test",
 		"https://admin.test/callback",
 		"https://admin.test",
 		"https://admin.test/logo.png",
@@ -790,7 +790,7 @@ func TestReviewAuthorizationRequest_NoRequiredRoles(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 
 	// Integration with no required roles should be accessible to any user
-	env.CreateTestIntegration(t, "open-app", "Open App", "open-audience", "https://open.test/callback", "https://open.test", "https://open.test/logo.png", nil)
+	env.CreateTestIntegration(t, "open-app", "Open App", "open.test", "https://open.test/callback", "https://open.test", "https://open.test/logo.png", nil)
 
 	// User without any roles should still be able to review
 	noRoleUser, err := env.Service.CreateUser("no-role-user", "password", nil)

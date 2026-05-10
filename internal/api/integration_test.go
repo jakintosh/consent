@@ -18,7 +18,7 @@ func TestAPICreateIntegration_Success(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
@@ -45,12 +45,12 @@ func TestAPICreateIntegration_DuplicateName(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
@@ -68,7 +68,7 @@ func TestAPICreateIntegration_RequiredRoles(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png",
@@ -94,11 +94,45 @@ func TestAPICreateIntegration_RequiredRoleNotFound(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png",
 		"required_roles":["missing"]
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
+	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
+func TestAPICreateIntegration_RedirectHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"name":"svc-a",
+		"display":"Service A",
+		"audience":"svc-a.test",
+		"redirect":"https://other.test/callback",
+		"homepage":"https://svc-a.test",
+		"logo":"https://svc-a.test/logo.png"
+	}`
+	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
+	result.ExpectStatusError(t, http.StatusBadRequest)
+}
+
+func TestAPICreateIntegration_HomepageHostMustMatchAudience(t *testing.T) {
+	t.Parallel()
+	env := testutil.SetupTestEnvWithRouter(t)
+	authHeader := env.APIKeyHeader(t)
+
+	body := `{
+		"name":"svc-a",
+		"display":"Service A",
+		"audience":"svc-a.test",
+		"redirect":"https://svc-a.test/callback",
+		"homepage":"https://other.test",
+		"logo":"https://svc-a.test/logo.png"
 	}`
 	result := wire.TestPost[any](env.Router, "/admin/integrations", body, jsonHeader, authHeader)
 	result.ExpectStatusError(t, http.StatusBadRequest)
@@ -112,7 +146,7 @@ func TestAPICreateIntegration_InvalidRedirect(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"not-a-url",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
@@ -129,7 +163,7 @@ func TestAPICreateIntegration_MissingName(t *testing.T) {
 
 	body := `{
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
@@ -146,7 +180,7 @@ func TestAPICreateIntegration_MissingDisplay(t *testing.T) {
 
 	body := `{
 		"name":"svc-a",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
@@ -181,7 +215,7 @@ func TestAPICreateIntegration_MissingRedirect(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"homepage":"https://svc-a.test",
 		"logo":"https://svc-a.test/logo.png"
 	}`
@@ -198,7 +232,7 @@ func TestAPICreateIntegration_MissingHomepage(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"logo":"https://svc-a.test/logo.png"
 	}`
@@ -215,7 +249,7 @@ func TestAPICreateIntegration_MissingLogo(t *testing.T) {
 	body := `{
 		"name":"svc-a",
 		"display":"Service A",
-		"audience":"aud-a",
+		"audience":"svc-a.test",
 		"redirect":"https://svc-a.test/callback",
 		"homepage":"https://svc-a.test"
 	}`
@@ -246,7 +280,7 @@ func TestAPIGetIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	result := wire.TestGet[map[string]string](env.Router, "/admin/integrations/svc-a", authHeader)
 	response := result.ExpectOK(t)
@@ -269,7 +303,7 @@ func TestAPIGetIntegration_RequiredRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 	env.CreateTestRole(t, "editor", "Editor")
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
 
 	result := wire.TestGet[api.Integration](env.Router, "/admin/integrations/svc-a", authHeader)
 	response := result.ExpectOK(t)
@@ -291,13 +325,13 @@ func TestAPIUpdateIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{
 		"display":"Service A2",
-		"audience":"aud-b",
-		"redirect":"https://svc-a.test/new",
-		"homepage":"https://svc-a-v2.test",
+		"audience":"svc-b.test",
+		"redirect":"https://svc-b.test/new",
+		"homepage":"https://svc-b.test",
 		"logo":"https://svc-a.test/logo-v2.png"
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
@@ -310,8 +344,8 @@ func TestAPIUpdateIntegration_Success(t *testing.T) {
 	if integration.Display != "Service A2" {
 		t.Errorf("Display = %s, want Service A2", integration.Display)
 	}
-	if integration.Homepage != "https://svc-a-v2.test" {
-		t.Errorf("Homepage = %s, want https://svc-a-v2.test", integration.Homepage)
+	if integration.Homepage != "https://svc-b.test" {
+		t.Errorf("Homepage = %s, want https://svc-b.test", integration.Homepage)
 	}
 	if integration.Logo != "https://svc-a.test/logo-v2.png" {
 		t.Errorf("Logo = %s, want https://svc-a.test/logo-v2.png", integration.Logo)
@@ -323,7 +357,7 @@ func TestAPIUpdateIntegration_RequiredRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 	env.CreateTestRole(t, "editor", "Editor")
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{"required_roles":["editor"]}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
@@ -343,7 +377,7 @@ func TestAPIUpdateIntegration_ClearRequiredRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 	env.CreateTestRole(t, "editor", "Editor")
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
 
 	body := `{"required_roles":[]}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
@@ -365,7 +399,7 @@ func TestAPIUpdateIntegration_NotFound(t *testing.T) {
 
 	body := `{
 		"display":"Service A2",
-		"audience":"aud-b",
+		"audience":"svc-b.test",
 		"redirect":"https://svc-a.test/new",
 		"homepage":"https://svc-a-v2.test",
 		"logo":"https://svc-a.test/logo-v2.png"
@@ -378,11 +412,11 @@ func TestAPIUpdateIntegration_InvalidRedirect(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{
 		"display":"Service A2",
-		"audience":"aud-b",
+		"audience":"svc-b.test",
 		"redirect":"bad-url"
 	}`
 	result := wire.TestPatch[any](env.Router, "/admin/integrations/svc-a", body, jsonHeader, authHeader)
@@ -407,7 +441,7 @@ func TestAPIDeleteIntegration_Success(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	result := wire.TestDelete[any](env.Router, "/admin/integrations/svc-a", authHeader)
 	result.ExpectStatus(t, http.StatusOK)
@@ -431,7 +465,7 @@ func TestAPIUpdateIntegration_MissingHomepage(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{
 		"display":"Service A2",
@@ -445,7 +479,7 @@ func TestAPIUpdateIntegration_MissingLogo(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
 
 	body := `{
 		"display":"Service A2",
@@ -481,11 +515,11 @@ func TestAPIListIntegrations_Seeded(t *testing.T) {
 	if response[1]["name"] != "test-integration" {
 		t.Fatalf("expected seeded test-integration second, got %s", response[1]["name"])
 	}
-	if response[1]["homepage"] != "http://test-integration.local" {
-		t.Errorf("homepage = %s, want http://test-integration.local", response[1]["homepage"])
+	if response[1]["homepage"] != "http://localhost:8080" {
+		t.Errorf("homepage = %s, want http://localhost:8080", response[1]["homepage"])
 	}
-	if response[1]["logo"] != "http://test-integration.local/logo.png" {
-		t.Errorf("logo = %s, want http://test-integration.local/logo.png", response[1]["logo"])
+	if response[1]["logo"] != "http://localhost:8080/logo.png" {
+		t.Errorf("logo = %s, want http://localhost:8080/logo.png", response[1]["logo"])
 	}
 }
 
@@ -493,8 +527,8 @@ func TestAPIListIntegrations_Multiple(t *testing.T) {
 	t.Parallel()
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
-	env.CreateTestIntegration(t, "svc-b", "Service B", "aud-b", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", nil)
+	env.CreateTestIntegration(t, "svc-b", "Service B", "svc-b.test", "https://svc-b.test/callback", "https://svc-b.test", "https://svc-b.test/logo.png", nil)
 
 	result := wire.TestGet[[]map[string]string](env.Router, "/admin/integrations", authHeader)
 	response := result.ExpectOK(t)
@@ -517,7 +551,7 @@ func TestAPIListIntegrations_RequiredRoles(t *testing.T) {
 	env := testutil.SetupTestEnvWithRouter(t)
 	authHeader := env.APIKeyHeader(t)
 	env.CreateTestRole(t, "editor", "Editor")
-	env.CreateTestIntegration(t, "svc-a", "Service A", "aud-a", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
+	env.CreateTestIntegration(t, "svc-a", "Service A", "svc-a.test", "https://svc-a.test/callback", "https://svc-a.test", "https://svc-a.test/logo.png", []string{"editor"})
 
 	result := wire.TestGet[[]api.Integration](env.Router, "/admin/integrations", authHeader)
 	response := result.ExpectOK(t)

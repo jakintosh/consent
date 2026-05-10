@@ -302,21 +302,19 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	if _, err := svc.CreateUser(testUserHandle, testUserPassword, nil); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
-	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, testAppAudience, h.appServerURL()+"/auth/callback", h.appServerURL(), "https://example-app.local/logo.png", nil); err != nil {
+	appAudience := mustURL(t, h.appServerURL()).Host
+	if err := svc.CreateIntegration(testServiceName, testServiceNameUI, appAudience, h.appServerURL()+"/auth/callback", h.appServerURL(), "https://example-app.local/logo.png", nil); err != nil {
 		t.Fatalf("CreateIntegration failed: %v", err)
 	}
 
-	clientOpts = tokens.ClientOptions{
-		VerificationKey: &signingKey.PublicKey,
-		IssuerDomain:    testIssuerDomain,
-		ValidAudience:   testAppAudience,
-	}
-	h.validator = tokens.InitClient(clientOpts)
-
-	authClient := consentclient.Init(h.validator, h.consentServer.URL)
+	var authClient *consentclient.Client
 	appMux := http.NewServeMux()
-	appMux.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
-	appMux.HandleFunc("/logout", authClient.HandleLogout())
+	appMux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+		authClient.HandleAuthorizationCode()(w, r)
+	})
+	appMux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		authClient.HandleLogout()(w, r)
+	})
 	appMux.HandleFunc("/protected", func(w http.ResponseWriter, r *http.Request) {
 		token, err := authClient.VerifyAuthorization(w, r)
 		if err != nil || token == nil {
@@ -328,9 +326,21 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 	})
 	h.appServer = httptest.NewTLSServer(appMux)
 
-	if err := svc.UpdateIntegration(testServiceName, &service.IntegrationUpdate{Redirect: stringPtr(h.appServer.URL + "/auth/callback")}); err != nil {
+	appAudience = mustURL(t, h.appServer.URL).Host
+	if err := svc.UpdateIntegration(testServiceName, &service.IntegrationUpdate{
+		Audience: stringPtr(appAudience),
+		Redirect: stringPtr(h.appServer.URL + "/auth/callback"),
+		Homepage: stringPtr(h.appServer.URL),
+	}); err != nil {
 		t.Fatalf("UpdateIntegration redirect failed: %v", err)
 	}
+	clientOpts = tokens.ClientOptions{
+		VerificationKey: &signingKey.PublicKey,
+		IssuerDomain:    testIssuerDomain,
+		ValidAudience:   appAudience,
+	}
+	h.validator = tokens.InitClient(clientOpts)
+	authClient = consentclient.Init(h.validator, h.consentServer.URL)
 
 	return h
 }

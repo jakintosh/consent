@@ -13,7 +13,7 @@ import (
 
 func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "integration.test", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
 	tv := consenttesting.NewTestVerifier("consent.test", "consent.test")
 
 	appServer, err := New(Options{
@@ -44,7 +44,7 @@ func TestAuthorize_UnauthenticatedRedirectsToLogin(t *testing.T) {
 func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "integration.test", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -89,7 +89,7 @@ func TestAuthorize_AuthenticatedRendersApprovalPage(t *testing.T) {
 func TestAuthorize_AuthenticatedSeparatesGrantedAndMissingScopes(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "integration.test", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -138,7 +138,7 @@ func TestAuthorize_AuthenticatedAccessDeniedRendersForbiddenStatusPage(t *testin
 	env := testutil.SetupTestEnv(t)
 	env.CreateTestRole(t, "editor", "Editor")
 	env.CreateTestRole(t, "admin-app-user", "Admin App User")
-	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin-audience", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
+	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin.test", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
 	user, err := env.Service.CreateUser("alice", "password", []string{"editor"})
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
@@ -180,7 +180,7 @@ func TestAuthorize_AuthenticatedAccessDeniedRendersForbiddenStatusPage(t *testin
 func TestAuthorizeSubmit_InvalidCSRFRendersStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "integration.test", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
@@ -226,7 +226,7 @@ func TestAuthorizeSubmit_AccessDeniedRendersForbiddenStatusPage(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.CreateTestRole(t, "editor", "Editor")
 	env.CreateTestRole(t, "admin-app-user", "Admin App User")
-	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin-audience", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
+	env.CreateTestIntegration(t, "admin-app", "Admin App", "admin.test", "https://admin.test/callback", "https://admin.test", "https://admin.test/logo.png", []string{"admin-app-user"})
 	user, err := env.Service.CreateUser("alice", "password", []string{"editor"})
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
@@ -273,7 +273,7 @@ func TestAuthorizeSubmit_AccessDeniedRendersForbiddenStatusPage(t *testing.T) {
 func TestAuthorize_AuthenticatedAutoRedirectsWhenGrantExists(t *testing.T) {
 	env := testutil.SetupTestEnv(t)
 	env.RegisterTestUser(t, "alice", "password")
-	env.CreateTestIntegration(t, "test-integration", "Test Integration", "test-audience", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
+	env.CreateTestIntegration(t, "test-integration", "Test Integration", "integration.test", "https://integration.test/callback", "https://integration.test", "https://integration.test/logo.png", nil)
 	user, err := env.DB.GetUserByHandle("alice")
 	if err != nil {
 		t.Fatalf("GetUserByHandle failed: %v", err)
