@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"log"
 	"strings"
 	"time"
 )
@@ -75,10 +74,7 @@ func (t *RefreshToken) Encoded() string       { return t.encoded }
 func (token *RefreshToken) Decode(encToken string, validator Validator) error {
 	claims, err := decodeToken[*RefreshTokenClaims](encToken, validator)
 	if err != nil {
-		if true {
-			// TODO: make this actually check log level
-			log.Println(err.Context())
-		}
+		logDecodeError(err)
 		return err
 	}
 	token.fromClaims(*claims, encToken)
