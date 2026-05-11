@@ -1,0 +1,9 @@
+.git
+bin
+config
+data
+mock
+deploy
+tmp
+*.log
+.DS_Store

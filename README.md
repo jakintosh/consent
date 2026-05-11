@@ -152,9 +152,9 @@ The generated `./config/config.yaml` uses production defaults. `make init` passe
 
 ```yaml
 server:
-  publicURL: http://localhost:9001
+  publicURL: http://localhost:8000
   issuerDomain: localhost
-  port: 9001
+  port: 8000
   devMode: true
 ```
 
@@ -214,6 +214,65 @@ To prepare the mock environment without starting the long-running processes, use
 ```sh
 make mock-deployment-init
 ```
+
+### Docker Deployment
+
+Build the production image from the repository root:
+
+```sh
+docker build -t consent:local .
+```
+
+The image uses the `consent` CLI as its entrypoint. Runtime config and secrets live under `/config`, and mutable SQLite data lives under `/data`; both paths should be mounted from the host.
+
+For a first deployment, create host directories for those mounts:
+
+```sh
+mkdir -p deploy/config deploy/data
+```
+
+On Linux hosts, the container runs as UID/GID `10001`, so bind-mounted directories may need matching ownership:
+
+```sh
+sudo chown -R 10001:10001 deploy
+```
+
+Generate the config and file-backed secrets with an explicit one-off container run. Replace the URL and authority domain with the public values for your deployment:
+
+```sh
+docker run --rm \
+  -v "$PWD/config:/config" \
+  -v "$PWD/data:/data" \
+  consent:local config init \
+  --config-dir /config \
+  --data-dir /data \
+  --public-url https://consent.example.com \
+  --authority-domain consent.example.com \
+  --port 8000
+```
+
+Review and edit `./deploy/config/config.yaml`, then initialize the SQLite data directory:
+
+```sh
+docker run --rm \
+  -v "$PWD/config:/config" \
+  -v "$PWD/data:/data" \
+  consent:local init --config-dir /config --data-dir /data
+```
+
+Start the server. This example binds to `8000` for a same-host reverse proxy such as Caddy:
+
+```sh
+docker run -d \
+  --name consent \
+  --restart unless-stopped \
+  -p 8000:8000 \
+  -v "$PWD/config:/config:ro" \
+  -v "$PWD/data:/data" \
+  consent:local
+```
+
+The repository ships a Dockerfile but no default Compose file. If you deploy through Compose, Dokploy, or another container platform, use the same image, mount persistent storage at `/config` and `/data`, run `config init` and `init` as intentional one-off commands, then run the default `serve` command for the long-lived container.
 
 ## Interface Design
 
