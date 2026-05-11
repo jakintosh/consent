@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/consent/internal/service"
 	"git.sr.ht/~jakintosh/consent/internal/testutil"
 )
@@ -30,6 +31,40 @@ func TestService_DefaultIntegration(t *testing.T) {
 	}
 	if integrations[0].Name != service.InternalIntegrationName {
 		t.Fatalf("expected %s, got %s", service.InternalIntegrationName, integrations[0].Name)
+	}
+}
+
+func TestInit_GrantsBootstrapKeyAllPermissions(t *testing.T) {
+	t.Parallel()
+	db := testutil.SetupTestDB(t)
+	bootstrapToken := "bootstrap.0123456789abcdef"
+
+	err := service.Init(service.InitOptions{
+		Store:          db,
+		KeysStore:      db.KeysStore,
+		PublicURL:      "https://consent.test",
+		BootstrapToken: bootstrapToken,
+	})
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	keysSvc, err := keys.New(keys.Options{
+		Store:       db.KeysStore,
+		Permissions: service.AllKeyPermissions(),
+	})
+	if err != nil {
+		t.Fatalf("keys.New failed: %v", err)
+	}
+
+	for _, permission := range service.AllKeyPermissions() {
+		ok, err := keysSvc.Verify(bootstrapToken, permission.Key)
+		if err != nil {
+			t.Fatalf("Verify(%q) failed: %v", permission.Key, err)
+		}
+		if !ok {
+			t.Fatalf("bootstrap token missing %q permission", permission.Key)
+		}
 	}
 }
 

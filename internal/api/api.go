@@ -51,7 +51,7 @@ func (a *API) Router() http.Handler {
 	root := http.NewServeMux()
 
 	wire.Subrouter(root, "/auth", a.buildAuthRouter())
-	wire.Subrouter(root, "/admin", a.keys.WithAuth(a.buildAdminRouter(), &service.PermissionAdmin))
+	wire.Subrouter(root, "/admin", a.keys.WithAuth(a.buildAdminRouter(), service.PermissionAdmin.Key))
 
 	return root
 }

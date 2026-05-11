@@ -35,19 +35,11 @@ var (
 	}
 )
 
-func AllKeyPermissions() []keys.Permission {
-	return []keys.Permission{
+func AllKeyPermissions() keys.Permissions {
+	return keys.Permissions{
 		PermissionRead,
 		PermissionWrite,
 		PermissionAdmin,
-	}
-}
-
-func AllKeyPermissionRefs() []*keys.Permission {
-	return []*keys.Permission{
-		&PermissionRead,
-		&PermissionWrite,
-		&PermissionAdmin,
 	}
 }
 
@@ -187,7 +179,7 @@ func Init(
 		return err
 	}
 
-	err = keysSvc.Init(options.BootstrapToken, AllKeyPermissionRefs()...)
+	err = keysSvc.Init(options.BootstrapToken, AllKeyPermissions().Keys()...)
 	if err != nil {
 		if !errors.Is(err, keys.ErrAlreadyInitialized) {
 			return fmt.Errorf("service: initialize keys: %w", err)
