@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
-	"git.sr.ht/~jakintosh/command-go/pkg/envs"
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 var integrationsCmd = &args.Command{
@@ -26,13 +24,13 @@ var integrationsListCmd = &args.Command{
 	Name: "list",
 	Help: "list integrations",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
 
 		var integrations []api.Integration
-		if err := client.Get("/admin/integrations", &integrations); err != nil {
+		if err := client.Get(i.Context(), "/admin/integrations", &integrations); err != nil {
 			return err
 		}
 
@@ -50,7 +48,7 @@ var integrationsGetCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -61,7 +59,7 @@ var integrationsGetCmd = &args.Command{
 		}
 
 		var integration api.Integration
-		if err := client.Get("/admin/integrations/"+name, &integration); err != nil {
+		if err := client.Get(i.Context(), "/admin/integrations/"+name, &integration); err != nil {
 			return err
 		}
 
@@ -111,7 +109,7 @@ var integrationsCreateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -145,7 +143,7 @@ var integrationsCreateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/admin/integrations", body, nil); err != nil {
+		if err := client.Post(i.Context(), "/admin/integrations", body, nil); err != nil {
 			return err
 		}
 
@@ -201,7 +199,7 @@ var integrationsUpdateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -244,7 +242,7 @@ var integrationsUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Patch("/admin/integrations/"+name, body, nil); err != nil {
+		if err := client.Patch(i.Context(), "/admin/integrations/"+name, body, nil); err != nil {
 			return err
 		}
 
@@ -263,7 +261,7 @@ var integrationsDeleteCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -273,7 +271,7 @@ var integrationsDeleteCmd = &args.Command{
 			return fmt.Errorf("integration name is required")
 		}
 
-		if err := client.Delete("/admin/integrations/"+name, nil); err != nil {
+		if err := client.Delete(i.Context(), "/admin/integrations/"+name, nil); err != nil {
 			return err
 		}
 

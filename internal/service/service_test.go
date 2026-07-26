@@ -37,7 +37,7 @@ func TestService_DefaultIntegration(t *testing.T) {
 func TestInit_GrantsBootstrapKeyAllPermissions(t *testing.T) {
 	t.Parallel()
 	db := testutil.SetupTestDB(t)
-	bootstrapToken := "bootstrap.0123456789abcdef"
+	bootstrapToken := keys.Token("bootstrap.0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
 	err := service.Init(service.InitOptions{
 		Store:          db,
@@ -50,20 +50,20 @@ func TestInit_GrantsBootstrapKeyAllPermissions(t *testing.T) {
 	}
 
 	keysSvc, err := keys.New(keys.Options{
-		Store:       db.KeysStore,
-		Permissions: service.AllKeyPermissions(),
+		Store:   db.KeysStore,
+		Catalog: service.KeyCatalog,
 	})
 	if err != nil {
 		t.Fatalf("keys.New failed: %v", err)
 	}
 
-	for _, permission := range service.AllKeyPermissions() {
-		ok, err := keysSvc.Verify(bootstrapToken, permission.Key)
+	for _, permission := range service.KeyCatalog.Permissions() {
+		auth, err := keysSvc.Authenticate(bootstrapToken, permission)
 		if err != nil {
-			t.Fatalf("Verify(%q) failed: %v", permission.Key, err)
+			t.Fatalf("Authenticate(%q) failed: %v", permission, err)
 		}
-		if !ok {
-			t.Fatalf("bootstrap token missing %q permission", permission.Key)
+		if auth == nil {
+			t.Fatalf("bootstrap token missing %q permission", permission)
 		}
 	}
 }

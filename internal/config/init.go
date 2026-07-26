@@ -145,12 +145,12 @@ func resolveBootstrapAPIKey() (
 		return value, nil
 	}
 
-	key, err := keys.GenerateBootstrapKey()
+	token, err := keys.GenerateBootstrapToken()
 	if err != nil {
 		return "", fmt.Errorf("config: generate bootstrap api key: %w", err)
 	}
 
-	return key, nil
+	return string(token), nil
 }
 
 func writeFileAtomic(

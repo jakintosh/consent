@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/wire"
@@ -31,16 +33,16 @@ var (
 	ErrTokenAbsent = errors.New("token not present")
 
 	// ErrTokenInvalid indicates the token is malformed, has an invalid signature,
-	// wrong issuer/audience, or is expired and cannot be refreshed.
+	// has the wrong issuer or audience, or cannot be refreshed because the token
+	// itself is not refreshable.
 	ErrTokenInvalid = errors.New("token invalid")
 
 	// ErrCSRFInvalid indicates the provided CSRF secret doesn't match the
 	// refresh token's secret.
 	ErrCSRFInvalid = errors.New("csrf secret incorrect")
 
-	// ErrNetworkTokenRefresh indicates a network error occurred while
-	// communicating with the consent server during token refresh.
-	ErrNetworkTokenRefresh = errors.New("network issue during token refresh")
+	// ErrTokenRefresh indicates that a token refresh request or response failed.
+	ErrTokenRefresh = errors.New("token refresh failed")
 )
 
 type UserInfo struct {
@@ -58,7 +60,7 @@ type UserInfoProfile struct {
 //
 // Create a Client using Init, then use its methods to protect your HTTP handlers.
 type Client struct {
-	apiClient       *wire.Client
+	apiClient       wire.Client
 	insecureCookies bool
 	logLevel        LogLevel
 	authUrl         string
@@ -72,26 +74,32 @@ type Client struct {
 //   - authUrl: Full URL of the consent server (e.g., "https://consent.example.com")
 //
 // The client defaults to LogLevelError. Use SetLogLevel to adjust verbosity.
+// Init returns an error when authUrl is not an absolute HTTP or HTTPS URL.
 func Init(
 	validator TokenValidator,
 	authUrl string,
-) *Client {
-	// TODO: Maybe we can take in client options here, and not require the caller t ocreate a token validator externally? We almost always do the same thing outside? We should investigate
+) (
+	*Client,
+	error,
+) {
+	// TODO: Maybe we can take in client options here, and not require the caller to create a token validator externally? We almost always do the same thing outside? We should investigate
+	authUrl, err := normalizeAuthURL(authUrl)
+	if err != nil {
+		return nil, fmt.Errorf("client: invalid auth URL: %w", err)
+	}
+
+	apiClient, err := wire.NewClient(authUrl, wire.ClientOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("client: initialize API client: %w", err)
+	}
+
 	return &Client{
-		apiClient: &wire.Client{
-			BaseURL: authUrl,
-		},
+		apiClient:       apiClient,
 		insecureCookies: false,
 		logLevel:        LogLevelDefault,
 		authUrl:         authUrl,
 		tokenValidator:  validator,
-	}
-}
-
-func (c *Client) log(level LogLevel, format string, v ...any) {
-	if c.logLevel >= level {
-		log.Printf(format, v...)
-	}
+	}, nil
 }
 
 func (c *Client) SetLogLevel(logLevel LogLevel) {
@@ -127,9 +135,9 @@ func (c *Client) HandleAuthorizationCode() http.HandlerFunc {
 		}
 
 		// refresh tokens using code
-		accessToken, refreshToken, ok := c.RefreshTokens(code)
-		if !ok {
-			c.log(LogLevelDebug, "handle auth code error: error refreshing with auth server\n")
+		accessToken, refreshToken, err := c.RefreshTokens(r.Context(), code)
+		if err != nil {
+			c.log(LogLevelDebug, "handle auth code error: %v\n", err)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
@@ -162,7 +170,7 @@ func (c *Client) HandleLogout() http.HandlerFunc {
 				return
 			}
 
-			if err := revokeRefreshToken(c.apiClient, refreshToken); err != nil {
+			if err := revokeRefreshToken(r.Context(), c.apiClient, refreshToken); err != nil {
 				c.log(LogLevelError, "handle logout: failed to revoke refresh token (%v)\n", err)
 			}
 		}
@@ -171,17 +179,6 @@ func (c *Client) HandleLogout() http.HandlerFunc {
 		c.ClearTokenCookies(w)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
-}
-
-func callbackReturnTo(returnTo string) string {
-	if returnTo == "" {
-		return "/"
-	}
-	parsed, err := url.Parse(returnTo)
-	if err != nil || parsed == nil || parsed.IsAbs() || parsed.Host != "" || parsed.Path == "" || parsed.Path[0] != '/' {
-		return "/"
-	}
-	return parsed.String()
 }
 
 /*
@@ -216,10 +213,10 @@ func (c *Client) VerifyAuthorization(
 	}
 
 	// refresh the tokens
-	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
-	if !ok {
-		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
-		return nil, ErrNetworkTokenRefresh
+	accessToken, refreshToken, err = c.RefreshTokens(r.Context(), refreshToken.Encoded())
+	if err != nil {
+		c.log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		return nil, err
 	}
 	c.SetTokenCookies(w, accessToken, refreshToken)
 
@@ -258,10 +255,10 @@ func (c *Client) VerifyAuthorizationGetCSRF(
 	}
 
 	// refresh the tokens
-	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
-	if !ok {
-		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
-		return nil, "", ErrNetworkTokenRefresh
+	accessToken, refreshToken, err = c.RefreshTokens(r.Context(), refreshToken.Encoded())
+	if err != nil {
+		c.log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		return nil, "", err
 	}
 
 	c.SetTokenCookies(w, accessToken, refreshToken)
@@ -307,10 +304,10 @@ func (c *Client) VerifyAuthorizationCheckCSRF(
 	}
 
 	// refresh the tokens
-	accessToken, refreshToken, ok := c.RefreshTokens(refreshToken.Encoded())
-	if !ok {
-		c.log(LogLevelDebug, "couldn't exchange refresh token: error refreshing with auth server\n")
-		return nil, "", ErrNetworkTokenRefresh
+	accessToken, refreshToken, err = c.RefreshTokens(r.Context(), refreshToken.Encoded())
+	if err != nil {
+		c.log(LogLevelDebug, "couldn't exchange refresh token: %v\n", err)
+		return nil, "", err
 	}
 	newCSRFSecret := refreshToken.Secret()
 
@@ -319,49 +316,46 @@ func (c *Client) VerifyAuthorizationCheckCSRF(
 }
 
 /*
-RefreshTokens uses the provided encoded RefreshToken to fetch new tokens from
-the auth server. You can automatically invoke this behavior with
+RefreshTokens uses the provided context and encoded RefreshToken to fetch new
+tokens from the auth server. You can automatically invoke this behavior with
 VerifyAuthorization(), but can use this on its own to compose custom refresh
 flows.
 
-Returns decoded token structures and a bool indicating success.
+Returns decoded token structures or an error wrapping ErrTokenRefresh. Transport
+and cancellation errors remain available through errors.Is and errors.As.
 */
 func (c *Client) RefreshTokens(
+	ctx context.Context,
 	refreshTokenStr string,
 ) (
 	*AccessToken,
 	*RefreshToken,
-	bool,
+	error,
 ) {
 	body, err := json.Marshal(api.RefreshRequest{RefreshToken: refreshTokenStr})
 	if err != nil {
-		c.log(LogLevelError, "failed to encode refresh payload: %v\n", err)
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("%w: encode request: %w", ErrTokenRefresh, err)
 	}
 
 	response := api.RefreshResponse{}
 	c.log(LogLevelDebug, "POST { refresh_token } => %s/api/v1/auth/refresh\n", c.authUrl)
-	if err := c.apiClient.Post("/api/v1/auth/refresh", body, &response); err != nil {
-		c.log(LogLevelDebug, "POST %s/api/v1/auth/refresh failed: %v\n", c.authUrl, err)
-		return nil, nil, false
+	if err := c.apiClient.Post(ctx, "/api/v1/auth/refresh", body, &response); err != nil {
+		return nil, nil, fmt.Errorf("%w: request: %w", ErrTokenRefresh, err)
 	}
 	if response.AccessToken == "" || response.RefreshToken == "" {
-		c.log(LogLevelError, "refresh endpoint returned empty tokens\n")
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("%w: response contains empty tokens", ErrTokenRefresh)
 	}
 
 	// decode tokens from response
 	accessToken := new(AccessToken)
 	if err := accessToken.Decode(response.AccessToken, c.tokenValidator); err != nil {
-		c.log(LogLevelError, "failed to decode access token: %v\n", err)
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("%w: decode access token: %w", ErrTokenRefresh, err)
 	}
 	refreshToken := new(RefreshToken)
 	if err := refreshToken.Decode(response.RefreshToken, c.tokenValidator); err != nil {
-		c.log(LogLevelError, "failed to decode refresh token: %v\n", err)
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("%w: decode refresh token: %w", ErrTokenRefresh, err)
 	}
-	return accessToken, refreshToken, true
+	return accessToken, refreshToken, nil
 }
 
 // SetTokenCookies sets HTTP-only cookies for the access and refresh tokens.
@@ -437,47 +431,35 @@ func (c *Client) ClearTokenCookies(
 	c.log(LogLevelDebug, "cleared token cookies\n")
 }
 
+// FetchUserInfo returns the user information authorized by accessToken.
+//
+// The request uses ctx for cancellation and deadlines.
 func (c *Client) FetchUserInfo(
+	ctx context.Context,
 	accessToken string,
 ) (
 	*UserInfo,
 	error,
 ) {
-	request, err := http.NewRequest(http.MethodGet, c.authUrl+"/api/v1/auth/userinfo", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create /api/v1/auth/userinfo request: %v", err)
-	}
-	request.Header.Set("Authorization", "Bearer "+accessToken)
+	client := c.apiClient.WithAPIKey(wire.Secret(accessToken))
 
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call /api/v1/auth/userinfo: %v", err)
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("/api/v1/auth/userinfo returned status %d", response.StatusCode)
+	var userInfo UserInfo
+	if err := client.Get(ctx, "/api/v1/auth/userinfo", &userInfo); err != nil {
+		return nil, fmt.Errorf("client: fetch user info: %w", err)
 	}
 
-	var body struct {
-		Data UserInfo `json:"data"`
-	}
-	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return nil, fmt.Errorf("failed to decode /api/v1/auth/userinfo response: %v", err)
-	}
-
-	return &body.Data, nil
+	return &userInfo, nil
 }
 
-func getCookie(r *http.Request, cookieName string) *http.Cookie {
-	if cookie, err := r.Cookie(cookieName); err == nil {
-		return cookie
+func (c *Client) log(level LogLevel, format string, v ...any) {
+	if c.logLevel >= level {
+		log.Printf(format, v...)
 	}
-	return nil
 }
 
 func revokeRefreshToken(
-	client *wire.Client,
+	ctx context.Context,
+	client wire.Client,
 	refreshToken *RefreshToken,
 ) error {
 	body, err := json.Marshal(
@@ -489,7 +471,7 @@ func revokeRefreshToken(
 		return fmt.Errorf("failed to encode logout payload: %v\n", err)
 	}
 
-	err = client.Post("/api/v1/auth/logout", body, nil)
+	err = client.Post(ctx, "/api/v1/auth/logout", body, nil)
 	if err != nil {
 		return fmt.Errorf("POST /api/v1/auth/logout failed: %v\n", err)
 	}
@@ -523,6 +505,54 @@ func validateRefreshToken(r *http.Request, validator TokenValidator) (*RefreshTo
 		return nil, fmt.Errorf("%w: %w", ErrTokenInvalid, err)
 	}
 	return token, nil
+}
+
+func normalizeAuthURL(raw string) (string, error) {
+	if strings.TrimSpace(raw) != raw || raw == "" {
+		return "", errors.New("must be a non-empty URL without surrounding whitespace")
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("scheme must be http or https, got %q", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return "", errors.New("host is required")
+	}
+	if parsed.User != nil {
+		return "", errors.New("user credentials are not allowed")
+	}
+	if parsed.RawQuery != "" {
+		return "", errors.New("query string is not allowed")
+	}
+	if parsed.Fragment != "" {
+		return "", errors.New("fragment is not allowed")
+	}
+
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+	parsed.RawPath = strings.TrimRight(parsed.RawPath, "/")
+	return parsed.String(), nil
+}
+
+func getCookie(r *http.Request, cookieName string) *http.Cookie {
+	if cookie, err := r.Cookie(cookieName); err == nil {
+		return cookie
+	}
+	return nil
+}
+
+func callbackReturnTo(returnTo string) string {
+	if returnTo == "" {
+		return "/"
+	}
+	parsed, err := url.Parse(returnTo)
+	if err != nil || parsed == nil || parsed.IsAbs() || parsed.Host != "" || parsed.Path == "" || parsed.Path[0] != '/' {
+		return "/"
+	}
+	return parsed.String()
 }
 
 func errorIsRefreshable(err error) bool {

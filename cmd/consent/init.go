@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
+	"git.sr.ht/~jakintosh/command-go/pkg/keys"
 	"git.sr.ht/~jakintosh/consent/internal/config"
 	"git.sr.ht/~jakintosh/consent/internal/database"
 	"git.sr.ht/~jakintosh/consent/internal/service"
@@ -45,7 +46,7 @@ var initCmd = &args.Command{
 			Store:          db,
 			KeysStore:      db.KeysStore,
 			PublicURL:      runtime.Server.PublicURL,
-			BootstrapToken: runtime.Secrets.BootstrapAPIKey,
+			BootstrapToken: keys.Token(runtime.Secrets.BootstrapAPIKey),
 		}
 		if err := service.Init(initOpts); err != nil {
 			return err

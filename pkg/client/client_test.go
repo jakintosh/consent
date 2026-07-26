@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -13,8 +14,59 @@ import (
 	"testing"
 	"time"
 
+	"git.sr.ht/~jakintosh/command-go/pkg/wire"
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
+
+func TestInit_AuthURL(t *testing.T) {
+	t.Run("normalizes trailing slashes", func(t *testing.T) {
+		client, err := Init(nil, "https://consent.example.com/base///")
+		if err != nil {
+			t.Fatalf("Init() error = %v", err)
+		}
+		if client.authUrl != "https://consent.example.com/base" {
+			t.Fatalf("auth URL = %q, want %q", client.authUrl, "https://consent.example.com/base")
+		}
+	})
+
+	tests := map[string]string{
+		"empty":          "",
+		"surrounding WS": " https://consent.example.com",
+		"relative":       "consent.example.com",
+		"missing host":   "https:///api",
+		"unsupported":    "ftp://consent.example.com",
+		"unix socket":    "unix:///var/run/consent.sock",
+		"credentials":    "https://user:pass@consent.example.com",
+		"query":          "https://consent.example.com?debug=true",
+		"fragment":       "https://consent.example.com#fragment",
+	}
+
+	for name, authURL := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := Init(nil, authURL)
+			if err == nil {
+				t.Fatal("expected invalid auth URL error")
+			}
+			if !strings.Contains(err.Error(), "invalid auth URL") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestRefreshTokens_CanceledContext(t *testing.T) {
+	client := testClient(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := client.RefreshTokens(ctx, "refresh-token")
+	if !errors.Is(err, ErrTokenRefresh) {
+		t.Fatalf("expected ErrTokenRefresh, got %v", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
 
 func TestHandleLogout_Success(t *testing.T) {
 	refreshToken, c := setupLogoutTestClient(t, http.StatusOK)
@@ -238,8 +290,8 @@ func TestFetchUserInfo_SendsBearerTokenAndDecodesResponse(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c := Init(nil, server.URL)
-	response, err := c.FetchUserInfo(wantToken)
+	c := mustInit(t, nil, server.URL)
+	response, err := c.FetchUserInfo(context.Background(), wantToken)
 	if err != nil {
 		t.Fatalf("FetchUserInfo failed: %v", err)
 	}
@@ -257,13 +309,13 @@ func TestFetchUserInfo_StatusError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c := Init(nil, server.URL)
-	_, err := c.FetchUserInfo("access.token.value")
+	c := mustInit(t, nil, server.URL)
+	_, err := c.FetchUserInfo(context.Background(), "access.token.value")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "status 403") {
-		t.Fatalf("expected status error, got %v", err)
+	if !wire.IsStatus(err, http.StatusForbidden) {
+		t.Fatalf("expected forbidden wire error, got %v", err)
 	}
 }
 
@@ -273,13 +325,24 @@ func TestFetchUserInfo_DecodeError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	c := Init(nil, server.URL)
-	_, err := c.FetchUserInfo("access.token.value")
+	c := mustInit(t, nil, server.URL)
+	_, err := c.FetchUserInfo(context.Background(), "access.token.value")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "failed to decode") {
+	if !strings.Contains(err.Error(), "fetch user info") {
 		t.Fatalf("expected decode error, got %v", err)
+	}
+}
+
+func TestFetchUserInfo_CanceledContext(t *testing.T) {
+	c := mustInit(t, nil, "https://consent.test")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := c.FetchUserInfo(ctx, "access.token.value")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 
@@ -348,7 +411,7 @@ func setupLogoutTestClient(
 		ValidAudience:   "app.test",
 	}
 	validator := tokens.InitClient(clientOpts)
-	return refreshToken, Init(validator, server.URL)
+	return refreshToken, mustInit(t, validator, server.URL)
 }
 
 func assertCookiesCleared(t *testing.T, rr *httptest.ResponseRecorder) {
@@ -437,5 +500,19 @@ func testClient(t *testing.T) *Client {
 		ValidAudience:   "app.test",
 	}
 	validator := tokens.InitClient(clientOpts)
-	return Init(validator, "https://consent.test")
+	return mustInit(t, validator, "https://consent.test")
+}
+
+func mustInit(
+	t *testing.T,
+	validator TokenValidator,
+	authURL string,
+) *Client {
+	t.Helper()
+
+	client, err := Init(validator, authURL)
+	if err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	return client
 }

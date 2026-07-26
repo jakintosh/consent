@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"errors"
@@ -130,7 +131,10 @@ var root = &args.Command{
 			ValidAudience:   cfg.Audience,
 		}
 		tkValidator := tokens.InitClient(opts)
-		authClient := client.Init(tkValidator, cfg.AuthURL)
+		authClient, err := client.Init(tkValidator, cfg.AuthURL)
+		if err != nil {
+			return err
+		}
 		authClient.EnableInsecureCookies()
 		if verbose {
 			authClient.SetLogLevel(client.LogLevelDebug)
@@ -323,7 +327,7 @@ func exampleHandler(
 
 		if accessToken != nil {
 			page.Authenticated = true
-			page.Handle = fetchProfileHandle(c, accessToken.Encoded())
+			page.Handle = fetchProfileHandle(r.Context(), c, accessToken.Encoded())
 			page.CSRF = csrf
 			page.Scopes = strings.Join(accessToken.Scopes(), ", ")
 			page.Subject = accessToken.Subject()
@@ -354,10 +358,11 @@ func cookiePresent(
 }
 
 func fetchProfileHandle(
+	ctx context.Context,
 	authClient *client.Client,
 	accessToken string,
 ) string {
-	userInfo, err := authClient.FetchUserInfo(accessToken)
+	userInfo, err := authClient.FetchUserInfo(ctx, accessToken)
 	if err != nil {
 		log.Printf("failed to fetch userInfo: %v", err)
 		return ""

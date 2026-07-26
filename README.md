@@ -18,7 +18,7 @@ The user is then redirected back to the service with this code, which the client
 
 ## Key Design Decisions
 
-**Simplified Secret Management**: Unlike OAuth's per-client secrets, Consent uses a single ECDSA key pair distributed to all client backend servers that integrate with a particular Consent instance. The auth server holds the private signing key while client backends share the public verification key. This eliminates per-client registration complexity while maintaining cryptographic security through server-to-server communication. **A primary intended use case that this supports is where a sysadmin deploys multiple consent-enabled services on the same node, making key sharing between clients simple through symoblic links**.
+**Simplified Secret Management**: Unlike OAuth's per-client secrets, Consent uses a single ECDSA key pair distributed to all client backend servers that integrate with a particular Consent instance. The auth server holds the private signing key while client backends share the public verification key. This eliminates per-client secret management while maintaining cryptographic security through server-to-server communication. **A primary intended use case that this supports is where a sysadmin deploys multiple consent-enabled services on the same node, making key sharing between clients simple through symbolic links**.
 
 **Integrated CSRF Protection**: Refresh tokens include cryptographic secrets that serve double duty as CSRF tokens, providing protection against cross-site request forgery without additional infrastructure.
 
@@ -28,7 +28,7 @@ The user is then redirected back to the service with this code, which the client
 
 ## Operational Benefits
 
-**Simplified Deployment**: Client applications are "pre-authorized" by virtue of having the verification key. No per-client registration process is required—just distribute the key pair and register integrations through the API.
+**Simplified Deployment**: Client applications do not need their own OAuth client secret. Deploy the Consent verification key to each backend and register each app as an integration so Consent can validate its audience, redirect URL, homepage, logo, and optional role requirements.
 
 **Easier Key Management**: Single key pair per Consent instance instead of managing individual client secrets. Key rotation affects all clients uniformly.
 
@@ -71,37 +71,187 @@ The `cmd/` directory also includes development-focused binaries:
 
 ## Integration Guide
 
+Consent client integration has two halves:
+
+1. The consuming backend mounts Consent auth handlers and validates Consent-issued cookies with the shared verification key.
+2. The Consent operator registers that backend as an integration, either from the admin UI by importing `/.well-known/consent-integration` or with `consent api integrations create`.
+
+The integration record is not an OAuth client secret. It is public metadata that tells Consent which app is requesting authorization, which JWT audience to issue, where authorization codes may be redirected, where users can launch the app, which logo to show, and which Consent roles are allowed to authorize it.
+
 ### Production Integration
 
 ```go
 import (
-    "git.sr.ht/~jakintosh/consent/pkg/client"
-    "git.sr.ht/~jakintosh/consent/pkg/tokens"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+
+	"git.sr.ht/~jakintosh/consent/pkg/client"
+	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-// Initialize with consent server's public key
-clientOpts := tokens.ClientOptions{
-    VerificationKey: publicKey,
-    IssuerDomain:    "consent.example.com",
-    ValidAudience:   "myapp.example.com",
-}
-validator := tokens.InitClient(clientOpts)
-authClient := client.Init(validator, "https://consent.example.com")
+const (
+	consentURL      = "https://consent.example.com"
+	consentIssuer   = "consent.example.com"
+	publicURL       = "https://myapp.example.com"
+	integrationName = "myapp"
+)
 
-// Protect routes
-func protectedHandler(w http.ResponseWriter, r *http.Request) {
-    accessToken, err := authClient.VerifyAuthorization(w, r)
-    if err != nil {
-        http.Error(w, "Unauthorized", http.StatusUnauthorized)
-        return
-    }
-    // Use accessToken.Subject() as a stable opaque user key
-    // Call Consent's /api/v1/auth/userinfo endpoint for scoped user data
+var requestedScopes = []string{"identity", "profile"}
+
+func main() {
+	authClient, loginURL, manifestHandler, err := buildAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	router := http.NewServeMux()
+	router.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
+	router.HandleFunc("/auth/logout", authClient.HandleLogout())
+	router.HandleFunc(client.IntegrationManifestPath, manifestHandler)
+
+	router.HandleFunc("/protected", func(w http.ResponseWriter, r *http.Request) {
+		accessToken, err := authClient.VerifyAuthorization(w, r)
+		if err != nil {
+			http.Redirect(w, r, loginURL, http.StatusSeeOther)
+			return
+		}
+
+		// Use accessToken.Subject() as the stable opaque Consent user key.
+		// Do not key local data by handle; handles can change.
+		_ = accessToken.Subject()
+	})
 }
 
-// Handle authorization code callback
-http.HandleFunc("/auth/callback", authClient.HandleAuthorizationCode())
+func buildAuth() (*client.Client, string, http.HandlerFunc, error) {
+	publicKey, err := loadVerificationKey("./config/verification_key")
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	appURL, err := url.Parse(publicURL)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	audience := appURL.Host
+
+	validator := tokens.InitClient(tokens.ClientOptions{
+		VerificationKey: publicKey,
+		IssuerDomain:    consentIssuer,
+		ValidAudience:   audience,
+	})
+	authClient, err := client.Init(validator, consentURL)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	loginURL := buildAuthorizeURL(consentURL, integrationName, requestedScopes)
+	manifestHandler := client.HandleIntegrationManifest(client.IntegrationManifest{
+		Name:           integrationName,
+		Display:        "My App",
+		Audience:       audience,
+		Redirect:       publicURL + "/auth/callback",
+		Homepage:       publicURL,
+		Logo:           publicURL + "/static/consent-logo.png",
+		ConsentIssuer:  consentIssuer,
+		ConsentBaseURL: consentURL,
+	})
+	return authClient, loginURL, manifestHandler, nil
+}
+
+func loadVerificationKey(path string) (*ecdsa.PublicKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	key, err := x509.ParsePKIXPublicKey(data)
+	if err != nil {
+		return nil, err
+	}
+	ecdsaKey, ok := key.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("verification key is not ECDSA")
+	}
+	return ecdsaKey, nil
+}
+
+func buildAuthorizeURL(consentURL, integration string, scopes []string) string {
+	u, _ := url.Parse(strings.TrimRight(consentURL, "/") + "/authorize")
+	q := u.Query()
+	q.Set("integration", integration)
+	for _, scope := range scopes {
+		q.Add("scope", scope)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
 ```
+
+For state-changing routes, read the CSRF secret when rendering a page, then require it when processing the POST:
+
+```go
+accessToken, csrf, err := authClient.VerifyAuthorizationGetCSRF(w, r)
+// render csrf into a hidden form field or same-site request URL
+
+accessToken, newCSRF, err := authClient.VerifyAuthorizationCheckCSRF(w, r, r.FormValue("csrf"))
+// if the access token was refreshed, newCSRF may differ from the submitted value
+```
+
+If the app needs display/user profile data, request the `profile` scope along with `identity` and call Consent's userinfo endpoint through the client:
+
+```go
+userInfo, err := authClient.FetchUserInfo(r.Context(), accessToken.Encoded())
+if err != nil {
+	// Treat this as account setup or profile refresh failure.
+	return
+}
+
+subject := userInfo.Sub
+handle := userInfo.Profile.Handle
+```
+
+Compass follows this pattern in production: it uses Consent's `sub` as the durable foreign key in its own account table, caches the Consent handle for URLs like `/alice/`, refreshes that profile data periodically from `/api/v1/auth/userinfo`, and treats missing profile permission as an account setup error.
+
+Available scopes are:
+
+- `identity`: required for every authorization request; exposes the stable `sub` claim and permits use of the token as a user identity.
+- `profile`: requires `identity`; exposes the user's Consent handle from `/api/v1/auth/userinfo`.
+
+### Registering a Client App
+
+The app must be registered with Consent before users can authorize it. From the admin UI, sign in as an admin, go to **Integrations**, choose **New Integration**, and import the app root URL. Consent fetches:
+
+```text
+https://myapp.example.com/.well-known/consent-integration
+```
+
+The manifest import requires the manifest version, name, display, audience, redirect, homepage, and logo fields. The redirect and homepage hosts must match the audience. After import, the admin can assign required roles to limit which Consent users may authorize the app.
+
+The same registration can be done from the CLI:
+
+```sh
+consent api integrations create myapp \
+  --config-dir ./config \
+  --display "My App" \
+  --audience myapp.example.com \
+  --redirect https://myapp.example.com/auth/callback \
+  --homepage https://myapp.example.com \
+  --logo https://myapp.example.com/static/consent-logo.png
+```
+
+Add one or more `--required-roles role-name` flags if the integration should only be available to users with those Consent roles. Users and roles are managed separately:
+
+```sh
+consent api roles create editor --display "Editor" --config-dir ./config
+consent api users create alice --password password123 --role editor --config-dir ./config
+```
+
+The consuming app should receive the Consent verification key out of band, typically by mounting or copying Consent's generated `verification_key.der` from the server config secrets directory. The app can name the mounted file however it wants; Compass, for example, expects `verification_key` in its own config directory.
 
 ### Testing Integration
 
@@ -152,9 +302,9 @@ The generated `./config/config.yaml` uses production defaults. `make init` passe
 
 ```yaml
 server:
-  publicURL: http://localhost:8000
+  publicURL: http://localhost:9001
   issuerDomain: localhost
-  port: 8000
+  port: 9001
   devMode: true
 ```
 

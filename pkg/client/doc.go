@@ -13,6 +13,8 @@
 // server URL:
 //
 //	import (
+//	    "log"
+//
 //	    "git.sr.ht/~jakintosh/consent/pkg/client"
 //	    "git.sr.ht/~jakintosh/consent/pkg/tokens"
 //	)
@@ -26,7 +28,10 @@
 //	validator := tokens.InitClient(clientOpts)
 //
 //	// Initialize the client
-//	authClient := client.Init(validator, "https://consent.example.com")
+//	authClient, err := client.Init(validator, "https://consent.example.com")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //
 //	// Optional: local development only (plain HTTP localhost)
 //	// authClient.EnableInsecureCookies()
@@ -134,11 +139,11 @@
 //	case errors.Is(err, client.ErrTokenAbsent):
 //	    // No token cookie present - user needs to log in
 //	case errors.Is(err, client.ErrTokenInvalid):
-//	    // Token is malformed, expired (and refresh failed), or has wrong signature
+//	    // Token is malformed, has invalid claims, or is not refreshable
 //	case errors.Is(err, client.ErrCSRFInvalid):
 //	    // CSRF secret doesn't match (only from VerifyAuthorizationCheckCSRF)
-//	case errors.Is(err, client.ErrNetworkTokenRefresh):
-//	    // Network error communicating with consent server during refresh
+//	case errors.Is(err, client.ErrTokenRefresh):
+//	    // Token refresh request or response failed
 //	}
 //
 // # Testing
@@ -161,7 +166,7 @@
 // authorization event. If your application needs user-facing profile data,
 // call Consent's `/api/v1/auth/userinfo` resource endpoint with the scoped access token:
 //
-//	userInfo, err := authClient.FetchUserInfo(accessToken.Encoded())
+//	userInfo, err := authClient.FetchUserInfo(r.Context(), accessToken.Encoded())
 //	if err != nil {
 //	    return err
 //	}

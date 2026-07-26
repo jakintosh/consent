@@ -17,7 +17,7 @@ import (
 	"git.sr.ht/~jakintosh/consent/pkg/tokens"
 )
 
-const testBootstrapAPIKey = "test.0123456789abcdef"
+const testBootstrapAPIKey = "test.0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 var (
 	sharedSigningKey     *ecdsa.PrivateKey

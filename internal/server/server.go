@@ -77,7 +77,10 @@ func Serve(
 	if options.Runtime.Server.DevMode {
 		authConfig = buildDevAuthConfig(options)
 	} else {
-		authConfig = buildProdAuthConfig(options)
+		authConfig, err = buildProdAuthConfig(options)
+		if err != nil {
+			return fmt.Errorf("failed to initialize production auth: %w", err)
+		}
 	}
 	appOpts := app.Options{
 		Service: svc,
@@ -99,14 +102,20 @@ func Serve(
 
 func buildProdAuthConfig(
 	options Options,
-) app.AuthConfig {
+) (
+	app.AuthConfig,
+	error,
+) {
 	prodClientOpts := tokens.ClientOptions{
 		VerificationKey: &options.Runtime.Secrets.SigningKey.PublicKey,
 		IssuerDomain:    options.Runtime.Server.AuthorityDomain,
 		ValidAudience:   options.Runtime.Server.PublicHost,
 	}
 	tkValidator := tokens.InitClient(prodClientOpts)
-	prodClient := client.Init(tkValidator, options.Runtime.Server.PublicBaseURL)
+	prodClient, err := client.Init(tkValidator, options.Runtime.Server.PublicBaseURL)
+	if err != nil {
+		return app.AuthConfig{}, err
+	}
 	if options.InsecureCookies {
 		prodClient.EnableInsecureCookies()
 	}
@@ -118,7 +127,7 @@ func buildProdAuthConfig(
 			"/auth/callback": prodClient.HandleAuthorizationCode(),
 			"/logout":        prodClient.HandleLogout(),
 		},
-	}
+	}, nil
 }
 
 func buildDevAuthConfig(

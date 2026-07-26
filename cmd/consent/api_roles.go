@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
-	"git.sr.ht/~jakintosh/command-go/pkg/envs"
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 var rolesCmd = &args.Command{
@@ -26,13 +24,13 @@ var rolesListCmd = &args.Command{
 	Name: "list",
 	Help: "list roles",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
 
 		var roles []api.Role
-		if err := client.Get("/admin/roles", &roles); err != nil {
+		if err := client.Get(i.Context(), "/admin/roles", &roles); err != nil {
 			return err
 		}
 
@@ -50,7 +48,7 @@ var rolesGetCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -61,7 +59,7 @@ var rolesGetCmd = &args.Command{
 		}
 
 		var role api.Role
-		if err := client.Get("/admin/roles/"+name, &role); err != nil {
+		if err := client.Get(i.Context(), "/admin/roles/"+name, &role); err != nil {
 			return err
 		}
 
@@ -86,7 +84,7 @@ var rolesCreateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -110,7 +108,7 @@ var rolesCreateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/admin/roles", body, nil); err != nil {
+		if err := client.Post(i.Context(), "/admin/roles", body, nil); err != nil {
 			return err
 		}
 
@@ -136,7 +134,7 @@ var rolesUpdateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -159,7 +157,7 @@ var rolesUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Put("/admin/roles/"+name, body, nil); err != nil {
+		if err := client.Put(i.Context(), "/admin/roles/"+name, body, nil); err != nil {
 			return err
 		}
 
@@ -178,7 +176,7 @@ var rolesDeleteCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -188,7 +186,7 @@ var rolesDeleteCmd = &args.Command{
 			return fmt.Errorf("role name is required")
 		}
 
-		if err := client.Delete("/admin/roles/"+name, nil); err != nil {
+		if err := client.Delete(i.Context(), "/admin/roles/"+name, nil); err != nil {
 			return err
 		}
 

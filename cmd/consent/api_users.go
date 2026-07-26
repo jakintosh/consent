@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"git.sr.ht/~jakintosh/command-go/pkg/args"
-	"git.sr.ht/~jakintosh/command-go/pkg/envs"
 	"git.sr.ht/~jakintosh/consent/internal/api"
-	"git.sr.ht/~jakintosh/consent/internal/config"
 )
 
 var usersCmd = &args.Command{
@@ -26,13 +24,13 @@ var usersListCmd = &args.Command{
 	Name: "list",
 	Help: "list users",
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
 
 		var users []api.User
-		if err := client.Get("/admin/users", &users); err != nil {
+		if err := client.Get(i.Context(), "/admin/users", &users); err != nil {
 			return err
 		}
 
@@ -50,7 +48,7 @@ var usersGetCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -61,7 +59,7 @@ var usersGetCmd = &args.Command{
 		}
 
 		var user api.User
-		if err := client.Get("/admin/users/"+subject, &user); err != nil {
+		if err := client.Get(i.Context(), "/admin/users/"+subject, &user); err != nil {
 			return err
 		}
 
@@ -91,7 +89,7 @@ var usersCreateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -117,7 +115,7 @@ var usersCreateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Post("/admin/users", body, nil); err != nil {
+		if err := client.Post(i.Context(), "/admin/users", body, nil); err != nil {
 			return err
 		}
 
@@ -148,7 +146,7 @@ var usersUpdateCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -176,7 +174,7 @@ var usersUpdateCmd = &args.Command{
 			return err
 		}
 
-		if err := client.Patch("/admin/users/"+subject, body, nil); err != nil {
+		if err := client.Patch(i.Context(), "/admin/users/"+subject, body, nil); err != nil {
 			return err
 		}
 
@@ -195,7 +193,7 @@ var usersDeleteCmd = &args.Command{
 		},
 	},
 	Handler: func(i *args.Input) error {
-		client, err := envs.ResolveClient(i, config.DefaultConfigDir(), config.APIUrlPrefix)
+		client, err := buildClient(i)
 		if err != nil {
 			return err
 		}
@@ -205,7 +203,7 @@ var usersDeleteCmd = &args.Command{
 			return fmt.Errorf("user subject is required")
 		}
 
-		if err := client.Delete("/admin/users/"+subject, nil); err != nil {
+		if err := client.Delete(i.Context(), "/admin/users/"+subject, nil); err != nil {
 			return err
 		}
 

@@ -27,7 +27,7 @@ const (
 	testIssuerDomain  = "consent.test.local"
 	testAppAudience   = "example-app.local"
 	testServiceName   = "example-app"
-	testBootstrapKey  = "test.0123456789abcdef"
+	testBootstrapKey  = "test.0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	testUserHandle    = "alice"
 	testUserPassword  = "password123"
 	testServiceNameUI = "Example App"
@@ -307,7 +307,10 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		ValidAudience:   mustURL(t, h.consentServer.URL).Host,
 	}
 	tkValidator := tokens.InitClient(clientOpts)
-	consentClient := consentclient.Init(tkValidator, h.consentServer.URL)
+	consentClient, err := consentclient.Init(tkValidator, h.consentServer.URL)
+	if err != nil {
+		t.Fatalf("client.Init failed: %v", err)
+	}
 	appServer, err := app.New(app.Options{
 		Service: svc,
 		Auth: app.AuthConfig{
@@ -366,7 +369,10 @@ func newE2EHarness(t *testing.T) *e2eHarness {
 		ValidAudience:   appAudience,
 	}
 	h.validator = tokens.InitClient(clientOpts)
-	authClient = consentclient.Init(h.validator, h.consentServer.URL)
+	authClient, err = consentclient.Init(h.validator, h.consentServer.URL)
+	if err != nil {
+		t.Fatalf("client.Init failed: %v", err)
+	}
 
 	return h
 }

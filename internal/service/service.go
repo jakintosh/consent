@@ -18,30 +18,27 @@ import (
 )
 
 var (
-	PermissionRead = keys.Permission{
+	PermissionRead = keys.PermissionDef{
 		Key:         "read",
 		Display:     "Read",
 		Description: "Read-only API access",
 	}
-	PermissionWrite = keys.Permission{
+	PermissionWrite = keys.PermissionDef{
 		Key:         "write",
 		Display:     "Write",
 		Description: "Mutating API access",
 	}
-	PermissionAdmin = keys.Permission{
+	PermissionAdmin = keys.PermissionDef{
 		Key:         "admin",
 		Display:     "Admin",
 		Description: "Administrative access",
 	}
-)
-
-func AllKeyPermissions() keys.Permissions {
-	return keys.Permissions{
+	KeyCatalog = keys.MustCatalog(
 		PermissionRead,
 		PermissionWrite,
 		PermissionAdmin,
-	}
-}
+	)
+)
 
 // PasswordMode controls bcrypt cost for password hashing.
 // Use PasswordModeProduction for real deployments and PasswordModeTesting only in tests.
@@ -99,7 +96,7 @@ type InitOptions struct {
 	Store          Store
 	KeysStore      keys.Store
 	PublicURL      string
-	BootstrapToken string
+	BootstrapToken keys.Token
 }
 
 // Service coordinates authentication, registration, and token operations.
@@ -171,15 +168,15 @@ func Init(
 	}
 
 	opts := keys.Options{
-		Store:       options.KeysStore,
-		Permissions: AllKeyPermissions(),
+		Store:   options.KeysStore,
+		Catalog: KeyCatalog,
 	}
 	keysSvc, err := keys.New(opts)
 	if err != nil {
 		return err
 	}
 
-	err = keysSvc.Init(options.BootstrapToken, AllKeyPermissions().Keys()...)
+	err = keysSvc.Init(options.BootstrapToken, KeyCatalog.Permissions()...)
 	if err != nil {
 		if !errors.Is(err, keys.ErrAlreadyInitialized) {
 			return fmt.Errorf("service: initialize keys: %w", err)
